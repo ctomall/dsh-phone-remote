@@ -6,7 +6,11 @@ import okhttp3.OkHttpClient
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.Request
 import java.io.File
+import java.security.KeyFactory
 import java.security.MessageDigest
+import java.security.Signature
+import java.security.spec.X509EncodedKeySpec
+import java.util.Base64
 
 data class AppUpdate(
     val versionCode: Int,
@@ -28,6 +32,7 @@ class UpdateClient {
             val json = org.json.JSONObject(response.body?.string().orEmpty())
             val versionCode = json.optInt("versionCode", 0)
             if (versionCode <= 0) return@use null
+            verifyManifest(json, versionCode)
             val apk = json.optString("apkUrl")
             val resolved = if (apk.startsWith("http")) apk else url.resolve(apk)?.toString() ?: "$url/$apk"
             AppUpdate(
@@ -43,6 +48,29 @@ class UpdateClient {
     companion object {
         /** Public Git-hosted manifest; used before the gateway fallback. */
         const val GIT_MANIFEST = "https://raw.githubusercontent.com/ctomall/dsh-phone-remote/main/updates/android.json"
+
+        /** ECDSA P-256 public key (X.509 DER, base64) for signed manifests. */
+        private const val PUBLIC_KEY_B64 = "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEzcsZnRGxY3+4KdnLgCH9cHu/joD7VKxpaZfI45fDh4YSY3IBepXf4QHKKXZRP+UtI3YX5Mvs/sLjpDLKiVY3Cw=="
+    }
+
+    private fun verifyManifest(json: org.json.JSONObject, versionCode: Int) {
+        val signature = json.optString("signature")
+        if (signature.isBlank()) throw DshException("更新清单缺少签名")
+        val canonical = buildString {
+            append(versionCode).append('\n')
+            append(json.optString("versionName")).append('\n')
+            append(json.optString("apkUrl")).append('\n')
+            append(json.optString("sha256").lowercase()).append('\n')
+            append(json.optString("notes"))
+        }
+        val keyBytes = Base64.getDecoder().decode(PUBLIC_KEY_B64)
+        val key = KeyFactory.getInstance("EC").generatePublic(X509EncodedKeySpec(keyBytes))
+        val verifier = Signature.getInstance("SHA256withECDSA")
+        verifier.initVerify(key)
+        verifier.update(canonical.toByteArray(Charsets.UTF_8))
+        if (!verifier.verify(Base64.getDecoder().decode(signature))) {
+            throw DshException("更新清单签名无效")
+        }
     }
 
     suspend fun download(update: AppUpdate, target: File, onProgress: (Int) -> Unit = {}): File = withContext(Dispatchers.IO) {

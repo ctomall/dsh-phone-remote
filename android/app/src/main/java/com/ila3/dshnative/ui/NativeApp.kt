@@ -1348,8 +1348,8 @@ internal fun SettingsPreviewContent() {
         onMode = {},
         onServers = {},
         onBack = {},
-        version = "0.14.0",
-        updateLabel = "当前 0.14.0",
+        version = "0.15.0",
+        updateLabel = "当前 0.15.0",
         onCheckUpdate = {},
     )
 }
