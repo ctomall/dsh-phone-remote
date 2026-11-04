@@ -103,10 +103,12 @@ private fun NowTab(vm: NativeViewModel) {
             )
         }
         item(key = "need-title") { SectionCaption("需要你") }
-        if (vm.pendingQuestions.isEmpty()) {
+        if (vm.inbox.isEmpty()) {
             item(key = "need-empty") { HintRow("目前没有待处理事项；Agent 需要你时会出现在这里并推送通知。") }
         } else {
-            item(key = "need-card") { InboxQuestionCard(vm) }
+            items(vm.inbox, key = { "q-${it.sessionId}-${it.pending.callId}" }) { question ->
+                InboxQuestionCard(vm, question)
+            }
         }
         item(key = "running-title") { SectionCaption("运行中") }
         if (running.isEmpty()) {
@@ -427,18 +429,19 @@ private fun HintRow(text: String) {
 }
 
 @Composable
-private fun InboxQuestionCard(vm: NativeViewModel) {
-    val pending = vm.pendingQuestions.firstOrNull() ?: return
+private fun InboxQuestionCard(vm: NativeViewModel, question: NativeViewModel.SessionQuestion) {
     InboxQuestionContent(
-        pending = pending,
-        onAnswer = { answers -> vm.answerQuestion(pending.callId, answers) },
-        onOpen = { vm.sessions.firstOrNull { it.id == vm.activeSessionId }?.let { vm.openSession(it) } },
+        pending = question.pending,
+        sessionTitle = question.sessionTitle,
+        onAnswer = { answers -> vm.answerSessionQuestion(question, answers) },
+        onOpen = { vm.sessions.firstOrNull { it.id == question.sessionId }?.let { vm.openTask(it) } },
     )
 }
 
 @Composable
 internal fun InboxQuestionContent(
     pending: DshClient.PendingQuestion,
+    sessionTitle: String = "",
     onAnswer: (JSONArray) -> Unit,
     onOpen: () -> Unit,
 ) {
@@ -455,7 +458,11 @@ internal fun InboxQuestionContent(
             Spacer(Modifier.width(10.dp))
             Column(Modifier.weight(1f)) {
                 Text("需要你处理", color = DshText, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-                Text(question.header ?: "Agent 正在等待你的回答", color = DshMuted, fontSize = 11.sp)
+                Text(
+                    listOf(sessionTitle, question.header ?: "Agent 正在等待你的回答").filter { it.isNotBlank() }.joinToString(" · "),
+                    color = DshMuted,
+                    fontSize = 11.sp,
+                )
             }
         }
         Text(question.question, color = DshText, fontSize = 13.sp, lineHeight = 19.sp)

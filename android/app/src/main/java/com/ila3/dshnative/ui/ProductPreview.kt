@@ -482,7 +482,7 @@ internal fun ProductInboxPreview() {
         Text("收件箱", color = Ink.ink, fontSize = 26.sp, fontWeight = FontWeight.Bold)
         Text("需要你处理的 1 项", color = Ink.muted, fontSize = 12.sp)
         Spacer(Modifier.height(18.dp))
-        InboxQuestionContent(pending, {}, {})
+        InboxQuestionContent(pending, sessionTitle = "dsh-phone-remote", onAnswer = {}, onOpen = {})
         Spacer(Modifier.height(14.dp))
         Text("点击选项即可直接回传给 Agent，无需进入会话。", color = Ink.muted, fontSize = 11.sp)
     }
