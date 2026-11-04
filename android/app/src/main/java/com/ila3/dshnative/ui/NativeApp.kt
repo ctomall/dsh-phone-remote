@@ -100,6 +100,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.text.AnnotatedString
@@ -129,6 +130,8 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.Lightbulb
+import androidx.compose.material.icons.filled.Translate
 import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.runtime.derivedStateOf
@@ -577,7 +580,7 @@ private fun ChatScreen(vm: NativeViewModel) {
                 }
             }
             items(vm.messages.size) { index ->
-                MessageRow(vm.messages[index]) { imagePreview = it }
+                MessageRow(vm.messages[index], vm) { imagePreview = it }
             }
         }
         val atBottom by remember {
@@ -878,10 +881,10 @@ private fun ModelPickerDialog(vm: NativeViewModel) {
 }
 
 @Composable
-private fun MessageRow(item: ChatItem, onImage: (Bitmap) -> Unit = {}) {
+private fun MessageRow(item: ChatItem, vm: NativeViewModel? = null, onImage: (Bitmap) -> Unit = {}) {
     when (item) {
         is ChatItem.User -> UserMessageRow(item, onImage)
-        is ChatItem.Assistant -> AssistantMessageRow(item)
+        is ChatItem.Assistant -> AssistantMessageRow(item, vm)
         is ChatItem.Tool -> ToolCard(item)
         is ChatItem.ToolResult -> Unit
         is ChatItem.Notice -> Text(item.text, color = DshMuted, fontSize = 11.sp, modifier = Modifier.padding(horizontal = 4.dp))
@@ -985,9 +988,12 @@ private fun formatBytes(bytes: Long): String = when {
 }
 
 @Composable
-private fun AssistantMessageRow(item: ChatItem.Assistant) {
+private fun AssistantMessageRow(item: ChatItem.Assistant, vm: NativeViewModel?) {
     val clipboard = LocalClipboardManager.current
     var copied by remember { mutableStateOf(false) }
+    val bodyKey = "${item.key}:body"
+    val bodyTranslation = vm?.translations?.get(bodyKey)
+    val bodyText = bodyTranslation?.text ?: item.text
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         Box(
             Modifier.size(28.dp).clip(CircleShape).background(DshSelected),
@@ -1000,6 +1006,7 @@ private fun AssistantMessageRow(item: ChatItem.Assistant) {
                 .background(DshSurface)
                 .border(1.dp, DshBorder, RoundedCornerShape(18.dp))
                 .padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("DSH", color = DshTealSoft, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
@@ -1007,10 +1014,29 @@ private fun AssistantMessageRow(item: ChatItem.Assistant) {
                     Spacer(Modifier.width(8.dp))
                     StreamingDots()
                 }
+                if (bodyTranslation?.text != null) {
+                    Spacer(Modifier.width(6.dp))
+                    Text("已翻译", color = DshTeal, fontSize = 9.sp)
+                }
                 Spacer(Modifier.weight(1f))
+                if (vm != null && item.text.isNotBlank()) {
+                    IconButton(
+                        onClick = {
+                            if (bodyTranslation?.text != null) vm.clearTranslation(bodyKey) else vm.translate(bodyKey, item.text)
+                        },
+                        modifier = Modifier.size(24.dp),
+                    ) {
+                        Icon(
+                            Icons.Filled.Translate,
+                            contentDescription = if (bodyTranslation?.text != null) "查看原文" else "翻译这条消息",
+                            tint = if (bodyTranslation?.text != null) DshTeal else DshMuted,
+                            modifier = Modifier.size(13.dp),
+                        )
+                    }
+                }
                 IconButton(
                     onClick = {
-                        clipboard.setText(AnnotatedString(item.text))
+                        clipboard.setText(AnnotatedString(bodyText))
                         copied = true
                     },
                     modifier = Modifier.size(24.dp),
@@ -1023,7 +1049,98 @@ private fun AssistantMessageRow(item: ChatItem.Assistant) {
                     )
                 }
             }
-            MarkdownText(item.text.ifBlank { "…" })
+            item.reasoning?.let { reasoning -> ThinkSection(item.key, reasoning, vm) }
+            if (bodyTranslation?.loading == true) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    CircularProgressIndicator(Modifier.size(12.dp), color = DshTeal, strokeWidth = 1.5.dp)
+                    Spacer(Modifier.width(8.dp))
+                    Text("翻译中…", color = DshMuted, fontSize = 11.sp)
+                }
+            }
+            if (bodyTranslation?.error != null) {
+                Text("翻译失败：${bodyTranslation.error}", color = DshDanger, fontSize = 10.sp)
+                TextButton(onClick = { vm?.retryTranslation(bodyKey, item.text) }) {
+                    Text("重试", color = DshTeal, fontSize = 10.sp)
+                }
+            }
+            if (bodyText.isNotBlank()) CollapsibleMarkdown(bodyText)
+        }
+    }
+}
+
+/**
+ * Collapsed reasoning row. Expanding it requests a machine translation of the
+ * reasoning text; the original stays one tap away.
+ */
+@Composable
+private fun ThinkSection(key: String, reasoning: String, vm: NativeViewModel?) {
+    var expanded by remember(key) { mutableStateOf(false) }
+    var showOriginal by remember(key) { mutableStateOf(false) }
+    val translationKey = "${key}:reason"
+    val state = vm?.translations?.get(translationKey)
+    LaunchedEffect(expanded) {
+        if (expanded && vm != null) vm.translate(translationKey, reasoning)
+    }
+    Column(
+        Modifier.fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(DshSurface2)
+            .border(1.dp, DshBorder, RoundedCornerShape(12.dp)),
+    ) {
+        Row(
+            Modifier.fillMaxWidth().clickable { expanded = !expanded }.padding(horizontal = 10.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(Icons.Filled.Lightbulb, contentDescription = null, tint = DshMuted, modifier = Modifier.size(14.dp))
+            Spacer(Modifier.width(6.dp))
+            Text("思考", color = DshMuted, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+            Spacer(Modifier.weight(1f))
+            Text(if (expanded) "收起" else "展开", color = DshMuted, fontSize = 10.sp)
+        }
+        if (expanded) {
+            Column(Modifier.padding(start = 10.dp, end = 10.dp, bottom = 10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                when {
+                    state?.loading == true -> Row(verticalAlignment = Alignment.CenterVertically) {
+                        CircularProgressIndicator(Modifier.size(12.dp), color = DshTeal, strokeWidth = 1.5.dp)
+                        Spacer(Modifier.width(8.dp))
+                        Text("翻译中…", color = DshMuted, fontSize = 11.sp)
+                    }
+                    state?.text != null -> Text(if (showOriginal) reasoning else state.text, color = DshMuted, fontSize = 12.sp, lineHeight = 18.sp)
+                    else -> Text(reasoning, color = DshMuted, fontSize = 12.sp, lineHeight = 18.sp)
+                }
+                if (state?.error != null) {
+                    Text("翻译失败：${state.error}", color = DshDanger, fontSize = 10.sp)
+                    TextButton(onClick = { vm?.retryTranslation(translationKey, reasoning) }) {
+                        Text("重试", color = DshTeal, fontSize = 10.sp)
+                    }
+                }
+                if (state?.text != null) {
+                    TextButton(onClick = { showOriginal = !showOriginal }) {
+                        Text(if (showOriginal) "查看翻译" else "查看原文", color = DshTeal, fontSize = 10.sp)
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** Very long assistant output is clipped until the reader asks for more. */
+@Composable
+private fun CollapsibleMarkdown(text: String) {
+    var expanded by remember(text) { mutableStateOf(false) }
+    val long = text.length > 1200
+    Column {
+        Box(
+            Modifier.then(
+                if (long && !expanded) Modifier.heightIn(max = 420.dp).clipToBounds() else Modifier.fillMaxWidth(),
+            ),
+        ) {
+            MarkdownText(text)
+        }
+        if (long) {
+            TextButton(onClick = { expanded = !expanded }) {
+                Text(if (expanded) "收起" else "展开全文", color = DshTeal, fontSize = 11.sp)
+            }
         }
     }
 }
@@ -1624,7 +1741,12 @@ internal fun ChatPreviewContent() {
                             ChatItem.ChatAttachment("app.log", receiptId = "r1", bytes = 182_432),
                         ),
                     ),
-                    ChatItem.Assistant("a1", "我先看一下 git 状态和最近的 diff：\n```\ngit status --short\n```", streaming = true),
+                    ChatItem.Assistant(
+                        "a1",
+                        "我先看一下 git 状态和最近的 diff：\n```\ngit status --short\n```",
+                        reasoning = "We need to inspect the working tree before answering. Run git status --short, then summarize staged and unstaged changes for the user.",
+                        streaming = true,
+                    ),
                     ChatItem.Tool(
                         "t1",
                         "call_1",

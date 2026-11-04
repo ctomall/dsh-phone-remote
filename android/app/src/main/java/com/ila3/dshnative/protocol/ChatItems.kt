@@ -24,6 +24,7 @@ sealed class ChatItem {
     data class Assistant(
         override val key: String,
         val text: String,
+        val reasoning: String? = null,
         val streaming: Boolean = false,
     ) : ChatItem()
 
@@ -73,8 +74,10 @@ object ChatParser {
                 }
             }
             "assistant/message" -> {
-                val text = messageText(data.optJSONObject("message"))
-                if (text.isBlank()) null else ChatItem.Assistant("e$seq", text)
+                val message = data.optJSONObject("message")
+                val text = messageText(message)
+                val reasoning = reasoningText(message)
+                if (text.isBlank() && reasoning == null) null else ChatItem.Assistant("e$seq", text, reasoning)
             }
             "tool/call" -> {
                 val callId = data.optString("callId")
@@ -163,21 +166,30 @@ object ChatParser {
         val builder = StringBuilder()
         for (i in 0 until content.length()) {
             val block = content.optJSONObject(i) ?: continue
-            when (block.optString("type")) {
-                "text" -> {
-                    if (builder.isNotEmpty()) builder.append('\n')
-                    builder.append(block.optString("text"))
-                }
-                "reasoning" -> {
-                    val reasoning = block.optString("text")
-                    if (reasoning.isNotBlank()) {
-                        if (builder.isNotEmpty()) builder.append('\n')
-                        builder.append("〔思考〕").append(reasoning)
-                    }
-                }
+            if (block.optString("type") == "text") {
+                if (builder.isNotEmpty()) builder.append('\n')
+                builder.append(block.optString("text"))
             }
         }
         return builder.toString()
+    }
+
+    /** Reasoning blocks of an assistant message, joined; null when absent. */
+    fun reasoningText(message: JSONObject?): String? {
+        message ?: return null
+        val content = message.optJSONArray("content") ?: return null
+        val builder = StringBuilder()
+        for (i in 0 until content.length()) {
+            val block = content.optJSONObject(i) ?: continue
+            if (block.optString("type") == "reasoning") {
+                val value = block.optString("text")
+                if (value.isNotBlank()) {
+                    if (builder.isNotEmpty()) builder.append('\n')
+                    builder.append(value)
+                }
+            }
+        }
+        return builder.toString().ifBlank { null }
     }
 
     fun displayArguments(raw: String): String {

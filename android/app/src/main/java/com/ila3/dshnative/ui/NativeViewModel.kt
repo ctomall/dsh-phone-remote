@@ -14,6 +14,7 @@ import java.io.File
 import java.util.Base64
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
@@ -25,6 +26,7 @@ import com.ila3.dshnative.protocol.DshException
 import com.ila3.dshnative.protocol.NativeStore
 import com.ila3.dshnative.protocol.ServerProfile
 import com.ila3.dshnative.protocol.SessionSummary
+import com.ila3.dshnative.protocol.Translator
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -134,6 +136,11 @@ class NativeViewModel(app: Application) : AndroidViewModel(app) {
     )
 
     data class QueuedMessage(val id: String, val text: String)
+
+    data class Translation(val loading: Boolean = false, val text: String? = null, val error: String? = null)
+
+    /** Machine translations keyed by "<message>:reason" / "<message>:body". */
+    val translations = mutableStateMapOf<String, Translation>()
 
     private var client: DshClient? = null
     private var socket: WebSocket? = null
@@ -278,6 +285,7 @@ class NativeViewModel(app: Application) : AndroidViewModel(app) {
             ?: if (session.blank) "新会话" else "会话 ${session.id.take(8)}"
         activeCwd = session.cwd
         messages.clear()
+        translations.clear()
         queue.clear()
         pendingQuestions = emptyList()
         hasMoreHistory = false
@@ -1101,6 +1109,29 @@ class NativeViewModel(app: Application) : AndroidViewModel(app) {
                 pendingAttachments.addAll(ready)
             }
         }
+    }
+
+    fun translate(key: String, text: String) {
+        if (text.isBlank()) return
+        val existing = translations[key]
+        if (existing?.loading == true || existing?.text != null) return
+        translations[key] = Translation(loading = true)
+        viewModelScope.launch {
+            try {
+                translations[key] = Translation(text = Translator.translate(text))
+            } catch (e: Exception) {
+                translations[key] = Translation(error = e.message ?: "翻译失败")
+            }
+        }
+    }
+
+    fun retryTranslation(key: String, text: String) {
+        translations.remove(key)
+        translate(key, text)
+    }
+
+    fun clearTranslation(key: String) {
+        translations.remove(key)
     }
 
     fun newSession() {
