@@ -3,6 +3,10 @@ package com.ila3.dshnative.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.filled.People
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -29,6 +33,11 @@ import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material.icons.filled.DragHandle
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.AttachFile
@@ -71,6 +80,7 @@ private object Ink {
     val muted = Color(0xFF64748B)
     val faint = Color(0xFF94A3B8)
     val line = Color(0xFFE9EEF8)
+    val surface2 = Color(0xFFF1F4FB)
     val brand = Color(0xFF4D6BFE)
     val brandSoft = Color(0xFFEEF2FF)
     val mint = Color(0xFF14B8A6)
@@ -884,5 +894,223 @@ internal fun ProductWorkspacePreview() {
         ArtifactRow("screenshot.png", "220 KB", "12:07")
         Spacer(Modifier.weight(1f))
         FullBottomNav(2)
+    }
+}
+
+/* ============================ 包 1：Now / 任务 / 文件 / 设置 ============================ */
+
+@Composable
+private fun NowBottomNav(active: Int) {
+    val items = listOf(
+        Triple("现在", Icons.Filled.Home, 0),
+        Triple("任务", Icons.Filled.Checklist, 1),
+        Triple("文件", Icons.Filled.Folder, 2),
+        Triple("设置", Icons.Filled.Settings, 3),
+    )
+    Column {
+        Box(Modifier.fillMaxWidth().height(1.dp).background(Ink.line))
+        Row(
+            Modifier.fillMaxWidth().background(Ink.surface).padding(horizontal = 12.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.SpaceAround,
+        ) {
+            items.forEach { (label, icon, index) ->
+                Column(
+                    Modifier.widthIn(min = 64.dp).padding(vertical = 4.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    Icon(
+                        icon,
+                        contentDescription = label,
+                        tint = if (active == index) Ink.brand else Ink.faint,
+                        modifier = Modifier.size(22.dp),
+                    )
+                    Text(
+                        label,
+                        color = if (active == index) Ink.brand else Ink.faint,
+                        fontSize = 10.sp,
+                        fontWeight = if (active == index) FontWeight.SemiBold else FontWeight.Normal,
+                        modifier = Modifier.padding(top = 2.dp),
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun NowSection(title: String, caption: String? = null) {
+    Row(
+        Modifier.fillMaxWidth().padding(start = 22.dp, end = 20.dp, top = 14.dp, bottom = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(title, color = Ink.muted, fontSize = 11.sp, fontWeight = FontWeight.Medium, letterSpacing = 0.4.sp)
+        if (caption != null) {
+            Spacer(Modifier.weight(1f))
+            Text(caption, color = Ink.faint, fontSize = 10.sp)
+        }
+    }
+}
+
+@Composable
+private fun DoneTaskRow(title: String, meta: String, time: String) {
+    Row(
+        Modifier.fillMaxWidth().padding(horizontal = 20.dp)
+            .background(Ink.surface, RoundedCornerShape(14.dp))
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(Icons.Filled.CheckCircle, contentDescription = null, tint = Ink.success, modifier = Modifier.size(17.dp))
+        Spacer(Modifier.width(10.dp))
+        Column(Modifier.weight(1f)) {
+            Text(title, color = Ink.ink, fontSize = 13.5.sp, fontWeight = FontWeight.Medium)
+            Text(meta, color = Ink.muted, fontSize = 10.5.sp)
+        }
+        Text(time, color = Ink.faint, fontSize = 10.sp)
+    }
+}
+
+@Composable
+internal fun ProductNowPreview() {
+    ProductCanvas {
+        ProductTopBar("现在", "2 项需要你 · 2 个任务运行中") {
+            Box(Modifier.size(34.dp).background(Ink.surface, CircleShape), contentAlignment = Alignment.Center) {
+                Text("D", color = Ink.brand, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+            }
+        }
+        Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
+        NowSection("需要你", "按风险排序")
+        FullApprovalCard()
+        Spacer(Modifier.height(10.dp))
+        FullQuestionCard()
+        NowSection("运行中", "2 个")
+        RunningTaskRow("修复构建失败", 0.45f, "bash · 已运行 12 分钟")
+        Spacer(Modifier.height(8.dp))
+        RunningTaskRow("给插件补审批接口", 0.2f, "edit · 已运行 4 分钟")
+        NowSection("最近完成", "今天")
+        DoneTaskRow("发布 0.19.9", "收件箱快捷回答 + 日期分隔", "14:52")
+        Spacer(Modifier.height(8.dp))
+        DoneTaskRow("设置页图标行", "Ink 设计系统落地", "14:30")
+        Spacer(Modifier.height(12.dp))
+        }
+        NowBottomNav(0)
+    }
+}
+
+/* ---------------------------- 导航自定义 ---------------------------- */
+
+@Composable
+private fun NavToggleRow(
+    icon: ImageVector,
+    label: String,
+    visible: Boolean,
+    draggable: Boolean = true,
+    locked: Boolean = false,
+) {
+    Row(
+        Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            Icons.Filled.DragHandle,
+            contentDescription = "拖动排序",
+            tint = if (draggable) Ink.faint else Ink.line,
+            modifier = Modifier.size(18.dp),
+        )
+        Spacer(Modifier.width(10.dp))
+        Box(Modifier.size(30.dp).background(Ink.surface2, RoundedCornerShape(9.dp)), contentAlignment = Alignment.Center) {
+            Icon(icon, contentDescription = null, tint = if (visible) Ink.brand else Ink.faint, modifier = Modifier.size(16.dp))
+        }
+        Spacer(Modifier.width(10.dp))
+        Column(Modifier.weight(1f)) {
+            Text(label, color = if (visible) Ink.ink else Ink.muted, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+            if (locked) Text("固定显示", color = Ink.faint, fontSize = 10.sp)
+        }
+        if (locked) {
+            Icon(Icons.Filled.Lock, contentDescription = "固定", tint = Ink.faint, modifier = Modifier.size(16.dp))
+        } else {
+            Icon(
+                if (visible) Icons.Filled.Visibility else Icons.Filled.VisibilityOff,
+                contentDescription = if (visible) "隐藏" else "显示",
+                tint = if (visible) Ink.brand else Ink.faint,
+                modifier = Modifier.size(18.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun NavDivider() {
+    Box(Modifier.fillMaxWidth().padding(start = 74.dp).height(1.dp).background(Ink.line))
+}
+
+@Composable
+internal fun ProductNavCustomPreview() {
+    ProductCanvas {
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回", tint = Ink.ink, modifier = Modifier.size(22.dp))
+            Spacer(Modifier.width(8.dp))
+            Column(Modifier.weight(1f)) {
+                Text("底部导航", color = Ink.ink, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
+                Text("拖动排序 · 控制显示 · 最多 4 个", color = Ink.faint, fontSize = 10.5.sp)
+            }
+        }
+        Text(
+            "隐藏的入口会收进「更多」，不会丢失。",
+            color = Ink.muted,
+            fontSize = 11.sp,
+            modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
+        )
+        Spacer(Modifier.height(8.dp))
+        Column(
+            Modifier.fillMaxWidth().padding(horizontal = 20.dp)
+                .background(Ink.surface, RoundedCornerShape(18.dp)),
+        ) {
+            NavToggleRow(Icons.Filled.Home, "现在", true, locked = true)
+            NavDivider()
+            NavToggleRow(Icons.Filled.Checklist, "任务", true)
+            NavDivider()
+            NavToggleRow(Icons.Filled.Folder, "文件", true)
+            NavDivider()
+            NavToggleRow(Icons.Filled.Settings, "设置", true)
+            NavDivider()
+            NavToggleRow(Icons.Filled.MoreHoriz, "自动化", false)
+            NavDivider()
+            NavToggleRow(Icons.Filled.People, "团队", false)
+        }
+        Spacer(Modifier.height(12.dp))
+        Row(Modifier.padding(horizontal = 20.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text("预览", color = Ink.faint, fontSize = 10.5.sp, modifier = Modifier.weight(1f))
+            Text("恢复默认", color = Ink.brand, fontSize = 11.sp, fontWeight = FontWeight.Medium)
+        }
+        Spacer(Modifier.height(6.dp))
+        Column(
+            Modifier.fillMaxWidth().padding(horizontal = 20.dp)
+                .background(Ink.surface, RoundedCornerShape(16.dp))
+                .padding(vertical = 8.dp),
+        ) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceAround) {
+                listOf("现在" to Icons.Filled.Home, "任务" to Icons.Filled.Checklist, "文件" to Icons.Filled.Folder, "设置" to Icons.Filled.Settings).forEachIndexed { index, pair ->
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(pair.second, contentDescription = pair.first, tint = if (index == 0) Ink.brand else Ink.faint, modifier = Modifier.size(22.dp))
+                        Text(pair.first, color = if (index == 0) Ink.brand else Ink.faint, fontSize = 10.sp, modifier = Modifier.padding(top = 2.dp))
+                    }
+                }
+            }
+        }
+        Spacer(Modifier.weight(1f))
+        Box(
+            Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 14.dp)
+                .background(Ink.canvas, RoundedCornerShape(14.dp)).padding(12.dp),
+        ) {
+            Text(
+                "规则：至少保留 2 个；「现在」固定；超出 4 个自动收进「更多」。",
+                color = Ink.muted,
+                fontSize = 10.5.sp,
+                lineHeight = 15.sp,
+            )
+        }
     }
 }
