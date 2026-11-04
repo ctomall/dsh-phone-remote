@@ -1,0 +1,6 @@
+{
+  "version": "1.3.0",
+  "url": "https://raw.githubusercontent.com/ctomall/dsh-phone-remote/main/updates/phone-remote-1.3.0.zip",
+  "sha256": "598a47047d28aff73c79d60dd62a7a7daea8de52d8fa25ec7ddd802f9d5ca99b",
+  "notes": "新增插件在线升级与 Git 仓库更新源。"
+}

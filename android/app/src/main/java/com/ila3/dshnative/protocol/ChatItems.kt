@@ -1,0 +1,146 @@
+package com.ila3.dshnative.protocol
+
+import org.json.JSONArray
+import org.json.JSONObject
+
+sealed class ChatItem {
+    abstract val key: String
+
+    data class User(override val key: String, val text: String) : ChatItem()
+    data class Assistant(
+        override val key: String,
+        val text: String,
+        val streaming: Boolean = false,
+    ) : ChatItem()
+
+    data class Tool(
+        override val key: String,
+        val callId: String,
+        val name: String,
+        val arguments: String,
+        val result: String? = null,
+        val isError: Boolean = false,
+    ) : ChatItem()
+
+    data class ToolResult(
+        override val key: String,
+        val callId: String,
+        val text: String,
+        val isError: Boolean,
+    ) : ChatItem()
+
+    data class Notice(override val key: String, val text: String) : ChatItem()
+}
+
+/**
+ * Minimal reader for the durable event surface. Unknown events are ignored: a
+ * native client can grow its rendering without refusing a session whose log
+ * contains newer event kinds.
+ */
+object ChatParser {
+    fun parseRecord(record: JSONObject): ChatItem? {
+        val event = record.optJSONObject("event") ?: return null
+        return parseEvent(event)
+    }
+
+    fun parseEvent(event: JSONObject): ChatItem? {
+        val type = event.optString("type")
+        val seq = event.optLong("seq", 0L)
+        val data = event.optJSONObject("data") ?: return null
+        return when (type) {
+            "user/message" -> {
+                // user/message stores the UserMessage fields directly on data;
+                // assistant/message nests its message under `message`.
+                val sourceKind = data.optJSONObject("source")?.optString("kind")
+                if (sourceKind != null && sourceKind != "user") null else {
+                    val text = userMessageText(data)
+                    if (text.isBlank()) null else ChatItem.User("e$seq", text)
+                }
+            }
+            "assistant/message" -> {
+                val text = messageText(data.optJSONObject("message"))
+                if (text.isBlank()) null else ChatItem.Assistant("e$seq", text)
+            }
+            "tool/call" -> {
+                val callId = data.optString("callId")
+                if (callId.isEmpty()) null else ChatItem.Tool(
+                    key = "tool-$callId",
+                    callId = callId,
+                    name = data.optString("name", "tool"),
+                    arguments = data.optString("arguments", ""),
+                )
+            }
+            "tool/result" -> {
+                val message = data.optJSONObject("message")
+                val callId = message?.optString("toolCallId").orEmpty()
+                if (callId.isEmpty()) null else ChatItem.ToolResult(
+                    key = "result-$seq",
+                    callId = callId,
+                    text = messageText(message),
+                    isError = message?.optBoolean("isError", false) == true,
+                )
+            }
+            "turn/start", "turn/end", "step/start", "step/end", "request/header",
+            "assistant/attempt", "model/selection", "compaction/summary" -> null
+            else -> {
+                if (seq == 0L) null else null
+            }
+        }
+    }
+
+    /** Human-authored text plus visible attachment placeholders for a user event. */
+    fun userMessageText(message: JSONObject?): String {
+        message ?: return ""
+        val builder = StringBuilder(messageText(message))
+        val content = message.optJSONArray("content") ?: return builder.toString()
+        for (i in 0 until content.length()) {
+            val block = content.optJSONObject(i) ?: continue
+            val label = when (block.optString("type")) {
+                "image" -> block.optString("name").ifEmpty { "图片" }
+                "file" -> block.optString("name").ifEmpty { "文件" }
+                else -> continue
+            }
+            if (builder.isNotEmpty()) builder.append('\n')
+            builder.append("📎 ").append(label)
+        }
+        return builder.toString()
+    }
+
+    fun messageText(message: JSONObject?): String {
+        message ?: return ""
+        val content = message.optJSONArray("content") ?: return ""
+        val builder = StringBuilder()
+        for (i in 0 until content.length()) {
+            val block = content.optJSONObject(i) ?: continue
+            when (block.optString("type")) {
+                "text" -> {
+                    if (builder.isNotEmpty()) builder.append('\n')
+                    builder.append(block.optString("text"))
+                }
+                "reasoning" -> {
+                    val reasoning = block.optString("text")
+                    if (reasoning.isNotBlank()) {
+                        if (builder.isNotEmpty()) builder.append('\n')
+                        builder.append("〔思考〕").append(reasoning)
+                    }
+                }
+            }
+        }
+        return builder.toString()
+    }
+
+    fun displayArguments(raw: String): String {
+        if (raw.isBlank()) return ""
+        return runCatching { JSONObject(raw).toString(2) }.getOrElse { raw }
+    }
+
+    fun parseRecords(records: JSONArray?): List<ChatItem> {
+        records ?: return emptyList()
+        val out = ArrayList<ChatItem>()
+        for (i in 0 until records.length()) {
+            val record = records.optJSONObject(i) ?: continue
+            parseRecord(record)?.let { out.add(it) }
+        }
+        return out
+    }
+}

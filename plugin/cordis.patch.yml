@@ -1,0 +1,16 @@
+- insert:
+    - id: phone-remote
+      name: '@local/phone-remote'
+      config:
+        enabled: true
+        host: 0.0.0.0
+        port: 8443
+        tlsMode: self-signed
+        lanEnabled: true
+        lanPort: 8080
+        lanBasePath: /phone
+        # 无公网 IP 时启用 Cloudflare 隧道（需要系统安装 cloudflared）
+        tunnelEnabled: false
+        tunnelMode: quick
+        pairingTtlSec: 300
+        deviceMaxAgeDays: 180

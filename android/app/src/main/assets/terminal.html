@@ -1,0 +1,52 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<link rel="stylesheet" href="xterm.css">
+<style>
+  html, body { margin: 0; padding: 0; height: 100%; background: #070D18; overflow: hidden; }
+  #term { position: absolute; inset: 8px; }
+  .xterm { height: 100%; }
+</style>
+</head>
+<body>
+<div id="term"></div>
+<script src="xterm.js"></script>
+<script src="addon-fit.js"></script>
+<script>
+  const term = new Terminal({
+    cursorBlink: true,
+    fontSize: 12,
+    fontFamily: 'monospace',
+    scrollback: 5000,
+    theme: {
+      background: '#070D18', foreground: '#E8F1FF', cursor: '#2DD4BF',
+      selectionBackground: '#1E3A52', black: '#0B1524', brightBlack: '#5F7796',
+      red: '#FCA5A5', green: '#34D399', yellow: '#FBBF24', blue: '#38BDF8',
+      magenta: '#C084FC', cyan: '#5EEAD4', white: '#E8F1FF'
+    }
+  });
+  const fit = new FitAddon.FitAddon();
+  term.loadAddon(fit);
+  term.open(document.getElementById('term'));
+  function resize() {
+    try {
+      fit.fit();
+      if (window.AndroidTerminal) AndroidTerminal.resize(term.cols, term.rows);
+    } catch (e) {}
+  }
+  window.addEventListener('resize', resize);
+  term.onData(function (data) {
+    if (window.AndroidTerminal) AndroidTerminal.send(data);
+  });
+  window.termWrite = function (text) {
+    term.write(text);
+  };
+  window.termReset = function () {
+    term.reset();
+  };
+  setTimeout(resize, 80);
+</script>
+</body>
+</html>

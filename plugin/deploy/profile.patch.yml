@@ -1,0 +1,21 @@
+# 追加到 $DSH_PROFILE_DIR/cordis.patch.yml。
+# 反向代理模式：nginx 在 https://harness.ila3.net/phone/ 终止 TLS，
+# 网关只监听回环，并信任代理写入的 X-Forwarded-* 头；内网与 Cloudflare 隧道入口按需开启。
+- id: phone-remote
+  name: "@local/phone-remote"
+  config:
+    enabled: true
+    host: 127.0.0.1
+    port: 8443
+    tlsMode: off
+    trustProxy: true
+    publicUrl: https://harness.ila3.net/phone/
+    lanEnabled: true
+    lanPort: 8080
+    lanBasePath: /phone
+    tunnelEnabled: true
+    tunnelMode: quick
+    cloudflaredPath: /usr/local/bin/cloudflared
+    tunnelStartTimeoutSec: 60
+    pairingTtlSec: 300
+    deviceMaxAgeDays: 180

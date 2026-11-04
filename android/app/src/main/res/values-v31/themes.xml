@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.DSHNative" parent="Theme.AppCompat.DayNight.NoActionBar">
+        <item name="android:windowBackground">#EEF2FF</item>
+        <item name="android:statusBarColor">#EEF2FF</item>
+        <item name="android:navigationBarColor">#EEF2FF</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightNavigationBar">true</item>
+        <item name="android:windowSplashScreenBackground">#EEF2FF</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@mipmap/ic_launcher_foreground</item>
+        <item name="android:windowSplashScreenIconBackgroundColor">#EEF2FF</item>
+    </style>
+</resources>
