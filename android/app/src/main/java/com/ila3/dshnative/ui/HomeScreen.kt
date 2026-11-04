@@ -29,6 +29,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -42,6 +43,7 @@ import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Inbox
 import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -62,11 +64,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.FileProvider
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -254,6 +258,7 @@ private fun PlaceholderTab(title: String, hint: String) {
 private fun FilesTab(vm: NativeViewModel) {
     var sortBySize by remember { mutableStateOf(false) }
     var showHidden by remember { mutableStateOf(false) }
+    var query by remember { mutableStateOf("") }
     if (vm.activeSessionId.isEmpty()) {
         WorkspaceTab(vm)
     } else {
@@ -298,6 +303,29 @@ private fun FilesTab(vm: NativeViewModel) {
                         .padding(horizontal = 6.dp, vertical = 3.dp),
                 )
             }
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 4.dp)
+                    .background(DshSurface, RoundedCornerShape(12.dp))
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(Icons.Filled.Search, contentDescription = null, tint = DshMuted, modifier = Modifier.size(16.dp))
+                Spacer(Modifier.width(8.dp))
+                Box(Modifier.weight(1f)) {
+                    if (query.isEmpty()) Text("搜索当前目录", color = DshMuted, fontSize = 12.sp)
+                    BasicTextField(
+                        value = query,
+                        onValueChange = { query = it },
+                        singleLine = true,
+                        textStyle = TextStyle(color = DshText, fontSize = 12.5.sp),
+                        cursorBrush = SolidColor(DshTeal),
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+                if (query.isNotEmpty()) {
+                    Text("×", color = DshMuted, fontSize = 14.sp, modifier = Modifier.clickable { query = "" }.padding(horizontal = 4.dp))
+                }
+            }
             if (vm.busy && vm.files.isEmpty()) {
                 Box(Modifier.fillMaxWidth().padding(30.dp), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator(color = DshTeal)
@@ -310,6 +338,7 @@ private fun FilesTab(vm: NativeViewModel) {
             ) {
                 val displayed = vm.files
                     .filter { showHidden || !it.name.startsWith(".") }
+                    .filter { query.isBlank() || it.name.contains(query, ignoreCase = true) }
                     .sortedWith(
                         compareBy<com.ila3.dshnative.protocol.DshClient.FileEntry> { it.type != "directory" }.thenBy {
                             if (sortBySize) -(it.size ?: 0L) else 0L
