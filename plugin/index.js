@@ -14,7 +14,6 @@
  * @module @local/phone-remote
  */
 import os from 'node:os'
-import { readFileSync } from 'node:fs'
 import { PhoneRemoteState, resolveDataDir } from './lib/state.js'
 import { PairingCodes } from './lib/pairing.js'
 import { PhoneGateway, normalizeConfig } from './lib/gateway.js'
@@ -26,17 +25,6 @@ import { registerPhoneRemoteTools } from './lib/tools.js'
 
 /** Loader entry name. */
 export const name = 'phone-remote'
-
-/**
- * Version of this package, read once from `package.json`. Update checks and
- * the settings page report this instead of a hard-coded literal, so a git
- * fast-forward or an installed archive is reflected after a restart.
- */
-export const version = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')).version
-
-/** Default HTTPS feed that publishes signed plugin releases. */
-export const DEFAULT_UPDATE_FEED =
-  'https://raw.githubusercontent.com/ctomall/dsh-phone-remote/main/updates/phone-remote.json'
 
 /** The gateway needs the Web carrier; the tool needs the Tool registry. */
 export const inject = ['webServer', 'tools']
@@ -151,16 +139,8 @@ export async function apply(ctx, config = {}) {
   }
 
   const updater = new UpdateManager({
-    currentVersion: version,
+    currentVersion: '1.3.1',
     feedUrl: typeof raw.updateFeedUrl === 'string' ? raw.updateFeedUrl.trim() : '',
-    publicKey: typeof raw.updatePublicKey === 'string' && raw.updatePublicKey.trim().length > 0
-      ? raw.updatePublicKey.trim()
-      : undefined,
-    requireSignature: raw.updateRequireSignature !== false,
-    mode: raw.updateMode === 'git' || raw.updateMode === 'zip' ? raw.updateMode : 'auto',
-    remote: typeof raw.updateGitRemote === 'string' && raw.updateGitRemote.trim().length > 0
-      ? raw.updateGitRemote.trim()
-      : 'origin',
     logger: ctx.logger,
   })
   const service = new PhoneRemoteService({ entries, state, pairing, updater, logger: ctx.logger })

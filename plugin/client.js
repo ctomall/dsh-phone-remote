@@ -604,9 +604,7 @@ window.__ModuleLoader__.load({
 
 
     /**
-     * Plugin self-update card. Git installs fast-forward the plugin directory
-     * from the tracked upstream branch; archive installs verify the signed
-     * feed and swap the directory. Both need a DSH restart.
+     * Plugin self-update card.
      * @param {{onError: Function}} props - error reporter.
      * @returns {object} element.
      */
@@ -623,25 +621,31 @@ window.__ModuleLoader__.load({
           setBusy(false)
         }
       }
-      const apply = async () => {
-        const strategy = info?.mode === 'git'
-          ? '从 Git 上游快进合并插件代码（失败自动回滚）'
-          : '下载并校验更新包后替换插件目录'
-        if (!window.confirm(`将${strategy}，完成后需要重启 DSH 生效。现在继续？`)) return
+      const rollback = async () => {
+        if (!window.confirm('回滚到上一次更新前的插件目录？重启 DSH 后生效。')) return
         setBusy(true)
         try {
-          const result = await api('/update/apply', {})
-          setInfo({ ...info, applied: result, available: false, dirty: false })
-          const method = result.mode === 'git' ? 'Git 快进' : '更新包'
-          window.alert(`已升级到 v${result.installedVersion}（${method}），请重启 DSH 生效。`)
+          const result = await api('/update/rollback', {})
+          window.alert(`已回滚到 ${result.rolledBackTo}，请重启 DSH。`)
         } catch (error) {
-          onError(`升级失败：${error.message}`)
+          onError(`回滚失败：${error.message}`)
         } finally {
           setBusy(false)
         }
       }
-      const modeLabel = info?.mode === 'git' ? 'Git 快进' : info?.mode === 'zip' ? '更新包' : '自动'
-      const signedLabel = info?.signed ? '签名已校验' : null
+      const apply = async () => {
+        if (!window.confirm('更新会替换插件目录，重启 DSH 后生效。现在继续？')) return
+        setBusy(true)
+        try {
+          const result = await api('/update/apply', {})
+          setInfo({ ...info, applied: result, available: false })
+          window.alert(`已安装 ${result.installedVersion}，请重启 DSH 生效。`)
+        } catch (error) {
+          onError(`更新失败：${error.message}`)
+        } finally {
+          setBusy(false)
+        }
+      }
       return h(
         'section',
         { className: 'pr-card', 'aria-label': '在线升级' },
@@ -649,31 +653,20 @@ window.__ModuleLoader__.load({
           'div',
           { className: 'pr-card-head' },
           h('div', { className: 'pr-card-title' }, h(IconRefresh), '在线升级'),
-          h('span', { className: 'pr-tag' }, modeLabel),
-          signedLabel ? h('span', { className: 'pr-tag' }, signedLabel) : null,
           h('span', { className: 'pr-tag' }, info?.currentVersion ? `v${info.currentVersion}` : '未检查'),
         ),
-        h('p', { className: 'pr-card-sub' },
-          info?.mode === 'git'
-            ? 'Git 安装：从上游分支快进合并插件目录，失败自动回滚；升级后重启 DSH 生效。'
-            : '读取 HTTPS 更新清单，校验 ECDSA 签名与 SHA-256 后替换插件目录；升级后重启 DSH 生效。'),
+        h('p', { className: 'pr-card-sub' }, '检查 phone-remote 插件更新。更新包经 SHA-256 校验后替换目录，重启 DSH 生效。'),
         info?.error ? h('div', { className: 'pr-banner error' }, info.error) : null,
-        info?.dirty ? h('div', { className: 'pr-banner error' }, '插件目录有未提交改动，升级会中止；请先提交或 stash。') : null,
         info?.available
           ? h('div', { className: 'pr-row' }, h('div', { className: 'pr-row-label' }, '可用版本'), h('div', { className: 'pr-row-value' }, `v${info.latestVersion}`))
-          : null,
-        info?.available && info?.mode === 'git'
-          ? h('div', { className: 'pr-row' }, h('div', { className: 'pr-row-label' }, '落后提交'), h('div', { className: 'pr-row-value' }, `${info.commitsBehind} 个`))
-          : null,
-        info?.available && info?.mode === 'zip' && info?.signed
-          ? h('div', { className: 'pr-row' }, h('div', { className: 'pr-row-label' }, '清单签名'), h('div', { className: 'pr-row-value' }, 'ECDSA P-256 通过'))
           : null,
         info?.notes ? h('p', { className: 'pr-card-sub' }, info.notes) : null,
         h(
           'div',
           { style: { display: 'flex', gap: 8, flexWrap: 'wrap' } },
           h('button', { type: 'button', className: 'pr-btn ghost', onClick: check, disabled: busy }, busy ? '检查中…' : '检查更新'),
-          info?.available ? h('button', { type: 'button', className: 'pr-btn', onClick: apply, disabled: busy }, busy ? '升级中…' : '立即升级') : null,
+          info?.available ? h('button', { type: 'button', className: 'pr-btn', onClick: apply, disabled: busy }, busy ? '更新中…' : '立即更新') : null,
+          h('button', { type: 'button', className: 'pr-btn ghost', onClick: rollback, disabled: busy }, '回滚上一次更新'),
         ),
       )
     }

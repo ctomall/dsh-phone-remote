@@ -117,6 +117,10 @@ export function createPhoneRemoteRoutes(service) {
     json(service.updater ? await service.updater.apply() : { error: '插件更新未启用' }),
   )
 
+  const updateRollback = guard(async () =>
+    json(service.updater ? await service.updater.rollback() : { error: '插件更新未启用' }),
+  )
+
   return [
     { path: '/api/phone-remote/status', methods: ['GET'], requestBody: 'buffered', fetch: status },
     { path: '/api/phone-remote/pairing', methods: ['POST'], requestBody: 'buffered', fetch: pair },
@@ -125,5 +129,6 @@ export function createPhoneRemoteRoutes(service) {
     { path: '/api/phone-remote/diagnose', methods: ['POST'], requestBody: 'buffered', fetch: diagnose },
     { path: '/api/phone-remote/update', methods: ['GET'], requestBody: 'buffered', fetch: updateStatus },
     { path: '/api/phone-remote/update/apply', methods: ['POST'], requestBody: 'buffered', fetch: updateApply },
+    { path: '/api/phone-remote/update/rollback', methods: ['POST'], requestBody: 'buffered', fetch: updateRollback },
   ]
 }

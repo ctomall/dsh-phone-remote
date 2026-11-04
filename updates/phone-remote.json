@@ -1,7 +1,7 @@
 {
-  "version": "1.3.0",
-  "url": "https://raw.githubusercontent.com/ctomall/dsh-phone-remote/main/updates/phone-remote-1.3.0.zip",
-  "sha256": "598a47047d28aff73c79d60dd62a7a7daea8de52d8fa25ec7ddd802f9d5ca99b",
-  "notes": "插件在线升级；更新清单 ECDSA 签名校验；重启 DSH 生效。",
-  "signature": "MEUCIG8yBfTxSoMV8bxIkB86DGs63EN/K2hNYOCOaZpbKr9IAiEA4Ky4jp6/VXzYPqFCdCpFcZ8igsHEm1GBH2XTkkxIZDw="
+  "version": "1.3.1",
+  "url": "https://raw.githubusercontent.com/ctomall/dsh-phone-remote/main/updates/phone-remote-1.3.1.zip",
+  "sha256": "41f032270c7433087423806a049f3e4ff4d300058a8f10a0e1437b894c440a40",
+  "notes": "插件更新增加安装前校验、备份记录与回滚接口。",
+  "signature": "MEYCIQD0k+oAIJbXI9H4Ka2SffQr+xWxKY0BvpvAsZPydVNhhAIhALjFuMSAK+4zir20QvRjns2eWsaAEaDndPZwCXbKpZtH"
 }
