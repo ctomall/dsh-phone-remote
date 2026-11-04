@@ -132,19 +132,33 @@ window.__ModuleLoader__.load({
 .pr-card-title svg { color: var(--dsw-alias-label-tertiary); }
 .pr-card-sub { margin: 0; color: var(--dsw-alias-label-quaternary); font-size: 12px; line-height: 1.55; }
 
-.pr-progress { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border: 1px solid var(--dsw-alias-border-l2); border-radius: 12px; background: var(--dsw-alias-bg-l1); }
-.pr-progress-label { flex: none; font-size: 12px; color: var(--dsw-alias-label-secondary); }
-.pr-progress-bar { flex: 1; height: 6px; border-radius: 999px; background: var(--dsw-alias-bg-l2, rgba(127,127,127,0.1)); overflow: hidden; }
-.pr-progress-fill { height: 100%; border-radius: 999px; background: var(--dsw-alias-state-success-primary); transition: width 0.3s ease; }
-.pr-task { display: flex; flex-direction: column; gap: 14px; padding: 16px; border: 1px solid var(--dsw-alias-border-l2); border-radius: 14px; background: var(--dsw-alias-bg-l1); }
+.pr-summary { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; padding: 12px 14px; border: 1px solid var(--dsw-alias-border-l2); border-radius: 12px; background: var(--dsw-alias-bg-l1); }
+.pr-summary-left { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
+.pr-kpi { display: inline-flex; align-items: baseline; gap: 5px; color: var(--dsw-alias-label-tertiary); font-size: 12px; }
+.pr-kpi b { font-size: 15px; font-weight: 650; color: var(--dsw-alias-label-primary); }
+.pr-summary-right { display: flex; align-items: center; gap: 10px; }
+.pr-mini { color: var(--dsw-alias-label-tertiary); font-size: 11.5px; white-space: nowrap; }
+.pr-mini-bar { width: 96px; height: 5px; border-radius: 999px; background: var(--dsw-alias-bg-l2, rgba(127,127,127,0.12)); overflow: hidden; }
+.pr-mini-fill { height: 100%; border-radius: 999px; background: var(--dsw-alias-state-success-primary); transition: width 0.3s ease; }
+.pr-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; align-items: stretch; }
+.pr-layout .pr-wide { grid-column: 1 / -1; }
+.pr-layout .pr-tall { grid-row: span 2; }
+.pr-layout .pr-task { padding: 14px; }
+.pr-layout .pr-qr { width: 140px; height: 140px; }
+.pr-layout .pr-qr img { width: 128px; height: 128px; }
+.pr-layout .pr-code { font-size: 24px; }
+.pr-layout .pr-task-hint { display: none; }
+@media (max-width: 860px) { .pr-layout { grid-template-columns: minmax(0, 1fr); } .pr-layout .pr-wide { grid-column: auto; } .pr-layout .pr-tall { grid-row: auto; } }
+.pr-task { display: flex; flex-direction: column; gap: 12px; padding: 14px; border: 1px solid var(--dsw-alias-border-l2); border-radius: 14px; background: var(--dsw-alias-bg-l1); }
 .pr-task-head { display: flex; align-items: center; gap: 10px; }
-.pr-task-no { display: grid; place-items: center; flex: none; width: 22px; height: 22px; border-radius: 50%; background: var(--dsw-alias-bg-l2, rgba(127,127,127,0.12)); color: var(--dsw-alias-label-secondary); font-size: 11.5px; font-weight: 650; }
+.pr-task-no { display: grid; place-items: center; flex: none; width: 20px; height: 20px; border-radius: 50%; background: var(--dsw-alias-bg-l2, rgba(127,127,127,0.12)); color: var(--dsw-alias-label-secondary); font-size: 11px; font-weight: 650; }
 .pr-task.done .pr-task-no { background: var(--dsw-alias-state-success-primary); color: #fff; }
-.pr-task-title { font-size: 14px; font-weight: 600; }
-.pr-task-status { margin-left: auto; flex: none; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--dsw-alias-border-l2); font-size: 11.5px; color: var(--dsw-alias-label-tertiary); }
+.pr-task-title { font-size: 13.5px; font-weight: 600; }
+.pr-task-status { margin-left: auto; flex: none; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--dsw-alias-border-l2); font-size: 11px; color: var(--dsw-alias-label-tertiary); }
 .pr-task.done .pr-task-status { color: var(--dsw-alias-state-success-primary); border-color: color-mix(in srgb, var(--dsw-alias-state-success-primary) 40%, transparent); }
 .pr-task-hint { margin: 0; color: var(--dsw-alias-label-quaternary); font-size: 12px; line-height: 1.55; }
-.pr-task-body { display: flex; flex-direction: column; gap: 14px; }
+.pr-task-body { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.pr-task-body { flex: 1; }
 .pr-task-body .pr-card { border: 0; padding: 0; background: transparent; }
 .pr-task-body .pr-card-head { align-items: flex-start; }
 .pr-task-body .pr-card-title { font-size: 13px; }
@@ -850,6 +864,7 @@ window.__ModuleLoader__.load({
           key: 'devices',
           title: '管理已授权设备',
           required: true,
+          tall: true,
           done: deviceCount > 0,
           status: deviceCount > 0 ? `${deviceCount} 台` : '暂无设备',
           hint: '随时撤销设备；撤销后下一次请求就会被拦下，需要重新配对。',
@@ -877,8 +892,10 @@ window.__ModuleLoader__.load({
       const requiredTasks = tasks.filter((task) => task.required)
       const doneCount = requiredTasks.filter((task) => task.done).length
       const progress = requiredTasks.length === 0 ? 0 : Math.round((doneCount / requiredTasks.length) * 100)
-      // The plugin detail page is drawn by the host (title, icon, crumb), so this
-      // page renders the task board itself and nothing that duplicates the chrome.
+      const entryCount = Array.isArray(status.entries) ? status.entries.length : 0
+      const pairingActive = Number(status.pairingActive ?? 0)
+      // The host owns the plugin detail chrome (title, icon, version, source);
+      // this page contributes a dashboard: one status strip plus a task grid.
       return h(
         React.Fragment,
         null,
@@ -888,36 +905,42 @@ window.__ModuleLoader__.load({
           { className: 'pr-page' },
           h(
             'div',
-            { className: 'pr-head' },
-            h('p', { className: 'pr-sub' }, TEXT.subtitle),
+            { className: 'pr-summary' },
             h(
               'div',
-              { className: 'pr-head-meta' },
+              { className: 'pr-summary-left' },
               h('span', { className: `pr-chip ${phaseClass}` }, h('span', { className: 'pr-chip-dot' }), phaseText(status.phase)),
-              h('button', { type: 'button', className: 'pr-btn ghost', onClick: load }, h(IconRefresh), TEXT.refresh),
+              h('span', { className: 'pr-kpi' }, h('b', null, entryCount), '个入口'),
+              h('span', { className: 'pr-kpi' }, h('b', null, deviceCount), '台设备'),
+              pairingActive > 0 ? h('span', { className: 'pr-kpi' }, h('b', null, pairingActive), '个配对码待使用') : null,
+            ),
+            h(
+              'div',
+              { className: 'pr-summary-right' },
+              h('span', { className: 'pr-mini' }, `开通任务 ${doneCount}/${requiredTasks.length}`),
+              h('div', { className: 'pr-mini-bar' }, h('div', { className: 'pr-mini-fill', style: { width: `${progress}%` } })),
+              h('button', { type: 'button', className: 'pr-btn ghost small', onClick: load }, h(IconRefresh), TEXT.refresh),
             ),
           ),
           error.length > 0 ? h('div', { className: 'pr-banner error', role: 'alert' }, error) : null,
           warnings.map((warning, index) => h('div', { className: `pr-banner ${warning.level}`, key: index }, warning.text)),
           h(
             'div',
-            { className: 'pr-progress' },
-            h('span', { className: 'pr-progress-label' }, `开通任务 ${doneCount}/${requiredTasks.length} · 运维事项可随时执行`),
-            h('div', { className: 'pr-progress-bar' }, h('div', { className: 'pr-progress-fill', style: { width: `${progress}%` } })),
-          ),
-          tasks.map((task, index) =>
-            h(
-              'section',
-              { className: `pr-task${task.done ? ' done' : ''}`, key: task.key, 'aria-label': task.title },
+            { className: 'pr-layout' },
+            tasks.map((task, index) =>
               h(
-                'div',
-                { className: 'pr-task-head' },
-                h('span', { className: 'pr-task-no' }, task.done ? '✓' : String(index + 1)),
-                h('span', { className: 'pr-task-title' }, task.title),
-                h('span', { className: 'pr-task-status' }, task.status),
+                'section',
+                { className: `pr-task${task.done ? ' done' : ''}${task.wide ? ' pr-wide' : ''}${task.tall ? ' pr-tall' : ''}`, key: task.key, 'aria-label': task.title },
+                h(
+                  'div',
+                  { className: 'pr-task-head' },
+                  h('span', { className: 'pr-task-no' }, task.done ? '✓' : String(index + 1)),
+                  h('span', { className: 'pr-task-title' }, task.title),
+                  h('span', { className: 'pr-task-status' }, task.status),
+                ),
+                h('p', { className: 'pr-task-hint' }, task.hint),
+                h('div', { className: 'pr-task-body' }, task.body),
               ),
-              h('p', { className: 'pr-task-hint' }, task.hint),
-              h('div', { className: 'pr-task-body' }, task.body),
             ),
           ),
           h('div', { className: 'pr-security' }, h('p', null, h('b', null, `${TEXT.securityTitle}：`), TEXT.securityBody)),

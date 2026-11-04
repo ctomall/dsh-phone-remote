@@ -1,6 +1,6 @@
 {
   "name": "@local/phone-remote",
-  "version": "1.3.3",
+  "version": "1.3.4",
   "private": true,
   "description": "手机远程：为 DSH Web 增加带设备授权的公网/内网/Cloudflare 隧道入口，手机（Android/鸿蒙）扫码即可安全使用。",
   "type": "module",
