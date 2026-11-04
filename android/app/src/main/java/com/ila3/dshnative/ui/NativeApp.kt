@@ -95,6 +95,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -117,6 +118,27 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.net.Uri
+import android.util.Base64
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.PhotoCamera
+import androidx.compose.material3.SmallFloatingActionButton
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import kotlinx.coroutines.launch
+import androidx.core.content.FileProvider
+import java.io.File
 
 @Composable
 fun NativeApp(vm: NativeViewModel = viewModel()) {
@@ -461,11 +483,18 @@ private fun ChatScreen(vm: NativeViewModel) {
     var initialScrollDone by remember(vm.activeSessionId) { mutableStateOf(false) }
     var historyAnchorIndex by remember { mutableStateOf(-1) }
     var historyAnchorOffset by remember { mutableStateOf(0) }
-    val filePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
         uri?.let { vm.attach(it) }
     }
-    val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+    val filePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         uri?.let { vm.attach(it) }
+    }
+    var cameraTarget by remember { mutableStateOf<Uri?>(null) }
+    val cameraLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { saved ->
+        if (saved) cameraTarget?.let { vm.attach(it) }
+        cameraTarget = null
     }
     LaunchedEffect(vm.activeSessionId, vm.messages.size) {
         if (vm.messages.isEmpty()) return@LaunchedEffect
@@ -513,12 +542,17 @@ private fun ChatScreen(vm: NativeViewModel) {
                 }
             },
         )
+        var imagePreview by remember { mutableStateOf<Bitmap?>(null) }
+        Box(Modifier.weight(1f).fillMaxWidth()) {
         LazyColumn(
             state = listState,
-            modifier = Modifier.weight(1f).fillMaxWidth(),
+            modifier = Modifier.fillMaxSize(),
             contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
+            if (vm.messages.isEmpty()) {
+                item(key = "empty-chat") { EmptyChatState() }
+            }
             item(key = "history-loader") {
                 when {
                     vm.loadingHistory -> Row(
@@ -543,9 +577,26 @@ private fun ChatScreen(vm: NativeViewModel) {
                 }
             }
             items(vm.messages.size) { index ->
-                MessageRow(vm.messages[index])
+                MessageRow(vm.messages[index]) { imagePreview = it }
             }
         }
+        val atBottom by remember {
+            derivedStateOf {
+                val info = listState.layoutInfo
+                val last = info.visibleItemsInfo.lastOrNull()
+                last == null || last.index >= info.totalItemsCount - 1
+            }
+        }
+        if (!atBottom && vm.messages.isNotEmpty()) {
+            SmallFloatingActionButton(
+                onClick = { scope.launch { listState.animateScrollToItem(vm.messages.size) } },
+                modifier = Modifier.align(Alignment.BottomEnd).padding(14.dp),
+                containerColor = DshSurface,
+                contentColor = DshTeal,
+            ) { Icon(Icons.Filled.KeyboardArrowDown, contentDescription = "回到最新") }
+        }
+        }
+        imagePreview?.let { bitmap -> ImagePreviewDialog(bitmap) { imagePreview = null } }
         vm.pendingQuestions.firstOrNull()?.let { pending ->
             QuestionCard(pending, onSubmit = { answers -> vm.answerQuestion(pending.callId, answers) })
         }
@@ -577,46 +628,20 @@ private fun ChatScreen(vm: NativeViewModel) {
                 }
             }
         }
-        if (vm.pendingAttachments.isNotEmpty()) {
-            Row(
-                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 10.dp),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
-                vm.pendingAttachments.forEach { pending ->
-                    Row(
-                        Modifier.clip(RoundedCornerShape(10.dp)).background(DshSurface).padding(horizontal = 6.dp, vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        pending.preview?.let { bitmap ->
-                            Image(
-                                bitmap.asImageBitmap(),
-                                contentDescription = null,
-                                modifier = Modifier.size(28.dp).clip(RoundedCornerShape(6.dp)),
-                                contentScale = androidx.compose.ui.layout.ContentScale.Crop,
-                            )
-                            Spacer(Modifier.width(6.dp))
-                        }
-                        Text(pending.name, color = DshText, fontSize = 10.sp, maxLines = 1)
-                        Spacer(Modifier.width(4.dp))
-                        Icon(
-                            Icons.Filled.Close,
-                            contentDescription = "移除",
-                            tint = DshMuted,
-                            modifier = Modifier.size(14.dp).clickable { vm.removeAttachment(pending.id) },
-                        )
-                    }
-                }
-            }
-        }
+        if (vm.pendingAttachments.isNotEmpty()) PendingAttachmentTray(vm)
+        val attachmentUploading = vm.pendingAttachments.any { it.status == NativeViewModel.AttachmentStatus.UPLOADING }
+        val attachmentFailed = vm.pendingAttachments.any { it.status == NativeViewModel.AttachmentStatus.FAILED }
+        val sendEnabled = !attachmentUploading && !attachmentFailed &&
+            (vm.input.isNotBlank() || vm.pendingAttachments.isNotEmpty())
         Row(
             Modifier.fillMaxWidth().imePadding().padding(10.dp),
             verticalAlignment = Alignment.Bottom,
         ) {
             IconButton(
-                onClick = { filePicker.launch("*/*") },
+                onClick = { vm.openAttachSheet() },
                 modifier = Modifier.size(42.dp).clip(CircleShape).background(DshSurface2),
             ) {
-                Icon(Icons.Filled.Add, contentDescription = "附件", tint = DshTeal)
+                Icon(Icons.Filled.Add, contentDescription = "添加附件", tint = DshTeal)
             }
             Spacer(Modifier.width(8.dp))
             OutlinedTextField(
@@ -630,11 +655,40 @@ private fun ChatScreen(vm: NativeViewModel) {
             )
             Spacer(Modifier.width(8.dp))
             IconButton(
-                onClick = { vm.send() },
-                modifier = Modifier.clip(CircleShape).background(DshTeal).size(46.dp),
+                onClick = { if (sendEnabled) vm.send() },
+                modifier = Modifier.clip(CircleShape)
+                    .background(if (sendEnabled) DshTeal else DshMuted.copy(alpha = 0.32f))
+                    .size(46.dp),
             ) {
                 Icon(Icons.Filled.ArrowUpward, contentDescription = "发送", tint = DshOnAccent)
             }
+        }
+    }
+    if (vm.showAttachSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { vm.dismissAttachSheet() },
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+            containerColor = DshSurface,
+        ) {
+            AttachSheet(
+                onImage = {
+                    vm.dismissAttachSheet()
+                    imagePicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                },
+                onCamera = {
+                    vm.dismissAttachSheet()
+                    val directory = File(context.cacheDir, "captures").apply { mkdirs() }
+                    val file = File(directory, "photo-${System.currentTimeMillis()}.jpg")
+                    val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+                    cameraTarget = uri
+                    cameraLauncher.launch(uri)
+                },
+                onFile = {
+                    vm.dismissAttachSheet()
+                    filePicker.launch(arrayOf("*/*"))
+                },
+                onClose = { vm.dismissAttachSheet() },
+            )
         }
     }
     if (vm.showModelPicker) ModelPickerDialog(vm)
@@ -644,18 +698,16 @@ private fun ChatScreen(vm: NativeViewModel) {
             sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
             containerColor = DshSurface,
         ) {
-            ChatActionSheet(vm, imagePicker = { imagePicker.launch("image/*") }, filePicker = { filePicker.launch("*/*") })
+            ChatActionSheet(vm)
         }
     }
     if (vm.showRenameDialog) RenameDialog(vm)
 }
 
 @Composable
-private fun ChatActionSheet(vm: NativeViewModel, imagePicker: () -> Unit, filePicker: () -> Unit) {
+private fun ChatActionSheet(vm: NativeViewModel) {
     Column(Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 16.dp, vertical = 8.dp)) {
         Text("会话操作", color = DshText, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(8.dp))
-        ChatAction(Icons.Filled.AddPhotoAlternate, "上传图片") { vm.dismissChatMenu(); imagePicker() }
-        ChatAction(Icons.Filled.UploadFile, "上传文件") { vm.dismissChatMenu(); filePicker() }
         ChatAction(Icons.Filled.Tune, "更换模型", vm.currentModel?.name ?: "默认") { vm.dismissChatMenu(); vm.openModelPicker() }
         ChatAction(Icons.Filled.Edit, "重命名会话") { vm.showRename() }
         ChatAction(Icons.Filled.Refresh, "刷新会话") { vm.reloadActiveSession() }
@@ -826,53 +878,325 @@ private fun ModelPickerDialog(vm: NativeViewModel) {
 }
 
 @Composable
-private fun MessageRow(item: ChatItem) {
+private fun MessageRow(item: ChatItem, onImage: (Bitmap) -> Unit = {}) {
     when (item) {
-        is ChatItem.User -> Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+        is ChatItem.User -> UserMessageRow(item, onImage)
+        is ChatItem.Assistant -> AssistantMessageRow(item)
+        is ChatItem.Tool -> ToolCard(item)
+        is ChatItem.ToolResult -> Unit
+        is ChatItem.Notice -> Text(item.text, color = DshMuted, fontSize = 11.sp, modifier = Modifier.padding(horizontal = 4.dp))
+    }
+}
+
+@Composable
+private fun UserMessageRow(item: ChatItem.User, onImage: (Bitmap) -> Unit) {
+    Column(
+        Modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.End,
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        if (item.text.isNotBlank()) {
             Text(
                 item.text,
                 color = DshText,
                 fontSize = 14.sp,
                 modifier = Modifier
                     .widthIn(max = 300.dp)
-                    .clip(RoundedCornerShape(22.dp))
+                    .clip(RoundedCornerShape(20.dp))
                     .background(DshUserBubble)
-                    .padding(12.dp),
+                    .padding(horizontal = 14.dp, vertical = 10.dp),
             )
         }
-        is ChatItem.Assistant -> {
-            val clipboard = LocalClipboardManager.current
-            var copied by remember { mutableStateOf(false) }
-            Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp)).background(DshSurface).padding(14.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.size(20.dp).clip(CircleShape).background(DshSelected), contentAlignment = Alignment.Center) {
-                        Text("D", color = DshTeal, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                    }
-                    Spacer(Modifier.width(6.dp))
-                    Text("DSH", color = DshTealSoft, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
-                    Spacer(Modifier.weight(1f))
-                    IconButton(
-                        onClick = {
-                            clipboard.setText(AnnotatedString(item.text))
-                            copied = true
-                        },
-                        modifier = Modifier.size(26.dp),
-                    ) {
-                        Icon(
-                            if (copied) Icons.Filled.Check else Icons.Filled.ContentCopy,
-                            contentDescription = "复制",
-                            tint = DshMuted,
-                            modifier = Modifier.size(14.dp),
-                        )
-                    }
+        if (item.attachments.isNotEmpty()) MessageAttachments(item.attachments, onImage)
+    }
+}
+
+@Composable
+private fun MessageAttachments(attachments: List<ChatItem.ChatAttachment>, onImage: (Bitmap) -> Unit) {
+    val (images, files) = attachments.partition { it.preview != null || it.data != null }
+    if (images.isNotEmpty()) {
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.widthIn(max = 280.dp)) {
+            images.take(3).forEach { attachment ->
+                val bitmap = remember(attachment) { attachmentBitmap(attachment) }
+                if (bitmap != null) {
+                    Image(
+                        bitmap.asImageBitmap(),
+                        contentDescription = attachment.name,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .size(96.dp)
+                            .clip(RoundedCornerShape(16.dp))
+                            .border(1.dp, DshBorder, RoundedCornerShape(16.dp))
+                            .clickable { onImage(bitmap) },
+                    )
+                } else {
+                    FileChip(attachment, Modifier.widthIn(max = 240.dp))
                 }
-                MarkdownText(item.text.ifBlank { "…" })
-                if (item.streaming) Text("正在生成…", color = DshMuted, fontSize = 10.sp, modifier = Modifier.padding(top = 4.dp))
+            }
+            if (images.size > 3) {
+                Box(
+                    Modifier.size(96.dp).clip(RoundedCornerShape(16.dp)).background(DshSurface2)
+                        .border(1.dp, DshBorder, RoundedCornerShape(16.dp)),
+                    contentAlignment = Alignment.Center,
+                ) { Text("+${images.size - 3}", color = DshMuted, fontSize = 13.sp, fontWeight = FontWeight.SemiBold) }
             }
         }
-        is ChatItem.Tool -> ToolCard(item)
-        is ChatItem.ToolResult -> Unit
-        is ChatItem.Notice -> Text(item.text, color = DshMuted, fontSize = 11.sp, modifier = Modifier.padding(horizontal = 4.dp))
+    }
+    files.forEach { attachment -> FileChip(attachment, Modifier.widthIn(max = 260.dp)) }
+}
+
+@Composable
+private fun FileChip(attachment: ChatItem.ChatAttachment, modifier: Modifier = Modifier) {
+    Row(
+        modifier
+            .clip(RoundedCornerShape(12.dp))
+            .background(DshSurface)
+            .border(1.dp, DshBorder, RoundedCornerShape(12.dp))
+            .padding(horizontal = 10.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(Icons.Filled.InsertDriveFile, contentDescription = null, tint = DshTeal, modifier = Modifier.size(18.dp))
+        Spacer(Modifier.width(8.dp))
+        Column {
+            Text(attachment.name, color = DshText, fontSize = 11.sp, maxLines = 1)
+            attachment.bytes?.let { Text(formatBytes(it), color = DshMuted, fontSize = 9.sp) }
+        }
+    }
+}
+
+private fun attachmentBitmap(attachment: ChatItem.ChatAttachment): Bitmap? {
+    attachment.preview?.let { return it }
+    val data = attachment.data ?: return null
+    return runCatching {
+        val bytes = Base64.decode(data, Base64.NO_WRAP)
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
+        var sample = 1
+        while (bounds.outWidth / sample > 640 || bounds.outHeight / sample > 640) sample *= 2
+        BitmapFactory.decodeByteArray(bytes, 0, bytes.size, BitmapFactory.Options().apply { inSampleSize = sample })
+    }.getOrNull()
+}
+
+private fun formatBytes(bytes: Long): String = when {
+    bytes >= 1024 * 1024 -> String.format(Locale.US, "%.1f MB", bytes / 1024.0 / 1024.0)
+    bytes >= 1024 -> "${bytes / 1024} KB"
+    else -> "$bytes B"
+}
+
+@Composable
+private fun AssistantMessageRow(item: ChatItem.Assistant) {
+    val clipboard = LocalClipboardManager.current
+    var copied by remember { mutableStateOf(false) }
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Box(
+            Modifier.size(28.dp).clip(CircleShape).background(DshSelected),
+            contentAlignment = Alignment.Center,
+        ) { Text("D", color = DshTeal, fontSize = 12.sp, fontWeight = FontWeight.Bold) }
+        Column(
+            Modifier
+                .weight(1f)
+                .clip(RoundedCornerShape(18.dp))
+                .background(DshSurface)
+                .border(1.dp, DshBorder, RoundedCornerShape(18.dp))
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("DSH", color = DshTealSoft, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
+                if (item.streaming) {
+                    Spacer(Modifier.width(8.dp))
+                    StreamingDots()
+                }
+                Spacer(Modifier.weight(1f))
+                IconButton(
+                    onClick = {
+                        clipboard.setText(AnnotatedString(item.text))
+                        copied = true
+                    },
+                    modifier = Modifier.size(24.dp),
+                ) {
+                    Icon(
+                        if (copied) Icons.Filled.Check else Icons.Filled.ContentCopy,
+                        contentDescription = "复制",
+                        tint = DshMuted,
+                        modifier = Modifier.size(13.dp),
+                    )
+                }
+            }
+            MarkdownText(item.text.ifBlank { "…" })
+        }
+    }
+}
+
+@Composable
+private fun StreamingDots() {
+    val transition = rememberInfiniteTransition(label = "dots")
+    Row(horizontalArrangement = Arrangement.spacedBy(3.dp), verticalAlignment = Alignment.CenterVertically) {
+        repeat(3) { index ->
+            val alpha by transition.animateFloat(
+                initialValue = 0.25f,
+                targetValue = 1f,
+                animationSpec = infiniteRepeatable(
+                    animation = tween(600, delayMillis = index * 160),
+                    repeatMode = RepeatMode.Reverse,
+                ),
+                label = "dot$index",
+            )
+            Box(Modifier.size(5.dp).clip(CircleShape).background(DshTeal.copy(alpha = alpha)))
+        }
+    }
+}
+
+@Composable
+private fun EmptyChatState() {
+    Column(
+        Modifier.fillMaxWidth().padding(top = 120.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Box(
+            Modifier.size(54.dp).clip(CircleShape).background(DshSurface2),
+            contentAlignment = Alignment.Center,
+        ) { Icon(Icons.Filled.Terminal, contentDescription = null, tint = DshTeal, modifier = Modifier.size(24.dp)) }
+        Text("开始新的对话", color = DshText, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+        Text("输入消息，或用 + 添加图片 / 文件 / 拍照", color = DshMuted, fontSize = 11.sp)
+    }
+}
+
+@Composable
+private fun ImagePreviewDialog(bitmap: Bitmap, onDismiss: () -> Unit) {
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        Box(
+            Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.92f)).clickable { onDismiss() },
+            contentAlignment = Alignment.Center,
+        ) {
+            Image(
+                bitmap.asImageBitmap(),
+                contentDescription = null,
+                contentScale = ContentScale.Fit,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+    }
+}
+
+@Composable
+private fun PendingAttachmentTray(vm: NativeViewModel) {
+    Row(
+        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 10.dp, vertical = 2.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        vm.pendingAttachments.forEach { pending ->
+            PendingAttachmentCard(
+                pending = pending,
+                onRemove = { vm.removeAttachment(pending.id) },
+                onRetry = { vm.retryAttachment(pending.id) },
+            )
+        }
+    }
+}
+
+@Composable
+private fun PendingAttachmentCard(
+    pending: NativeViewModel.PendingAttachment,
+    onRemove: () -> Unit,
+    onRetry: () -> Unit,
+) {
+    val failed = pending.status == NativeViewModel.AttachmentStatus.FAILED
+    val uploading = pending.status == NativeViewModel.AttachmentStatus.UPLOADING
+    Column(
+        Modifier
+            .width(176.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .background(DshSurface)
+            .border(1.dp, if (failed) DshDanger.copy(alpha = 0.55f) else DshBorder, RoundedCornerShape(14.dp))
+            .padding(8.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                Modifier.size(40.dp).clip(RoundedCornerShape(10.dp)).background(DshSurface2),
+                contentAlignment = Alignment.Center,
+            ) {
+                val preview = pending.preview
+                if (preview != null) {
+                    Image(preview.asImageBitmap(), contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                } else {
+                    Icon(Icons.Filled.InsertDriveFile, contentDescription = null, tint = DshTeal, modifier = Modifier.size(18.dp))
+                }
+            }
+            Spacer(Modifier.width(8.dp))
+            Column(Modifier.weight(1f)) {
+                Text(pending.name, color = DshText, fontSize = 11.sp, maxLines = 1)
+                Text(
+                    when {
+                        failed -> pending.error ?: "上传失败"
+                        uploading -> "上传中 ${pending.progress}%"
+                        else -> formatBytes(pending.size)
+                    },
+                    color = if (failed) DshDanger else DshMuted,
+                    fontSize = 9.5.sp,
+                    maxLines = 1,
+                )
+            }
+            IconButton(onClick = onRemove, modifier = Modifier.size(20.dp)) {
+                Icon(Icons.Filled.Close, contentDescription = "移除", tint = DshMuted, modifier = Modifier.size(13.dp))
+            }
+        }
+        if (uploading) {
+            LinearProgressIndicator(
+                progress = { pending.progress / 100f },
+                modifier = Modifier.fillMaxWidth().padding(top = 6.dp).height(3.dp),
+                color = DshTeal,
+                trackColor = DshSurface2,
+            )
+        }
+        if (failed) {
+            TextButton(onClick = onRetry, modifier = Modifier.align(Alignment.End).padding(top = 2.dp)) {
+                Text("重试", color = DshTeal, fontSize = 10.sp)
+            }
+        }
+    }
+}
+
+@Composable
+private fun AttachSheet(onImage: () -> Unit, onCamera: () -> Unit, onFile: () -> Unit, onClose: () -> Unit) {
+    Column(Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 16.dp, vertical = 8.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("添加附件", color = DshText, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(8.dp))
+            Spacer(Modifier.weight(1f))
+            IconButton(onClick = onClose) { Icon(Icons.Filled.Close, contentDescription = "关闭", tint = DshMuted) }
+        }
+        Row(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            AttachTile("相册", Icons.Filled.AddPhotoAlternate, onImage, Modifier.weight(1f))
+            AttachTile("拍照", Icons.Filled.PhotoCamera, onCamera, Modifier.weight(1f))
+            AttachTile("文件", Icons.Filled.InsertDriveFile, onFile, Modifier.weight(1f))
+        }
+        Text(
+            "图片自动压缩到长边 1600px · 单个文件 ≤ 20 MB · 最多 5 个",
+            color = DshMuted,
+            fontSize = 10.sp,
+            modifier = Modifier.padding(top = 14.dp, bottom = 6.dp),
+        )
+    }
+}
+
+@Composable
+private fun AttachTile(label: String, icon: ImageVector, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    Column(
+        modifier
+            .clip(RoundedCornerShape(16.dp))
+            .background(DshSurface2)
+            .border(1.dp, DshBorder, RoundedCornerShape(16.dp))
+            .clickable(onClick = onClick)
+            .padding(vertical = 16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Box(
+            Modifier.size(40.dp).clip(CircleShape).background(DshSelected),
+            contentAlignment = Alignment.Center,
+        ) { Icon(icon, contentDescription = null, tint = DshTeal, modifier = Modifier.size(20.dp)) }
+        Text(label, color = DshText, fontSize = 12.sp, fontWeight = FontWeight.Medium)
     }
 }
 
@@ -1276,7 +1600,7 @@ internal fun SessionsPreviewContent() {
     }
 }
 
-/** Screenshot-only chat composition with deterministic messages and tool card. */
+/** Screenshot-only chat composition with deterministic messages, attachments and tool card. */
 @Composable
 internal fun ChatPreviewContent() {
     Column(Modifier.fillMaxSize().background(DshBackgroundBrush)) {
@@ -1288,8 +1612,19 @@ internal fun ChatPreviewContent() {
         ) {
             items(
                 listOf(
-                    ChatItem.User("u1", "帮我检查一下工作区里有没有未提交的改动"),
-                    ChatItem.Assistant("a1", "我先看一下 git 状态和最近的 diff：\n```\ngit status --short\n```"),
+                    ChatItem.User(
+                        "u1",
+                        "帮我看下这张截图和日志，顺便确认改动范围",
+                        listOf(
+                            ChatItem.ChatAttachment(
+                                "screenshot.png",
+                                "image/png",
+                                preview = sampleImage(0xFF4F46E5.toInt(), 0xFF22D3EE.toInt()),
+                            ),
+                            ChatItem.ChatAttachment("app.log", receiptId = "r1", bytes = 182_432),
+                        ),
+                    ),
+                    ChatItem.Assistant("a1", "我先看一下 git 状态和最近的 diff：\n```\ngit status --short\n```", streaming = true),
                     ChatItem.Tool(
                         "t1",
                         "call_1",
@@ -1316,12 +1651,13 @@ internal fun ChatPreviewContent() {
                 Icon(Icons.Filled.Close, contentDescription = null, tint = DshMuted, modifier = Modifier.size(16.dp))
             }
         }
-        Row(Modifier.fillMaxWidth().padding(horizontal = 10.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            Row(Modifier.clip(RoundedCornerShape(10.dp)).background(DshSurface).padding(horizontal = 8.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text("截图.png", color = DshText, fontSize = 10.sp)
-                Spacer(Modifier.width(4.dp))
-                Icon(Icons.Filled.Close, contentDescription = null, tint = DshMuted, modifier = Modifier.size(14.dp))
-            }
+        Row(
+            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 10.dp, vertical = 2.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            PreviewAttachmentCard("screenshot.png", "上传中 62%", progress = 62, failed = false)
+            PreviewAttachmentCard("design.pdf", "1.4 MB", progress = null, failed = false)
+            PreviewAttachmentCard("build.log", "上传失败 · 网络错误", progress = null, failed = true)
         }
         Row(Modifier.fillMaxWidth().padding(10.dp), verticalAlignment = Alignment.Bottom) {
             Box(Modifier.size(42.dp).clip(CircleShape).background(DshSurface2), contentAlignment = Alignment.Center) {
@@ -1337,10 +1673,76 @@ internal fun ChatPreviewContent() {
                 modifier = Modifier.weight(1f),
             )
             Spacer(Modifier.width(8.dp))
-            Box(Modifier.clip(CircleShape).background(DshTeal).size(46.dp), contentAlignment = Alignment.Center) {
+            Box(Modifier.clip(CircleShape).background(DshMuted.copy(alpha = 0.32f)).size(46.dp), contentAlignment = Alignment.Center) {
                 Icon(Icons.Filled.ArrowUpward, contentDescription = null, tint = DshOnAccent)
             }
         }
+    }
+}
+
+/** Screenshot-only attach sheet composition. */
+@Composable
+internal fun AttachSheetPreviewContent() {
+    Column(Modifier.fillMaxSize().background(DshBackgroundBrush)) {
+        Spacer(Modifier.weight(1f))
+        Column(
+            Modifier.fillMaxWidth()
+                .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
+                .background(DshSurface),
+        ) {
+            AttachSheet({}, {}, {}, {})
+        }
+    }
+}
+
+private fun sampleImage(start: Int, end: Int): Bitmap {
+    val width = 480
+    val height = 320
+    val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+    val canvas = android.graphics.Canvas(bitmap)
+    val paint = android.graphics.Paint()
+    paint.shader = android.graphics.LinearGradient(
+        0f,
+        0f,
+        width.toFloat(),
+        height.toFloat(),
+        start,
+        end,
+        android.graphics.Shader.TileMode.CLAMP,
+    )
+    canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), paint)
+    return bitmap
+}
+
+@Composable
+private fun PreviewAttachmentCard(name: String, detail: String, progress: Int?, failed: Boolean) {
+    Column(
+        Modifier.width(176.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .background(DshSurface)
+            .border(1.dp, if (failed) DshDanger.copy(alpha = 0.55f) else DshBorder, RoundedCornerShape(14.dp))
+            .padding(8.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(40.dp).clip(RoundedCornerShape(10.dp)).background(DshSurface2), contentAlignment = Alignment.Center) {
+                Icon(Icons.Filled.InsertDriveFile, contentDescription = null, tint = DshTeal, modifier = Modifier.size(18.dp))
+            }
+            Spacer(Modifier.width(8.dp))
+            Column(Modifier.weight(1f)) {
+                Text(name, color = DshText, fontSize = 11.sp, maxLines = 1)
+                Text(detail, color = if (failed) DshDanger else DshMuted, fontSize = 9.5.sp, maxLines = 1)
+            }
+            Icon(Icons.Filled.Close, contentDescription = null, tint = DshMuted, modifier = Modifier.size(13.dp))
+        }
+        if (progress != null) {
+            LinearProgressIndicator(
+                progress = { progress / 100f },
+                modifier = Modifier.fillMaxWidth().padding(top = 6.dp).height(3.dp),
+                color = DshTeal,
+                trackColor = DshSurface2,
+            )
+        }
+        if (failed) Text("重试", color = DshTeal, fontSize = 10.sp, modifier = Modifier.align(Alignment.End).padding(top = 2.dp))
     }
 }
 

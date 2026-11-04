@@ -6,7 +6,10 @@ import kotlinx.coroutines.withContext
 import okhttp3.CookieJar
 import okhttp3.FormBody
 import okhttp3.HttpUrl
+import okhttp3.MediaType
 import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.RequestBody
+import okio.BufferedSink
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
@@ -201,12 +204,37 @@ class DshClient private constructor(
         call("session/updateQueue", JSONObject().put("request", request))
     }
 
-    suspend fun uploadFile(sessionId: String, bytes: ByteArray, name: String): UploadReceipt = withContext(Dispatchers.IO) {
+    suspend fun uploadFile(
+        sessionId: String,
+        bytes: ByteArray,
+        name: String,
+        onProgress: (Int) -> Unit = {},
+    ): UploadReceipt = withContext(Dispatchers.IO) {
         val url = base.resolve("api/session/uploadFileBinary")!!.newBuilder()
             .addQueryParameter("sessionId", sessionId)
             .addQueryParameter("name", name)
             .build()
-        val body = bytes.toRequestBody("application/octet-stream".toMediaType())
+        val media = "application/octet-stream".toMediaType()
+        val body = object : RequestBody() {
+            override fun contentType(): MediaType = media
+            override fun contentLength(): Long = bytes.size.toLong()
+            override fun writeTo(sink: BufferedSink) {
+                val chunk = 16 * 1024
+                var written = 0
+                var last = -1
+                while (written < bytes.size) {
+                    val count = minOf(chunk, bytes.size - written)
+                    sink.write(bytes, written, count)
+                    written += count
+                    val percent = if (bytes.isEmpty()) 100 else written * 100 / bytes.size
+                    if (percent != last) {
+                        last = percent
+                        onProgress(percent)
+                    }
+                }
+                if (bytes.isEmpty()) onProgress(100)
+            }
+        }
         http.newCall(Request.Builder().url(url).post(body).build()).execute().use { response ->
             if (response.code == 401 || response.code == 403) {
                 throw DshException("登录已失效，请重新配对", "auth/required", response.code)

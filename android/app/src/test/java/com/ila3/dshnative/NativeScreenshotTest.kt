@@ -5,6 +5,7 @@ import android.graphics.Canvas
 import android.view.View
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import com.ila3.dshnative.ui.AttachSheetPreviewContent
 import com.ila3.dshnative.ui.ChatPreviewContent
 import com.ila3.dshnative.ui.DshNativeTheme
 import com.ila3.dshnative.ui.DshTheme
@@ -57,6 +58,13 @@ class NativeScreenshotTest {
         val activity = Robolectric.buildActivity(ComponentActivity::class.java).setup().get()
         activity.setContent { DshNativeTheme { QuestionPreviewContent() } }
         capture(activity, "native-question.png")
+    }
+
+    @Test
+    fun captureAttachSheet() {
+        val activity = Robolectric.buildActivity(ComponentActivity::class.java).setup().get()
+        activity.setContent { DshNativeTheme { AttachSheetPreviewContent() } }
+        capture(activity, "native-attach-sheet.png")
     }
 
     @Test

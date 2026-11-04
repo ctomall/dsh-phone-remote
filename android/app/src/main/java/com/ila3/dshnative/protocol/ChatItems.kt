@@ -1,12 +1,26 @@
 package com.ila3.dshnative.protocol
 
+import android.graphics.Bitmap
 import org.json.JSONArray
 import org.json.JSONObject
 
 sealed class ChatItem {
     abstract val key: String
 
-    data class User(override val key: String, val text: String) : ChatItem()
+    data class ChatAttachment(
+        val name: String,
+        val mime: String? = null,
+        val data: String? = null,
+        val receiptId: String? = null,
+        val bytes: Long? = null,
+        val preview: Bitmap? = null,
+    )
+
+    data class User(
+        override val key: String,
+        val text: String,
+        val attachments: List<ChatAttachment> = emptyList(),
+    ) : ChatItem()
     data class Assistant(
         override val key: String,
         val text: String,
@@ -53,8 +67,9 @@ object ChatParser {
                 // assistant/message nests its message under `message`.
                 val sourceKind = data.optJSONObject("source")?.optString("kind")
                 if (sourceKind != null && sourceKind != "user") null else {
-                    val text = userMessageText(data)
-                    if (text.isBlank()) null else ChatItem.User("e$seq", text)
+                    val text = messageText(data)
+                    val attachments = parseAttachments(data)
+                    if (text.isBlank() && attachments.isEmpty()) null else ChatItem.User("e$seq", text, attachments)
                 }
             }
             "assistant/message" -> {
@@ -86,6 +101,42 @@ object ChatParser {
                 if (seq == 0L) null else null
             }
         }
+    }
+
+    /** Attachment blocks of a user message, in the order the user sent them. */
+    fun parseAttachments(message: JSONObject?): List<ChatItem.ChatAttachment> {
+        message ?: return emptyList()
+        val content = message.optJSONArray("content") ?: return emptyList()
+        val out = ArrayList<ChatItem.ChatAttachment>()
+        for (i in 0 until content.length()) {
+            val block = content.optJSONObject(i) ?: continue
+            val name = block.optString("name").ifEmpty {
+                when (block.optString("type")) {
+                    "image" -> "图片"
+                    "file" -> "文件"
+                    else -> "附件"
+                }
+            }
+            when (block.optString("type")) {
+                "image" -> out.add(
+                    ChatItem.ChatAttachment(
+                        name = name,
+                        mime = block.optString("mediaType").ifEmpty { null },
+                        data = block.optString("data").ifEmpty { null },
+                    ),
+                )
+                "file" -> out.add(
+                    ChatItem.ChatAttachment(
+                        name = name,
+                        mime = block.optString("mediaType").ifEmpty { null },
+                        receiptId = block.optString("receiptId").ifEmpty { null },
+                        bytes = block.optLong("bytes", 0L).takeIf { it > 0 },
+                    ),
+                )
+                else -> Unit
+            }
+        }
+        return out
     }
 
     /** Human-authored text plus visible attachment placeholders for a user event. */

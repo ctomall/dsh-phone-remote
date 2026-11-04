@@ -56,6 +56,8 @@ class NativeViewModel(app: Application) : AndroidViewModel(app) {
         private set
     var messages = mutableStateListOf<ChatItem>()
     var pendingAttachments = mutableStateListOf<PendingAttachment>()
+    var showAttachSheet by mutableStateOf(false)
+        private set
     val queue = mutableStateListOf<QueuedMessage>()
     var pendingQuestions by mutableStateOf<List<DshClient.PendingQuestion>>(emptyList())
         private set
@@ -116,7 +118,20 @@ class NativeViewModel(app: Application) : AndroidViewModel(app) {
     private var terminalHandle: DshClient.StreamHandle? = null
     private var terminalSequence = 0L
 
-    data class PendingAttachment(val id: String, val name: String, val attachment: DshClient.Attachment, val preview: Bitmap? = null)
+    enum class AttachmentStatus { UPLOADING, READY, FAILED }
+
+    data class PendingAttachment(
+        val id: String,
+        val name: String,
+        val mime: String,
+        val size: Long,
+        val uri: Uri,
+        val preview: Bitmap? = null,
+        val status: AttachmentStatus = AttachmentStatus.UPLOADING,
+        val progress: Int = 0,
+        val attachment: DshClient.Attachment? = null,
+        val error: String? = null,
+    )
 
     data class QueuedMessage(val id: String, val text: String)
 
@@ -888,65 +903,193 @@ class NativeViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    private val attachmentLimit = 5
+    private val attachmentMaxBytes = 20 * 1024 * 1024
+
+    fun openAttachSheet() {
+        showAttachSheet = true
+    }
+
+    fun dismissAttachSheet() {
+        showAttachSheet = false
+    }
+
     fun attach(uri: Uri) {
-        val active = client ?: return
-        if (activeSessionId.isEmpty()) return
-        viewModelScope.launch {
-            busy = true
-            error = ""
-            try {
-                val resolver = getApplication<Application>().contentResolver
-                var name = "附件"
-                resolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
-                    if (cursor.moveToFirst()) {
-                        val index = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
-                        if (index >= 0) name = cursor.getString(index) ?: name
-                    }
-                }
-                val bytes = withContext(Dispatchers.IO) {
-                    resolver.openInputStream(uri)?.use { it.readBytes() }
-                } ?: throw DshException("无法读取文件")
-                if (bytes.size > 20 * 1024 * 1024) throw DshException("附件不能超过 20 MB")
-                val mime = resolver.getType(uri) ?: "application/octet-stream"
-                var preview: Bitmap? = null
-                val attachment = if (mime in setOf("image/png", "image/jpeg", "image/webp", "image/gif")) {
-                    preview = withContext(Dispatchers.IO) {
-                        BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
-                    }
-                    DshClient.Attachment.Image(
-                        mediaType = mime,
-                        data = Base64.getEncoder().encodeToString(bytes),
-                        name = name,
-                    )
-                } else {
-                    val receipt = withContext(Dispatchers.IO) { active.uploadFile(activeSessionId, bytes, name) }
-                    DshClient.Attachment.File(receipt.receiptId, name)
-                }
-                pendingAttachments.add(PendingAttachment(UUID.randomUUID().toString(), name, attachment, preview))
-            } catch (e: Exception) {
-                error = e.message ?: "添加附件失败"
-            } finally {
-                busy = false
-            }
+        if (client == null) {
+            error = "尚未连接服务器"
+            return
         }
+        if (activeSessionId.isEmpty()) {
+            error = "请先打开一个会话"
+            return
+        }
+        if (pendingAttachments.size >= attachmentLimit) {
+            error = "最多添加 $attachmentLimit 个附件"
+            return
+        }
+        viewModelScope.launch {
+            error = ""
+            val resolver = getApplication<Application>().contentResolver
+            var name = "附件"
+            var size = 0L
+            runCatching {
+                resolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE), null, null, null)?.use { cursor ->
+                    if (cursor.moveToFirst()) {
+                        val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                        if (nameIndex >= 0) name = cursor.getString(nameIndex) ?: name
+                        val sizeIndex = cursor.getColumnIndex(OpenableColumns.SIZE)
+                        if (sizeIndex >= 0) size = cursor.getLong(sizeIndex)
+                    }
+                }
+            }
+            if (size > attachmentMaxBytes) {
+                error = "「$name」超过 20 MB"
+                return@launch
+            }
+            val mime = resolver.getType(uri) ?: "application/octet-stream"
+            val item = PendingAttachment(
+                id = UUID.randomUUID().toString(),
+                name = name,
+                mime = mime,
+                size = size,
+                uri = uri,
+            )
+            pendingAttachments.add(item)
+            uploadAttachment(item.id)
+        }
+    }
+
+    fun retryAttachment(id: String) {
+        val index = pendingAttachments.indexOfFirst { it.id == id }
+        if (index < 0) return
+        pendingAttachments[index] = pendingAttachments[index].copy(
+            status = AttachmentStatus.UPLOADING,
+            progress = 0,
+            error = null,
+            attachment = null,
+        )
+        uploadAttachment(id)
     }
 
     fun removeAttachment(id: String) {
         pendingAttachments.removeAll { it.id == id }
+        error = ""
+    }
+
+    private fun updateAttachment(id: String, update: (PendingAttachment) -> PendingAttachment) {
+        val index = pendingAttachments.indexOfFirst { it.id == id }
+        if (index >= 0) pendingAttachments[index] = update(pendingAttachments[index])
+    }
+
+    private fun uploadAttachment(id: String) {
+        val active = client ?: return
+        val session = activeSessionId
+        viewModelScope.launch {
+            val item = pendingAttachments.firstOrNull { it.id == id } ?: return@launch
+            try {
+                val resolver = getApplication<Application>().contentResolver
+                val raw = withContext(Dispatchers.IO) {
+                    resolver.openInputStream(item.uri)?.use { it.readBytes() }
+                } ?: throw DshException("无法读取文件")
+                if (raw.size > attachmentMaxBytes) throw DshException("单个附件不能超过 20 MB")
+                if (item.mime.startsWith("image/")) {
+                    val (encoded, preview) = withContext(Dispatchers.IO) { compressImage(raw) }
+                    updateAttachment(id) { it.copy(preview = preview, size = encoded.size.toLong(), progress = 70) }
+                    val data = Base64.getEncoder().encodeToString(encoded)
+                    updateAttachment(id) {
+                        it.copy(
+                            status = AttachmentStatus.READY,
+                            progress = 100,
+                            attachment = DshClient.Attachment.Image(
+                                mediaType = "image/jpeg",
+                                data = data,
+                                name = it.name,
+                            ),
+                        )
+                    }
+                } else {
+                    val receipt = active.uploadFile(session, raw, item.name) { percent ->
+                        viewModelScope.launch(Dispatchers.Main) {
+                            updateAttachment(id) { it.copy(progress = percent) }
+                        }
+                    }
+                    updateAttachment(id) {
+                        it.copy(
+                            status = AttachmentStatus.READY,
+                            progress = 100,
+                            attachment = DshClient.Attachment.File(receipt.receiptId, it.name),
+                            size = receipt.bytes,
+                        )
+                    }
+                }
+            } catch (e: Exception) {
+                updateAttachment(id) {
+                    it.copy(status = AttachmentStatus.FAILED, error = e.message ?: "上传失败")
+                }
+            }
+        }
+    }
+
+    private fun compressImage(bytes: ByteArray): Pair<ByteArray, Bitmap?> {
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return bytes to null
+        var sample = 1
+        while (bounds.outWidth / sample > 1600 || bounds.outHeight / sample > 1600) sample *= 2
+        val bitmap = BitmapFactory.decodeByteArray(
+            bytes,
+            0,
+            bytes.size,
+            BitmapFactory.Options().apply { inSampleSize = sample },
+        ) ?: return bytes to null
+        val out = java.io.ByteArrayOutputStream()
+        bitmap.compress(Bitmap.CompressFormat.JPEG, 82, out)
+        val encoded = out.toByteArray()
+        val preview = runCatching {
+            var previewSample = 1
+            while (bounds.outWidth / previewSample > 360 || bounds.outHeight / previewSample > 360) previewSample *= 2
+            BitmapFactory.decodeByteArray(
+                encoded,
+                0,
+                encoded.size,
+                BitmapFactory.Options().apply { inSampleSize = previewSample },
+            )
+        }.getOrNull()
+        return (if (encoded.size in 1 until bytes.size) encoded else bytes) to preview
     }
 
     fun send() {
         val text = input.trim()
         val active = client ?: return
-        if ((text.isEmpty() && pendingAttachments.isEmpty()) || activeSessionId.isEmpty()) return
-        val attachments = pendingAttachments.map { it.attachment }
-        val names = pendingAttachments.joinToString("、") { it.name }
+        if (activeSessionId.isEmpty()) return
+        if (text.isEmpty() && pendingAttachments.isEmpty()) return
+        if (pendingAttachments.any { it.status == AttachmentStatus.UPLOADING }) {
+            error = "附件还在上传，请稍候"
+            return
+        }
+        val failed = pendingAttachments.firstOrNull { it.status == AttachmentStatus.FAILED }
+        if (failed != null) {
+            error = "「${failed.name}」上传失败，请重试或移除"
+            return
+        }
+        val ready = pendingAttachments.filter { it.status == AttachmentStatus.READY }
+        val attachments = ready.mapNotNull { it.attachment }
+        val localAttachments = ready.map { pending ->
+            ChatItem.ChatAttachment(
+                name = pending.name,
+                mime = pending.mime,
+                receiptId = (pending.attachment as? DshClient.Attachment.File)?.receiptId,
+                bytes = pending.size,
+                preview = pending.preview,
+            )
+        }
         input = ""
         pendingAttachments.clear()
         messages.add(
             ChatItem.User(
                 "local-${System.currentTimeMillis()}",
-                if (names.isEmpty()) text else "$text\n📎 $names".trim(),
+                text,
+                localAttachments,
             ),
         )
         viewModelScope.launch {
@@ -954,6 +1097,8 @@ class NativeViewModel(app: Application) : AndroidViewModel(app) {
                 withContext(Dispatchers.IO) { active.prompt(activeSessionId, text, attachments) }
             } catch (e: Exception) {
                 error = e.message ?: "发送失败"
+                input = text
+                pendingAttachments.addAll(ready)
             }
         }
     }
