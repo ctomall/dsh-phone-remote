@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.ui.viewinterop.AndroidView
 import android.Manifest
@@ -114,6 +115,7 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -736,7 +738,13 @@ private fun ChatScreen(vm: NativeViewModel) {
                 }
             }
             items(vm.messages.size) { index ->
-                MessageRow(vm.messages[index], vm, speaker) { imagePreview = it }
+                val message = vm.messages[index]
+                val previous = vm.messages.getOrNull(index - 1)
+                val freshDay = message.at > 0L && (previous == null || previous.at <= 0L || !sameDay(previous.at, message.at))
+                Column {
+                    if (freshDay) DayDivider(dayLabel(message.at))
+                    MessageRow(message, vm, speaker) { imagePreview = it }
+                }
             }
         }
         val atBottom by remember {
@@ -1374,6 +1382,38 @@ private fun EmptyChatState() {
 }
 
 @Composable
+private fun DayDivider(label: String) {
+    Text(
+        label,
+        color = DshMuted,
+        fontSize = 10.sp,
+        textAlign = TextAlign.Center,
+        modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
+    )
+}
+
+private fun sameDay(first: Long, second: Long): Boolean {
+    if (first <= 0L || second <= 0L) return false
+    val a = Calendar.getInstance().apply { timeInMillis = first }
+    val b = Calendar.getInstance().apply { timeInMillis = second }
+    return a.get(Calendar.YEAR) == b.get(Calendar.YEAR) && a.get(Calendar.DAY_OF_YEAR) == b.get(Calendar.DAY_OF_YEAR)
+}
+
+private fun dayLabel(time: Long): String {
+    if (time <= 0L) return ""
+    val now = Calendar.getInstance()
+    val then = Calendar.getInstance().apply { timeInMillis = time }
+    if (now.get(Calendar.YEAR) == then.get(Calendar.YEAR) && now.get(Calendar.DAY_OF_YEAR) == then.get(Calendar.DAY_OF_YEAR)) {
+        return "今天"
+    }
+    val yesterday = Calendar.getInstance().apply { add(Calendar.DAY_OF_YEAR, -1) }
+    if (yesterday.get(Calendar.YEAR) == then.get(Calendar.YEAR) && yesterday.get(Calendar.DAY_OF_YEAR) == then.get(Calendar.DAY_OF_YEAR)) {
+        return "昨天"
+    }
+    return java.text.SimpleDateFormat("M月d日", java.util.Locale.getDefault()).format(java.util.Date(time))
+}
+
+@Composable
 private fun ChatSkeleton() {
     Column(Modifier.fillMaxWidth().padding(top = 14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         repeat(3) { index ->
@@ -1937,6 +1977,39 @@ internal fun SessionsPreviewContent() {
 /** Screenshot-only chat composition with deterministic messages, attachments and tool card. */
 @Composable
 internal fun ChatPreviewContent() {
+    val now = System.currentTimeMillis()
+    val previewItems = listOf(
+        ChatItem.User(
+            "u1",
+            "帮我看下这张截图和日志，顺便确认改动范围",
+            listOf(
+                ChatItem.ChatAttachment(
+                    "screenshot.png",
+                    "image/png",
+                    preview = sampleImage(0xFF4F46E5.toInt(), 0xFF22D3EE.toInt()),
+                ),
+                ChatItem.ChatAttachment("app.log", receiptId = "r1", bytes = 182_432),
+            ),
+            now - 86_400_000L,
+        ),
+        ChatItem.Assistant(
+            "a1",
+            "我先看一下 git 状态和最近的 diff：\n```\ngit status --short\n```",
+            reasoning = "We need to inspect the working tree before answering. Run git status --short, then summarize staged and unstaged changes for the user.",
+            streaming = true,
+            at = now - 86_340_000L,
+        ),
+        ChatItem.Tool(
+            "t1",
+            "call_1",
+            "bash",
+            "{\n  \"command\": \"git status --short\"\n}",
+            " M app/src/main/java/com/ila3/dshnative/ui/NativeApp.kt\n?? docs/",
+            false,
+            at = now - 3_600_000L,
+        ),
+        ChatItem.Assistant("a2", "有两个改动：NativeApp.kt 已修改，docs/ 是新目录。需要我继续生成 diff 吗？", at = now - 3_540_000L),
+    )
     Column(Modifier.fillMaxSize().background(DshBackgroundBrush)) {
         TopBar("检查未提交改动", "已连接 · DeepSeek V4", {}, Icons.AutoMirrored.Filled.ArrowBack) {}
         LazyColumn(
@@ -1944,37 +2017,14 @@ internal fun ChatPreviewContent() {
             contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            items(
-                listOf(
-                    ChatItem.User(
-                        "u1",
-                        "帮我看下这张截图和日志，顺便确认改动范围",
-                        listOf(
-                            ChatItem.ChatAttachment(
-                                "screenshot.png",
-                                "image/png",
-                                preview = sampleImage(0xFF4F46E5.toInt(), 0xFF22D3EE.toInt()),
-                            ),
-                            ChatItem.ChatAttachment("app.log", receiptId = "r1", bytes = 182_432),
-                        ),
-                    ),
-                    ChatItem.Assistant(
-                        "a1",
-                        "我先看一下 git 状态和最近的 diff：\n```\ngit status --short\n```",
-                        reasoning = "We need to inspect the working tree before answering. Run git status --short, then summarize staged and unstaged changes for the user.",
-                        streaming = true,
-                    ),
-                    ChatItem.Tool(
-                        "t1",
-                        "call_1",
-                        "bash",
-                        "{\n  \"command\": \"git status --short\"\n}",
-                        " M app/src/main/java/com/ila3/dshnative/ui/NativeApp.kt\n?? docs/",
-                        false,
-                    ),
-                    ChatItem.Assistant("a2", "有两个改动：NativeApp.kt 已修改，docs/ 是新目录。需要我继续生成 diff 吗？"),
-                ),
-            ) { item -> MessageRow(item) }
+            itemsIndexed(previewItems) { index, item ->
+                val previous = previewItems.getOrNull(index - 1)
+                val freshDay = item.at > 0L && (previous == null || previous.at <= 0L || !sameDay(previous.at, item.at))
+                Column {
+                    if (freshDay) DayDivider(dayLabel(item.at))
+                    MessageRow(item)
+                }
+            }
         }
         Column(
             Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 4.dp)

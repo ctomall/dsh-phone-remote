@@ -42,6 +42,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
@@ -52,6 +53,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ila3.dshnative.protocol.DshClient
 import com.ila3.dshnative.protocol.SessionSummary
+import org.json.JSONArray
+import org.json.JSONObject
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -61,7 +64,7 @@ private val CardShape = RoundedCornerShape(18.dp)
 
 @Composable
 internal fun HomeScreen(vm: NativeViewModel) {
-    var tab by remember { mutableIntStateOf(0) }
+    val tab = vm.homeTab
     var query by remember { mutableStateOf("") }
 
     Column(Modifier.fillMaxSize()) {
@@ -73,7 +76,7 @@ internal fun HomeScreen(vm: NativeViewModel) {
                 else -> SettingsTab(vm)
             }
         }
-        BottomNavigation(active = tab) { index -> tab = index }
+        BottomNavigation(active = tab) { index -> vm.updateHomeTab(index) }
     }
 }
 
@@ -111,11 +114,7 @@ private fun SessionsTab(vm: NativeViewModel, query: String, onQuery: (String) ->
             item(key = "running") { RunningCard(running) { vm.openTasks() } }
         }
         if (vm.pendingQuestions.isNotEmpty()) {
-            item(key = "approval") {
-                ApprovalCard(vm.pendingQuestions.first()) {
-                    vm.sessions.firstOrNull { it.id == vm.activeSessionId }?.let { vm.openSession(it) }
-                }
-            }
+            item(key = "approval") { InboxQuestionCard(vm) }
         }
         when {
             vm.busy && vm.sessions.isEmpty() -> item(key = "loading") {
@@ -221,22 +220,59 @@ private fun RunningCard(running: List<SessionSummary>, onClick: () -> Unit) {
 }
 
 @Composable
-private fun ApprovalCard(pending: DshClient.PendingQuestion, onOpen: () -> Unit) {
-    val question = pending.questions.firstOrNull()?.question ?: "Agent 需要你的回答"
-    Row(
+private fun InboxQuestionCard(vm: NativeViewModel) {
+    val pending = vm.pendingQuestions.firstOrNull() ?: return
+    val question = pending.questions.firstOrNull() ?: return
+    val quickAnswer = pending.questions.size == 1 && !question.multiSelect && question.options.isNotEmpty()
+    Column(
         Modifier.fillMaxWidth().padding(horizontal = 20.dp)
             .background(DshSurface, CardShape)
-            .clickable(onClick = onOpen)
             .padding(14.dp),
-        verticalAlignment = Alignment.CenterVertically,
+        verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Box(Modifier.width(4.dp).height(38.dp).background(Color(0xFFF59E0B), RoundedCornerShape(4.dp)))
-        Spacer(Modifier.width(12.dp))
-        Column(Modifier.weight(1f)) {
-            Text("需要你处理", color = DshText, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-            Text(question, color = DshMuted, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.width(4.dp).height(34.dp).background(Color(0xFFF59E0B), RoundedCornerShape(4.dp)))
+            Spacer(Modifier.width(10.dp))
+            Column(Modifier.weight(1f)) {
+                Text("需要你处理", color = DshText, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                Text(question.header ?: "Agent 正在等待你的回答", color = DshMuted, fontSize = 11.sp)
+            }
         }
-        Text("去处理", color = DshTeal, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+        Text(question.question, color = DshText, fontSize = 13.sp, lineHeight = 19.sp)
+        if (quickAnswer) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                question.options.take(3).forEach { option ->
+                    Text(
+                        option.label,
+                        color = DshOnAccent,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(DshTeal)
+                            .clickable {
+                                val answers = JSONArray().put(
+                                    JSONObject()
+                                        .put("id", question.id)
+                                        .put("selected", JSONArray().put(option.label)),
+                                )
+                                vm.answerQuestion(pending.callId, answers)
+                            }
+                            .padding(horizontal = 12.dp, vertical = 7.dp),
+                    )
+                }
+            }
+        } else {
+            Text(
+                "打开会话处理",
+                color = DshTeal,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Medium,
+                modifier = Modifier.clickable {
+                    vm.sessions.firstOrNull { it.id == vm.activeSessionId }?.let { vm.openSession(it) }
+                },
+            )
+        }
     }
 }
 
@@ -315,11 +351,7 @@ private fun InboxTab(vm: NativeViewModel) {
             item { EmptyState("没有待处理事项", "Agent 需要你时会出现在这里，并推送通知") }
         }
         if (vm.pendingQuestions.isNotEmpty()) {
-            item {
-                ApprovalCard(vm.pendingQuestions.first()) {
-                    vm.sessions.firstOrNull { it.id == vm.activeSessionId }?.let { vm.openSession(it) }
-                }
-            }
+            item { InboxQuestionCard(vm) }
         }
         items(running, key = { "inbox-${it.id}" }) { session ->
             HomeSessionRow(session, active = session.id == vm.activeSessionId) { vm.openSession(session) }

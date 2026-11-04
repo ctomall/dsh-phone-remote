@@ -37,7 +37,15 @@ class NativeNotifications(private val context: Context) {
     }
 
     fun question(sessionId: String, sessionTitle: String, text: String) =
-        post(CHANNEL_ACTION, "需要你的回答", sessionTitle.ifBlank { "DSH" }, text, sessionId, 1000 + sessionId.hashCode())
+        post(
+            CHANNEL_ACTION,
+            "需要你的回答",
+            sessionTitle.ifBlank { "DSH" },
+            text,
+            sessionId,
+            1000 + sessionId.hashCode(),
+            inboxAction = true,
+        )
 
     fun turnDone(sessionId: String, sessionTitle: String, text: String) =
         post(CHANNEL_ACTIVITY, "任务已完成", sessionTitle.ifBlank { "DSH" }, text, sessionId, 2000 + sessionId.hashCode())
@@ -45,7 +53,15 @@ class NativeNotifications(private val context: Context) {
     fun error(sessionId: String, sessionTitle: String, text: String) =
         post(CHANNEL_ACTIVITY, "执行出错", sessionTitle.ifBlank { "DSH" }, text, sessionId, 3000 + sessionId.hashCode())
 
-    private fun post(channel: String, title: String, subject: String, text: String, sessionId: String, id: Int) {
+    private fun post(
+        channel: String,
+        title: String,
+        subject: String,
+        text: String,
+        sessionId: String,
+        id: Int,
+        inboxAction: Boolean = false,
+    ) {
         if (!allowed()) return
         val intent = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
@@ -57,7 +73,7 @@ class NativeNotifications(private val context: Context) {
             intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
-        val notification = NotificationCompat.Builder(context, channel)
+        val builder = NotificationCompat.Builder(context, channel)
             .setSmallIcon(R.mipmap.ic_launcher)
             .setContentTitle(subject)
             .setSubText(title)
@@ -67,8 +83,24 @@ class NativeNotifications(private val context: Context) {
             .setOnlyAlertOnce(true)
             .setContentIntent(pending)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .build()
+        if (inboxAction) {
+            builder.addAction(0, "打开处理", inboxPendingIntent(id + 5000))
+        }
+        val notification = builder.build()
         runCatching { NotificationManagerCompat.from(context).notify(id, notification) }
+    }
+
+    private fun inboxPendingIntent(id: Int): PendingIntent {
+        val intent = Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
+            putExtra(EXTRA_TAB, "inbox")
+        }
+        return PendingIntent.getActivity(
+            context,
+            id,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
     }
 
     private fun allowed(): Boolean {
@@ -85,5 +117,6 @@ class NativeNotifications(private val context: Context) {
         const val CHANNEL_ACTIVITY = "dsh_activity"
         const val CHANNEL_KEEPALIVE = "dsh_keepalive"
         const val EXTRA_SESSION = "sessionId"
+        const val EXTRA_TAB = "tab"
     }
 }

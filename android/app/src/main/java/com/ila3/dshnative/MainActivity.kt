@@ -44,6 +44,9 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun handleIntent(intent: Intent?) {
+        if (intent?.getStringExtra(NativeNotifications.EXTRA_TAB) == "inbox") {
+            viewModel.openInbox()
+        }
         val sessionId = intent?.getStringExtra(NativeNotifications.EXTRA_SESSION).orEmpty()
         if (sessionId.isNotEmpty() && viewModel.activeSessionId != sessionId) {
             viewModel.openSessionFromNotification(sessionId)

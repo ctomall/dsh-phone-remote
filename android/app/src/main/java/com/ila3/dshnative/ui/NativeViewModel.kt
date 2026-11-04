@@ -53,6 +53,8 @@ class NativeViewModel(app: Application) : AndroidViewModel(app) {
     private val notifications = NativeNotifications(app)
     var notifyEnabled by mutableStateOf(store.notifyEnabled())
         private set
+    var homeTab by mutableStateOf(0)
+        private set
     var keepAliveEnabled by mutableStateOf(store.keepAlive())
         private set
     private var foreground = true
@@ -938,7 +940,7 @@ class NativeViewModel(app: Application) : AndroidViewModel(app) {
             val item = messages[index] as ChatItem.Assistant
             messages[index] = item.copy(text = item.text + delta)
         } else {
-            messages.add(ChatItem.Assistant("stream", delta, streaming = true))
+            messages.add(ChatItem.Assistant("stream", delta, streaming = true, at = System.currentTimeMillis()))
         }
     }
 
@@ -1137,6 +1139,7 @@ class NativeViewModel(app: Application) : AndroidViewModel(app) {
                 "local-${System.currentTimeMillis()}",
                 text,
                 localAttachments,
+                System.currentTimeMillis(),
             ),
         )
         viewModelScope.launch {
@@ -1193,6 +1196,16 @@ class NativeViewModel(app: Application) : AndroidViewModel(app) {
 
     fun showError(message: String) {
         error = message
+    }
+
+    fun updateHomeTab(index: Int) {
+        homeTab = index
+    }
+
+    /** Jump to the inbox tab (notification action). */
+    fun openInbox() {
+        homeTab = 1
+        if (screen != Screen.Chat) screen = Screen.Sessions
     }
 
     fun openTasks() {

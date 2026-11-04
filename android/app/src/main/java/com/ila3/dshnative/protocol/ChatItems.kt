@@ -6,6 +6,7 @@ import org.json.JSONObject
 
 sealed class ChatItem {
     abstract val key: String
+    abstract val at: Long
 
     data class ChatAttachment(
         val name: String,
@@ -20,12 +21,14 @@ sealed class ChatItem {
         override val key: String,
         val text: String,
         val attachments: List<ChatAttachment> = emptyList(),
+        override val at: Long = 0L,
     ) : ChatItem()
     data class Assistant(
         override val key: String,
         val text: String,
         val reasoning: String? = null,
         val streaming: Boolean = false,
+        override val at: Long = 0L,
     ) : ChatItem()
 
     data class Tool(
@@ -35,6 +38,7 @@ sealed class ChatItem {
         val arguments: String,
         val result: String? = null,
         val isError: Boolean = false,
+        override val at: Long = 0L,
     ) : ChatItem()
 
     data class ToolResult(
@@ -42,9 +46,10 @@ sealed class ChatItem {
         val callId: String,
         val text: String,
         val isError: Boolean,
+        override val at: Long = 0L,
     ) : ChatItem()
 
-    data class Notice(override val key: String, val text: String) : ChatItem()
+    data class Notice(override val key: String, val text: String, override val at: Long = 0L) : ChatItem()
 }
 
 /**
@@ -70,14 +75,16 @@ object ChatParser {
                 if (sourceKind != null && sourceKind != "user") null else {
                     val text = messageText(data)
                     val attachments = parseAttachments(data)
-                    if (text.isBlank() && attachments.isEmpty()) null else ChatItem.User("e$seq", text, attachments)
+                    val at = event.optLong("time", 0L)
+                    if (text.isBlank() && attachments.isEmpty()) null else ChatItem.User("e$seq", text, attachments, at)
                 }
             }
             "assistant/message" -> {
                 val message = data.optJSONObject("message")
                 val text = messageText(message)
                 val reasoning = reasoningText(message)
-                if (text.isBlank() && reasoning == null) null else ChatItem.Assistant("e$seq", text, reasoning)
+                val at = event.optLong("time", 0L)
+                if (text.isBlank() && reasoning == null) null else ChatItem.Assistant("e$seq", text, reasoning, at = at)
             }
             "tool/call" -> {
                 val callId = data.optString("callId")
@@ -86,6 +93,7 @@ object ChatParser {
                     callId = callId,
                     name = data.optString("name", "tool"),
                     arguments = data.optString("arguments", ""),
+                    at = event.optLong("time", 0L),
                 )
             }
             "tool/result" -> {
