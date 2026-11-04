@@ -71,6 +71,18 @@ class NativeStore(context: Context) {
         if (currentId() == id) setCurrent(all.firstOrNull()?.id ?: "")
     }
 
+    fun notifyEnabled(): Boolean = prefs.getBoolean("notify_enabled", true)
+
+    fun setNotifyEnabled(value: Boolean) {
+        prefs.edit().putBoolean("notify_enabled", value).apply()
+    }
+
+    fun keepAlive(): Boolean = prefs.getBoolean("keep_alive", false)
+
+    fun setKeepAlive(value: Boolean) {
+        prefs.edit().putBoolean("keep_alive", value).apply()
+    }
+
     fun thinkExpanded(): Boolean = prefs.getBoolean("think_expanded", false)
 
     fun setThinkExpanded(value: Boolean) {

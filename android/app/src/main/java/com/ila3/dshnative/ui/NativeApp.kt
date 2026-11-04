@@ -109,6 +109,7 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -121,9 +122,14 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
+import org.json.JSONArray
+import org.json.JSONObject
+import android.app.Activity
+import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
+import android.speech.RecognizerIntent
 import android.util.Base64
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.compose.animation.core.RepeatMode
@@ -132,7 +138,14 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Checklist
 import androidx.compose.material.icons.filled.Lightbulb
+import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.PlayCircleOutline
+import androidx.compose.material.icons.filled.RadioButtonUnchecked
+import androidx.compose.material.icons.filled.VolumeOff
+import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material.icons.filled.Translate
 import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material3.SmallFloatingActionButton
@@ -161,6 +174,7 @@ fun NativeApp(vm: NativeViewModel = viewModel()) {
             Screen.Files -> FilesScreen(vm)
             Screen.Terminal -> TerminalScreen(vm)
             Screen.Settings -> SettingsScreen(vm)
+            Screen.Tasks -> TasksScreen(vm)
         }
         if (vm.error.isNotEmpty()) {
             ErrorBar(vm.error, vm::dismissError, Modifier.align(Alignment.BottomCenter).padding(16.dp))
@@ -351,6 +365,113 @@ private fun ServersScreen(vm: NativeViewModel) {
 }
 
 @Composable
+private fun TasksScreen(vm: NativeViewModel) {
+    val running = vm.sessions.filter { it.running }
+    val taskState = remember(vm.messages.size, vm.activeSessionId) { parseTaskState(vm.messages) }
+    val tools = remember(vm.messages.size) { vm.messages.filterIsInstance<ChatItem.Tool>().takeLast(8).reversed() }
+    Column(Modifier.fillMaxSize()) {
+        TopBar(
+            "任务",
+            "${running.size} 个运行中 · ${vm.sessions.size} 个会话",
+            vm::closeTasks,
+            Icons.AutoMirrored.Filled.ArrowBack,
+        )
+        LazyColumn(
+            Modifier.fillMaxSize(),
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            item { SectionLabel("运行中的会话") }
+            if (running.isEmpty()) {
+                item { Text("当前没有运行中的会话", color = DshMuted, fontSize = 12.sp) }
+            } else {
+                items(running, key = { "running-${it.id}" }) { session ->
+                    SessionRow(session, active = session.id == vm.activeSessionId) { vm.openSession(session) }
+                }
+            }
+            item { SectionLabel("当前会话任务") }
+            if (vm.activeSessionId.isEmpty()) {
+                item { Text("先打开一个会话，这里会显示它的目标与 todo", color = DshMuted, fontSize = 12.sp) }
+            } else {
+                taskState.first?.let { goal -> item(key = "goal") { GoalCard(goal) } }
+                if (taskState.second.isEmpty()) {
+                    item { Text("这个会话还没有 todo（Agent 调用 todo_write 后会出现在这里）", color = DshMuted, fontSize = 12.sp) }
+                } else {
+                    items(taskState.second.size, key = { "todo-$it" }) { index -> TodoRow(taskState.second[index]) }
+                }
+            }
+            item { SectionLabel("最近工具调用") }
+            if (tools.isEmpty()) {
+                item { Text("暂无工具调用", color = DshMuted, fontSize = 12.sp) }
+            } else {
+                items(tools.size, key = { "recent-${tools[it].key}" }) { index -> ToolCard(tools[index]) }
+            }
+        }
+    }
+}
+
+private fun parseTaskState(messages: List<ChatItem>): Pair<String?, List<Pair<String, String>>> {
+    var goal: String? = null
+    messages.lastOrNull { it is ChatItem.Tool && (it.name == "create_goal" || it.name == "update_goal") }?.let { raw ->
+        val tool = raw as ChatItem.Tool
+        goal = runCatching { JSONObject(tool.arguments).optString("objective").ifBlank { null } }.getOrNull()
+    }
+    val todos = mutableListOf<Pair<String, String>>()
+    messages.lastOrNull { it is ChatItem.Tool && it.name == "todo_write" }?.let { raw ->
+        val tool = raw as ChatItem.Tool
+        runCatching {
+            val array = JSONObject(tool.arguments).optJSONArray("todos") ?: JSONArray()
+            for (index in 0 until array.length()) {
+                val item = array.optJSONObject(index) ?: continue
+                val content = item.optString("content")
+                if (content.isNotBlank()) todos.add(content to item.optString("status"))
+            }
+        }
+    }
+    return goal to todos
+}
+
+@Composable
+private fun GoalCard(goal: String) {
+    Column(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(DshSurface)
+            .border(1.dp, DshBorder, RoundedCornerShape(16.dp)).padding(14.dp),
+    ) {
+        Text("目标", color = DshTeal, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
+        Text(goal, color = DshText, fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp))
+    }
+}
+
+@Composable
+private fun TodoRow(todo: Pair<String, String>) {
+    val (content, status) = todo
+    val icon = when (status) {
+        "completed" -> Icons.Filled.CheckCircle
+        "in_progress" -> Icons.Filled.PlayCircleOutline
+        else -> Icons.Filled.RadioButtonUnchecked
+    }
+    val tint = when (status) {
+        "completed" -> DshTeal
+        "in_progress" -> DshTealSoft
+        else -> DshMuted
+    }
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(DshSurface)
+            .border(1.dp, DshBorder, RoundedCornerShape(14.dp)).padding(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(18.dp))
+        Spacer(Modifier.width(10.dp))
+        Text(
+            content,
+            color = if (status == "completed") DshMuted else DshText,
+            fontSize = 13.sp,
+            textDecoration = if (status == "completed") TextDecoration.LineThrough else null,
+        )
+    }
+}
+
+@Composable
 private fun SessionsScreen(vm: NativeViewModel) {
     val profile = vm.currentProfile
     var query by remember { mutableStateOf("") }
@@ -389,6 +510,22 @@ private fun SessionsScreen(vm: NativeViewModel) {
             shape = RoundedCornerShape(18.dp),
             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
         )
+        val runningCount = vm.sessions.count { it.running }
+        if (runningCount > 0) {
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 2.dp)
+                    .clip(RoundedCornerShape(14.dp)).background(DshSurface)
+                    .border(1.dp, DshBorder, RoundedCornerShape(14.dp))
+                    .clickable { vm.openTasks() }
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(Modifier.size(7.dp).clip(CircleShape).background(DshTeal))
+                Spacer(Modifier.width(8.dp))
+                Text("$runningCount 个会话运行中", color = DshText, fontSize = 12.sp, modifier = Modifier.weight(1f))
+                Text("查看任务 ›", color = DshTeal, fontSize = 11.sp)
+            }
+        }
         when {
             vm.busy && vm.sessions.isEmpty() -> Box(Modifier.fillMaxWidth().padding(40.dp), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator(color = DshTeal)
@@ -490,6 +627,13 @@ private fun ChatScreen(vm: NativeViewModel) {
     var historyAnchorOffset by remember { mutableStateOf(0) }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val speaker = rememberSpeaker()
+    val speechLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            val spoken = result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull().orEmpty()
+            if (spoken.isNotBlank()) vm.input = (vm.input.trim() + " " + spoken).trim()
+        }
+    }
     val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
         uri?.let { vm.attach(it) }
     }
@@ -582,7 +726,7 @@ private fun ChatScreen(vm: NativeViewModel) {
                 }
             }
             items(vm.messages.size) { index ->
-                MessageRow(vm.messages[index], vm) { imagePreview = it }
+                MessageRow(vm.messages[index], vm, speaker) { imagePreview = it }
             }
         }
         val atBottom by remember {
@@ -648,7 +792,22 @@ private fun ChatScreen(vm: NativeViewModel) {
             ) {
                 Icon(Icons.Filled.Add, contentDescription = "添加附件", tint = DshTeal)
             }
-            Spacer(Modifier.width(8.dp))
+            Spacer(Modifier.width(6.dp))
+            IconButton(
+                onClick = {
+                    val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                        putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                        putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault().toLanguageTag())
+                        putExtra(RecognizerIntent.EXTRA_PROMPT, "说出你的指令")
+                    }
+                    runCatching { speechLauncher.launch(intent) }
+                        .onFailure { vm.showError("设备没有可用的语音识别服务") }
+                },
+                modifier = Modifier.size(42.dp).clip(CircleShape).background(DshSurface2),
+            ) {
+                Icon(Icons.Filled.Mic, contentDescription = "语音输入", tint = DshTeal, modifier = Modifier.size(20.dp))
+            }
+            Spacer(Modifier.width(6.dp))
             OutlinedTextField(
                 value = vm.input,
                 onValueChange = { vm.input = it },
@@ -713,6 +872,7 @@ private fun ChatScreen(vm: NativeViewModel) {
 private fun ChatActionSheet(vm: NativeViewModel) {
     Column(Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 16.dp, vertical = 8.dp)) {
         Text("会话操作", color = DshText, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(8.dp))
+        ChatAction(Icons.Filled.Checklist, "任务与进度") { vm.dismissChatMenu(); vm.openTasks() }
         ChatAction(Icons.Filled.Tune, "更换模型", vm.currentModel?.name ?: "默认") { vm.dismissChatMenu(); vm.openModelPicker() }
         ChatAction(Icons.Filled.Edit, "重命名会话") { vm.showRename() }
         ChatAction(Icons.Filled.Refresh, "刷新会话") { vm.reloadActiveSession() }
@@ -883,10 +1043,10 @@ private fun ModelPickerDialog(vm: NativeViewModel) {
 }
 
 @Composable
-private fun MessageRow(item: ChatItem, vm: NativeViewModel? = null, onImage: (Bitmap) -> Unit = {}) {
+private fun MessageRow(item: ChatItem, vm: NativeViewModel? = null, speaker: Speaker? = null, onImage: (Bitmap) -> Unit = {}) {
     when (item) {
         is ChatItem.User -> UserMessageRow(item, onImage)
-        is ChatItem.Assistant -> AssistantMessageRow(item, vm)
+        is ChatItem.Assistant -> AssistantMessageRow(item, vm, speaker)
         is ChatItem.Tool -> ToolCard(item)
         is ChatItem.ToolResult -> Unit
         is ChatItem.Notice -> Text(item.text, color = DshMuted, fontSize = 11.sp, modifier = Modifier.padding(horizontal = 4.dp))
@@ -990,7 +1150,7 @@ private fun formatBytes(bytes: Long): String = when {
 }
 
 @Composable
-private fun AssistantMessageRow(item: ChatItem.Assistant, vm: NativeViewModel?) {
+private fun AssistantMessageRow(item: ChatItem.Assistant, vm: NativeViewModel?, speaker: Speaker?) {
     val clipboard = LocalClipboardManager.current
     var copied by remember { mutableStateOf(false) }
     val baseKey = if (vm != null) "${vm.activeSessionId}:${item.key}" else item.key
@@ -1022,6 +1182,19 @@ private fun AssistantMessageRow(item: ChatItem.Assistant, vm: NativeViewModel?) 
                     Text("已翻译", color = DshTeal, fontSize = 9.sp)
                 }
                 Spacer(Modifier.weight(1f))
+                if (speaker != null && item.text.isNotBlank()) {
+                    IconButton(
+                        onClick = { speaker.toggle(baseKey, bodyText) },
+                        modifier = Modifier.size(24.dp),
+                    ) {
+                        Icon(
+                            if (speaker.speakingKey == baseKey) Icons.Filled.VolumeOff else Icons.Filled.VolumeUp,
+                            contentDescription = if (speaker.speakingKey == baseKey) "停止朗读" else "朗读这条消息",
+                            tint = if (speaker.speakingKey == baseKey) DshTeal else DshMuted,
+                            modifier = Modifier.size(13.dp),
+                        )
+                    }
+                }
                 if (vm != null && item.text.isNotBlank()) {
                     IconButton(
                         onClick = {
@@ -1894,6 +2067,10 @@ private fun SettingsScreen(vm: NativeViewModel) {
         onCheckUpdate = { vm.checkUpdate() },
         thinkExpanded = vm.thinkExpanded,
         onThinkExpanded = { vm.updateThinkExpanded(it) },
+        notifyEnabled = vm.notifyEnabled,
+        onNotify = { vm.updateNotifyEnabled(it) },
+        keepAlive = vm.keepAliveEnabled,
+        onKeepAlive = { vm.updateKeepAlive(it) },
     )
     vm.updateInfo?.let { UpdateDialog(vm, context) }
 }
@@ -1947,6 +2124,10 @@ internal fun SettingsPreviewContent() {
         onCheckUpdate = {},
         thinkExpanded = true,
         onThinkExpanded = {},
+        notifyEnabled = true,
+        onNotify = {},
+        keepAlive = false,
+        onKeepAlive = {},
     )
 }
 
@@ -1964,6 +2145,10 @@ private fun SettingsContent(
     onCheckUpdate: () -> Unit,
     thinkExpanded: Boolean,
     onThinkExpanded: (Boolean) -> Unit,
+    notifyEnabled: Boolean,
+    onNotify: (Boolean) -> Unit,
+    keepAlive: Boolean,
+    onKeepAlive: (Boolean) -> Unit,
 ) {
     Column(Modifier.fillMaxSize()) {
         TopBar("设置", profileName, onBack, Icons.AutoMirrored.Filled.ArrowBack)
@@ -2029,6 +2214,43 @@ private fun SettingsContent(
                             checkedThumbColor = Color.White,
                             checkedTrackColor = DshTeal,
                         ),
+                    )
+                }
+            }
+            SectionLabel("通知与后台")
+            Column(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp)).background(DshSurface)
+                    .border(1.dp, DshBorder, RoundedCornerShape(22.dp)),
+            ) {
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text("通知提醒", color = DshText, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                        Text("需要回答、任务完成或出错时推送通知", color = DshMuted, fontSize = 11.sp)
+                    }
+                    Spacer(Modifier.width(12.dp))
+                    Switch(
+                        checked = notifyEnabled,
+                        onCheckedChange = onNotify,
+                        colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = DshTeal),
+                    )
+                }
+                HorizontalDivider(color = DshBorder, modifier = Modifier.padding(horizontal = 16.dp))
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text("后台保持连接", color = DshText, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                        Text("退出 App 后保留连接（显示常驻通知，略耗电）", color = DshMuted, fontSize = 11.sp)
+                    }
+                    Spacer(Modifier.width(12.dp))
+                    Switch(
+                        checked = keepAlive,
+                        onCheckedChange = onKeepAlive,
+                        colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = DshTeal),
                     )
                 }
             }

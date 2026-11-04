@@ -23,6 +23,7 @@ import com.ila3.dshnative.protocol.ChatItem
 import com.ila3.dshnative.protocol.ChatParser
 import com.ila3.dshnative.protocol.DshClient
 import com.ila3.dshnative.protocol.DshException
+import com.ila3.dshnative.protocol.NativeNotifications
 import com.ila3.dshnative.protocol.NativeStore
 import com.ila3.dshnative.protocol.ServerProfile
 import com.ila3.dshnative.protocol.SessionSummary
@@ -44,10 +45,20 @@ sealed interface Screen {
     data object Files : Screen
     data object Terminal : Screen
     data object Settings : Screen
+    data object Tasks : Screen
 }
 
 class NativeViewModel(app: Application) : AndroidViewModel(app) {
     private val store = NativeStore(app)
+    private val notifications = NativeNotifications(app)
+    var notifyEnabled by mutableStateOf(store.notifyEnabled())
+        private set
+    var keepAliveEnabled by mutableStateOf(store.keepAlive())
+        private set
+    private var foreground = true
+    private var lastTurnNotified = -1L
+    private var lastQuestionNotified = ""
+    private var pendingOpenSessionId = ""
 
     var profiles by mutableStateOf(store.profiles())
         private set
@@ -280,6 +291,13 @@ class NativeViewModel(app: Application) : AndroidViewModel(app) {
                 val list = withContext(Dispatchers.IO) { active.sessions() }
                 sessions = list.sortedByDescending { it.updatedAt }
                 connection = "已连接"
+                if (pendingOpenSessionId.isNotEmpty()) {
+                    val target = sessions.firstOrNull { it.id == pendingOpenSessionId }
+                    if (target != null) {
+                        pendingOpenSessionId = ""
+                        openSession(target)
+                    }
+                }
             } catch (e: DshException) {
                 error = e.message ?: "加载会话失败"
                 connection = "连接失败"
@@ -335,7 +353,12 @@ class NativeViewModel(app: Application) : AndroidViewModel(app) {
         if (session.isEmpty()) return
         viewModelScope.launch {
             runCatching { withContext(Dispatchers.IO) { active.pendingQuestions(session) } }
-                .onSuccess { if (activeSessionId == session) pendingQuestions = it }
+                .onSuccess {
+                    if (activeSessionId == session) {
+                        pendingQuestions = it
+                        maybeNotifyQuestion()
+                    }
+                }
         }
     }
 
@@ -863,6 +886,7 @@ class NativeViewModel(app: Application) : AndroidViewModel(app) {
                 if (event.optString("type") == "tool/call" && event.optJSONObject("data")?.optString("name") == "ask_user_question") {
                     loadQuestions()
                 }
+                if (event.optString("type") == "turn/end") maybeNotifyTurnDone()
                 ChatParser.parseEvent(event)?.let { appendItem(it) }
             }
             "assistant-stream" -> {
@@ -1151,6 +1175,64 @@ class NativeViewModel(app: Application) : AndroidViewModel(app) {
     fun clearTranslation(key: String) {
         translations.remove(key)
         viewModelScope.launch(Dispatchers.IO) { translationStore.remove(key) }
+    }
+
+    fun setForeground(value: Boolean) {
+        foreground = value
+    }
+
+    fun updateNotifyEnabled(value: Boolean) {
+        notifyEnabled = value
+        store.setNotifyEnabled(value)
+    }
+
+    fun updateKeepAlive(value: Boolean) {
+        keepAliveEnabled = value
+        store.setKeepAlive(value)
+    }
+
+    fun showError(message: String) {
+        error = message
+    }
+
+    fun openTasks() {
+        screen = Screen.Tasks
+        loadSessions()
+    }
+
+    fun closeTasks() {
+        screen = Screen.Sessions
+    }
+
+    /** Deep-link from a notification: open the session once the list is loaded. */
+    fun openSessionFromNotification(sessionId: String) {
+        if (sessionId.isEmpty()) return
+        pendingOpenSessionId = sessionId
+        val match = sessions.firstOrNull { it.id == sessionId }
+        if (match != null) {
+            pendingOpenSessionId = ""
+            openSession(match)
+        } else {
+            loadSessions()
+        }
+    }
+
+    private fun maybeNotifyTurnDone() {
+        if (foreground || !notifyEnabled || activeSessionId.isEmpty()) return
+        if (lastTurnNotified == lastSeq) return
+        lastTurnNotified = lastSeq
+        val last = messages.lastOrNull { it is ChatItem.Assistant } as? ChatItem.Assistant
+        val text = last?.text?.takeIf { it.isNotBlank() } ?: "任务已完成，点击查看结果"
+        notifications.turnDone(activeSessionId, activeSessionTitle, text)
+    }
+
+    private fun maybeNotifyQuestion() {
+        if (foreground || !notifyEnabled) return
+        val pending = pendingQuestions.firstOrNull() ?: return
+        if (pending.callId == lastQuestionNotified) return
+        lastQuestionNotified = pending.callId
+        val text = pending.questions.firstOrNull()?.question ?: "Agent 需要你的回答"
+        notifications.question(activeSessionId, activeSessionTitle, text)
     }
 
     fun newSession() {

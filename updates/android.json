@@ -1,8 +1,8 @@
 {
-  "versionCode": 22,
-  "versionName": "0.19.3",
-  "apkUrl": "https://raw.githubusercontent.com/ctomall/dsh-phone-remote/main/updates/DSHNative-0.19.3.apk",
-  "sha256": "e13cc10360e0c499208a554219b29a0fa92b33fd74a8f8f8cf92eed353de4296",
-  "notes": "译文持久化到本地；设置新增「思考默认展开」（展开自动翻译）",
-  "signature": "MEUCIQCDRcOwHvNGv62pup1KYlJ9D+QkcHel2FGsFa45VLPXMAIgca2qLs/kICnKvcbXNkSr+SaxA6hbCNRhvNkniN1o52M="
+  "versionCode": 23,
+  "versionName": "0.19.4",
+  "apkUrl": "https://raw.githubusercontent.com/ctomall/dsh-phone-remote/main/updates/DSHNative-0.19.4.apk",
+  "sha256": "fa43a32df74e667ad5a7c8fceb3a27f7648014e03c2cc95a84b70f7b5e1b519f",
+  "notes": "新增通知提醒与后台保持连接；任务与进度页（运行中会话 / 目标 / todo / 工具时间线）；语音输入与朗读",
+  "signature": "MEUCIQCEOKA/MqDhAyzCDl1cxAmC8ztmPaIuMAZZF8nNXUR88AIgfpCuYTZa6wUaaMrjP/+OT67PsFzk7jyI300aEgO+Rmc="
 }
