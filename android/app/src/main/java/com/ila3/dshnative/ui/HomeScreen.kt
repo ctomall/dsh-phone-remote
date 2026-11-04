@@ -1,5 +1,6 @@
 package com.ila3.dshnative.ui
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -52,7 +53,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -275,26 +278,36 @@ private fun FilesTab(vm: NativeViewModel) {
             }
         }
     }
-    vm.filePreview?.let { preview ->
-        ModalBottomSheet(
-            onDismissRequest = { vm.dismissFilePreview() },
-            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-            containerColor = DshSurface,
-        ) {
-            Column(Modifier.fillMaxWidth().padding(20.dp)) {
-                Text(preview.name, color = DshText, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
-                Spacer(Modifier.height(10.dp))
-                when {
-                    preview.bitmap != null -> Text("图片预览：${preview.name}", color = DshMuted, fontSize = 12.sp)
-                    preview.text != null -> Text(
-                        preview.text,
-                        color = DshText,
-                        fontSize = 11.sp,
-                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
-                        modifier = Modifier.verticalScroll(rememberScrollState()),
-                    )
-                    else -> Text("无法预览这个文件", color = DshMuted, fontSize = 12.sp)
-                }
+    FilePreviewSheet(vm)
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun FilePreviewSheet(vm: NativeViewModel) {
+    val preview = vm.filePreview ?: return
+    ModalBottomSheet(
+        onDismissRequest = { vm.dismissFilePreview() },
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        containerColor = DshSurface,
+    ) {
+        Column(Modifier.fillMaxWidth().padding(20.dp)) {
+            Text(preview.name, color = DshText, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+            Spacer(Modifier.height(10.dp))
+            when {
+                preview.bitmap != null -> Image(
+                    preview.bitmap.asImageBitmap(),
+                    contentDescription = preview.name,
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier.fillMaxWidth().height(360.dp),
+                )
+                preview.text != null -> Text(
+                    preview.text,
+                    color = DshText,
+                    fontSize = 11.sp,
+                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                    modifier = Modifier.verticalScroll(rememberScrollState()).height(420.dp),
+                )
+                else -> Text("无法预览这个文件", color = DshMuted, fontSize = 12.sp)
             }
         }
     }

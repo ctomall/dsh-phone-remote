@@ -888,6 +888,33 @@ class NativeViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    fun openArtifact(path: String) {
+        val active = client ?: return
+        val session = activeSessionId
+        if (session.isEmpty()) return
+        viewModelScope.launch {
+            busy = true
+            try {
+                val cwd = activeCwd.orEmpty().trimEnd('/')
+                val relative = if (cwd.isNotEmpty() && path.startsWith("$cwd/")) path.removePrefix("$cwd/") else path
+                val name = relative.substringAfterLast('/')
+                val image = name.substringAfterLast('.', "").lowercase() in setOf("png", "jpg", "jpeg", "webp", "gif")
+                if (image) {
+                    val bytes = withContext(Dispatchers.IO) { active.readFileBytes(session, relative) }
+                    val bitmap = withContext(Dispatchers.IO) { BitmapFactory.decodeByteArray(bytes, 0, bytes.size) }
+                    filePreview = FilePreviewData(name, null, bitmap)
+                } else {
+                    val text = withContext(Dispatchers.IO) { active.readFileText(session, relative) }
+                    filePreview = FilePreviewData(name, text, null)
+                }
+            } catch (e: Exception) {
+                error = e.message ?: "读取产物失败"
+            } finally {
+                busy = false
+            }
+        }
+    }
+
     fun dismissFilePreview() {
         filePreview = null
     }
