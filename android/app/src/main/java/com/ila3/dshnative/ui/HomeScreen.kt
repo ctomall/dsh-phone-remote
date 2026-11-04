@@ -27,6 +27,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Checklist
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Inbox
@@ -34,7 +35,10 @@ import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
@@ -70,7 +74,7 @@ internal fun HomeScreen(vm: NativeViewModel) {
         Box(Modifier.weight(1f).fillMaxWidth()) {
             when (vm.navSelection) {
                 "tasks" -> TasksTab(vm)
-                "files" -> WorkspaceTab(vm)
+                "files" -> FilesTab(vm)
                 "settings" -> SettingsTab(vm)
                 "more" -> MoreTab(vm)
                 "automation" -> PlaceholderTab("自动化", "定时任务将在 P2 接入：列表、启停、运行记录。")
@@ -201,6 +205,107 @@ private fun PlaceholderTab(title: String, hint: String) {
     }
 }
 
+/* ------------------------------- 文件 ------------------------------- */
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun FilesTab(vm: NativeViewModel) {
+    if (vm.activeSessionId.isEmpty()) {
+        WorkspaceTab(vm)
+    } else {
+        val title = vm.activeSessionTitle.ifBlank { "文件" }
+        Column(Modifier.fillMaxSize()) {
+            HomeHeader(
+                title = "文件",
+                subtitle = listOf(vm.activeCwd ?: "", vm.filePath).filter { it.isNotBlank() }.joinToString(" / "),
+                actions = {
+                    IconButtonBubble(Icons.Filled.Refresh, "刷新") { vm.loadFiles(vm.filePath) }
+                },
+            )
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 2.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                if (vm.filePath.isNotEmpty()) {
+                    Text(
+                        "‹ 上一级",
+                        color = DshTeal,
+                        fontSize = 12.sp,
+                        modifier = Modifier.clickable { vm.filesUp() }.padding(vertical = 4.dp),
+                    )
+                    Spacer(Modifier.width(10.dp))
+                }
+                Text(vm.filePath.ifEmpty { "." }, color = DshMuted, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            if (vm.busy && vm.files.isEmpty()) {
+                Box(Modifier.fillMaxWidth().padding(30.dp), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(color = DshTeal)
+                }
+            }
+            LazyColumn(
+                Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                if (vm.files.isEmpty() && !vm.busy) {
+                    item { HintRow("目录为空，或还没有加载文件。") }
+                }
+                items(vm.files, key = { it.name }) { entry ->
+                    Row(
+                        Modifier.fillMaxWidth().background(DshSurface, RoundedCornerShape(14.dp))
+                            .clickable { vm.openFile(entry) }
+                            .padding(horizontal = 14.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(
+                            if (entry.type == "directory") Icons.Filled.Folder else Icons.Filled.Description,
+                            contentDescription = null,
+                            tint = if (entry.type == "directory") DshTeal else DshMuted,
+                            modifier = Modifier.size(17.dp),
+                        )
+                        Spacer(Modifier.width(10.dp))
+                        Text(entry.name, color = DshText, fontSize = 13.5.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                        if (entry.type != "directory") {
+                            Text(entry.size?.let { sizeLabel(it) } ?: "", color = DshMuted, fontSize = 10.5.sp)
+                        }
+                        Spacer(Modifier.width(6.dp))
+                        Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = DshMuted, modifier = Modifier.size(16.dp))
+                    }
+                }
+            }
+        }
+    }
+    vm.filePreview?.let { preview ->
+        ModalBottomSheet(
+            onDismissRequest = { vm.dismissFilePreview() },
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+            containerColor = DshSurface,
+        ) {
+            Column(Modifier.fillMaxWidth().padding(20.dp)) {
+                Text(preview.name, color = DshText, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                Spacer(Modifier.height(10.dp))
+                when {
+                    preview.bitmap != null -> Text("图片预览：${preview.name}", color = DshMuted, fontSize = 12.sp)
+                    preview.text != null -> Text(
+                        preview.text,
+                        color = DshText,
+                        fontSize = 11.sp,
+                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                        modifier = Modifier.verticalScroll(rememberScrollState()),
+                    )
+                    else -> Text("无法预览这个文件", color = DshMuted, fontSize = 12.sp)
+                }
+            }
+        }
+    }
+}
+
+private fun sizeLabel(bytes: Long): String = when {
+    bytes >= 1024 * 1024 -> String.format("%.1f MB", bytes / 1024.0 / 1024.0)
+    bytes >= 1024 -> String.format("%.0f KB", bytes / 1024.0)
+    else -> "$bytes B"
+}
+
 /* ------------------------------- 工作区 ------------------------------- */
 
 @Composable
@@ -220,7 +325,7 @@ private fun WorkspaceTab(vm: NativeViewModel) {
             Row(
                 Modifier.fillMaxWidth().padding(horizontal = 20.dp)
                     .background(DshSurface, CardShape)
-                    .clickable { latest?.let { vm.openSession(it) } }
+                    .clickable { latest?.let { vm.openWorkspace(it) } }
                     .padding(horizontal = 14.dp, vertical = 14.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
