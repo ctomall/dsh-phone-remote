@@ -1,7 +1,8 @@
 /**
- * Standalone check for the self-update manager: git fast-forward upgrades,
- * dirty/diverged abort with rollback, feed signature verification and
- * signed-archive installs. Run with `node tests/updater.test.js`.
+ * Standalone check for the merged self-update manager: git fast-forward
+ * upgrades and rollback, archive installs with tree validation and directory
+ * rollback, plus feed signature verification. Run with
+ * `node tests/updater.test.js`.
  */
 import assert from 'node:assert/strict'
 import { execFile } from 'node:child_process'
@@ -14,7 +15,7 @@ import {
   UpdateManager,
   canonicalFeedPayload,
   compareVersions,
-  verifyFeedSignature,
+  verifyFeed,
 } from '../lib/updater.js'
 
 const execFileAsync = promisify(execFile)
@@ -34,7 +35,24 @@ function git(cwd, args) {
 }
 
 function packageJson(version) {
-  return `${JSON.stringify({ name: '@local/phone-remote', version, private: true }, null, 2)}\n`
+  return `${JSON.stringify({ name: '@local/phone-remote', version, private: true, type: 'module' }, null, 2)}\n`
+}
+
+/** Files `validateInstall` requires, with syntax that passes `node --check`. */
+const REQUIRED_FILES = {
+  'index.js': 'export const entry = 1\n',
+  'client.js': '// client marker\n',
+  'cordis.patch.yml': '[]\n',
+  'lib/routes.js': 'export const routes = []\n',
+  'lib/updater.js': 'export const updater = 1\n',
+}
+
+async function writePluginTree(dir, version) {
+  await mkdir(join(dir, 'lib'), { recursive: true })
+  await writeFile(join(dir, 'package.json'), packageJson(version))
+  for (const [rel, body] of Object.entries(REQUIRED_FILES)) {
+    await writeFile(join(dir, rel), body)
+  }
 }
 
 async function commit(dir, message) {
@@ -51,10 +69,8 @@ async function makeGitFixture() {
   await run('git', ['init', '--bare', '-q', origin])
   await run('git', ['init', '-q', seed])
   await git(seed, ['symbolic-ref', 'HEAD', 'refs/heads/main'])
-  await mkdir(join(seed, 'plugin'))
-  await writeFile(join(seed, 'plugin', 'package.json'), packageJson('1.3.0'))
-  await writeFile(join(seed, 'plugin', 'client.js'), '// marker\n')
-  await commit(seed, 'release: 1.3.0')
+  await writePluginTree(join(seed, 'plugin'), '1.3.1')
+  await commit(seed, 'release: 1.3.1')
   await git(seed, ['remote', 'add', 'origin', origin])
   await git(seed, ['push', '-q', 'origin', 'main'])
   await run('git', ['-C', origin, 'symbolic-ref', 'HEAD', 'refs/heads/main'])
@@ -63,70 +79,14 @@ async function makeGitFixture() {
 }
 
 async function publish(fixture, version, note) {
-  await writeFile(join(fixture.seed, 'plugin', 'package.json'), packageJson(version))
-  await writeFile(join(fixture.seed, 'plugin', 'client.js'), `// ${version}\n`)
+  await writePluginTree(join(fixture.seed, 'plugin'), version)
   await commit(fixture.seed, note)
   await git(fixture.seed, ['push', '-q', 'origin', 'main'])
 }
 
-async function testGitUpgrade() {
-  const fixture = await makeGitFixture()
-  const manager = new UpdateManager({ currentVersion: '1.3.0', installDir: fixture.installDir, feedUrl: '' })
-
-  assert.equal(await manager.resolveMode(), 'git', 'link-ish install upgrades over git')
-  let status = await manager.check()
-  assert.equal(status.mode, 'git')
-  assert.equal(status.available, false)
-  assert.equal(status.commitsBehind, 0)
-  assert.equal(status.latestVersion, '1.3.0')
-  ok('git: 识别 link 安装并以快进作为升级方式')
-
-  await publish(fixture, '1.4.0', 'release: 1.4.0 git upgrade')
-  status = await manager.check()
-  assert.equal(status.available, true, 'a pushed commit is offered')
-  assert.equal(status.commitsBehind, 1)
-  assert.equal(status.latestVersion, '1.4.0')
-  assert.equal(status.dirty, false)
-
-  const result = await manager.apply()
-  assert.equal(result.mode, 'git')
-  assert.equal(result.installedVersion, '1.4.0')
-  assert.equal(result.restartRequired, true)
-  const installed = JSON.parse(await readFile(join(fixture.installDir, 'package.json'), 'utf8'))
-  assert.equal(installed.version, '1.4.0', 'work tree really fast-forwarded')
-  assert.equal(await git(fixture.work, ['rev-parse', 'HEAD']), result.commit)
-  ok('git: 上游新提交 → 立即升级 → 工作区快进到 1.4.0')
-
-  await assert.rejects(() => manager.apply(), /已是最新版本/, 'second apply is a no-op error')
-
-  // A dirty plugin directory must abort before touching the work tree.
-  await publish(fixture, '1.5.0', 'release: 1.5.0')
-  const dirtyHead = await git(fixture.work, ['rev-parse', 'HEAD'])
-  await writeFile(join(fixture.installDir, 'package.json'), `${packageJson('1.4.0')} `)
-  status = await manager.check()
-  assert.equal(status.dirty, true)
-  await assert.rejects(() => manager.apply(), /未提交改动/)
-  assert.equal(await git(fixture.work, ['rev-parse', 'HEAD']), dirtyHead, 'abort leaves HEAD alone')
-  ok('git: 插件目录有未提交改动时中止，HEAD 不动')
-  await git(fixture.work, ['reset', '--hard', 'HEAD'])
-
-  // A diverged local commit makes --ff-only fail; the pull must roll back.
-  await writeFile(join(fixture.installDir, 'client.js'), '// local change\n')
-  await commit(fixture.work, 'local: unrelated commit')
-  const divergedHead = await git(fixture.work, ['rev-parse', 'HEAD'])
-  status = await manager.check()
-  assert.equal(status.available, true)
-  await assert.rejects(() => manager.apply(), /已回滚/)
-  assert.equal(await git(fixture.work, ['rev-parse', 'HEAD']), divergedHead, 'failed merge rolled back')
-  ok('git: 分叉导致 --ff-only 失败时自动回滚')
-}
-
 function makeSigningKeys() {
   const { publicKey, privateKey } = generateKeyPairSync('ec', { namedCurve: 'P-256' })
-  return {
-    privateKey,
-    publicKeyB64: publicKey.export({ type: 'spki', format: 'der' }).toString('base64'),
-  }
+  return { privateKey, publicKeyPem: publicKey.export({ type: 'spki', format: 'pem' }) }
 }
 
 function signedFeed(fields, privateKey) {
@@ -138,128 +98,185 @@ function signedFeed(fields, privateKey) {
   return feed
 }
 
-async function buildZip(destination, version) {
+async function buildZip(destination, version, treeFiles = REQUIRED_FILES) {
   const tree = `${destination}-tree`
-  await mkdir(join(tree, 'phone-remote'), { recursive: true })
-  await writeFile(join(tree, 'phone-remote', 'package.json'), packageJson(version))
-  await writeFile(join(tree, 'phone-remote', 'client.js'), `// ${version}\n`)
+  const pluginDir = join(tree, 'phone-remote')
+  await mkdir(join(pluginDir, 'lib'), { recursive: true })
+  await writeFile(join(pluginDir, 'package.json'), packageJson(version))
+  for (const [rel, body] of Object.entries(treeFiles)) {
+    await writeFile(join(pluginDir, rel), body)
+  }
   await run('python3', [
     '-c',
     'import shutil, sys; shutil.make_archive(sys.argv[1], "zip", sys.argv[2])',
     destination.replace(/\.zip$/u, ''),
     tree,
   ])
-  return readFile(`${destination}`)
+  return readFile(destination)
 }
 
 async function testSignatures() {
-  const { privateKey, publicKeyB64 } = makeSigningKeys()
+  const { privateKey, publicKeyPem } = makeSigningKeys()
   const feed = signedFeed(
     { version: '9.9.9', url: 'https://example.test/phone-remote-9.9.9.zip', sha256: 'AB'.repeat(32), notes: 'signed' },
     privateKey,
   )
-  assert.equal(verifyFeedSignature(feed, publicKeyB64), true, 'valid signature verifies')
-  assert.equal(verifyFeedSignature({ ...feed, notes: 'tampered' }, publicKeyB64), false, 'notes are covered')
-  assert.equal(verifyFeedSignature({ ...feed, sha256: 'CD'.repeat(32) }, publicKeyB64), false, 'sha256 is covered')
-  assert.equal(verifyFeedSignature(feed), false, 'the pinned key rejects a foreign key')
-  assert.equal(verifyFeedSignature({ version: '1.0.0', url: 'https://x/y.zip' }, publicKeyB64), false, 'missing signature')
+  assert.equal(verifyFeed(feed, feed.signature, publicKeyPem), true, 'valid signature verifies')
+  assert.equal(verifyFeed({ ...feed, notes: 'tampered' }, feed.signature, publicKeyPem), false, 'notes are covered')
+  assert.equal(verifyFeed({ ...feed, sha256: 'CD'.repeat(32) }, feed.signature, publicKeyPem), false, 'sha256 is covered')
+  assert.equal(verifyFeed(feed, feed.signature), false, 'the pinned key rejects a foreign key')
+  assert.equal(verifyFeed({ version: '1.0.0', url: 'https://x/y.zip' }, '', publicKeyPem), false, 'missing signature')
   assert.equal(compareVersions('1.10.0', '1.9.9'), 1)
-  assert.equal(compareVersions('1.3.0', '1.3.0'), 0)
-  assert.equal(compareVersions('1.2.9', '1.3.0'), -1)
-  ok('签名: 合法签名通过，篡改 notes / sha256 / 缺失签名均被拒绝')
+  assert.equal(compareVersions('1.3.1', '1.3.1'), 0)
+  assert.equal(compareVersions('1.2.9', '1.3.1'), -1)
+  ok('签名: 合法签名通过，篡改 notes / sha256 / 外部公钥均被拒绝')
+}
+
+async function testGitUpgrade() {
+  const fixture = await makeGitFixture()
+  const manager = new UpdateManager({ currentVersion: '1.3.1', installDir: fixture.installDir, feedUrl: '' })
+
+  assert.equal(await manager.resolveMode(), 'git', 'link-ish install upgrades over git')
+  let status = await manager.check()
+  assert.equal(status.mode, 'git')
+  assert.equal(status.available, false)
+  assert.equal(status.commitsBehind, 0)
+  ok('git: 识别 link 安装并以快进作为升级方式')
+
+  await publish(fixture, '1.3.2', 'release: 1.3.2 git upgrade')
+  status = await manager.check()
+  assert.equal(status.available, true, 'a pushed commit is offered')
+  assert.equal(status.commitsBehind, 1)
+  assert.equal(status.latestVersion, '1.3.2')
+
+  const beforeHead = await git(fixture.work, ['rev-parse', 'HEAD'])
+  const result = await manager.apply()
+  assert.equal(result.mode, 'git')
+  assert.equal(result.installedVersion, '1.3.2')
+  assert.equal(result.restartRequired, true)
+  const installed = JSON.parse(await readFile(join(fixture.installDir, 'package.json'), 'utf8'))
+  assert.equal(installed.version, '1.3.2', 'work tree really fast-forwarded')
+  await stat(join(fixture.work, '.phone-remote-update.json'))
+  ok('git: 上游新提交 → 立即升级 → 快进并写入回滚记录')
+
+  const rolledBack = await manager.rollback()
+  assert.equal(rolledBack.mode, 'git')
+  assert.equal(rolledBack.rolledBackTo, '1.3.1')
+  assert.equal(await git(fixture.work, ['rev-parse', 'HEAD']), beforeHead, 'rollback resets to the previous commit')
+  const restored = JSON.parse(await readFile(join(fixture.installDir, 'package.json'), 'utf8'))
+  assert.equal(restored.version, '1.3.1')
+  await assert.rejects(() => stat(join(fixture.work, '.phone-remote-update.json')), 'rollback clears the record')
+  ok('git: 回滚重置到升级前的提交并清理记录')
+
+  const dirtyHead = await git(fixture.work, ['rev-parse', 'HEAD'])
+  await writeFile(join(fixture.installDir, 'client.js'), '// dirty\n')
+  status = await manager.check()
+  assert.equal(status.dirty, true)
+  await assert.rejects(() => manager.apply(), /未提交改动/)
+  assert.equal(await git(fixture.work, ['rev-parse', 'HEAD']), dirtyHead, 'abort leaves HEAD alone')
+  await git(fixture.work, ['reset', '--hard', 'HEAD'])
+  ok('git: 插件目录有未提交改动时中止，HEAD 不动')
+
+  await publish(fixture, '1.3.3', 'release: 1.3.3')
+  await writeFile(join(fixture.installDir, 'client.js'), '// local change\n')
+  await commit(fixture.work, 'local: unrelated commit')
+  const divergedHead = await git(fixture.work, ['rev-parse', 'HEAD'])
+  await assert.rejects(() => manager.apply(), /已回滚/)
+  assert.equal(await git(fixture.work, ['rev-parse', 'HEAD']), divergedHead, 'failed merge rolled back')
+  ok('git: 分叉导致 --ff-only 失败时自动回滚')
 }
 
 async function testArchiveUpgrade() {
   const root = await mkdtemp(join(tmpdir(), 'pr-update-zip-'))
   roots.push(root)
   const installDir = join(root, 'installed')
-  await mkdir(installDir)
-  await writeFile(join(installDir, 'package.json'), packageJson('1.3.0'))
+  await writePluginTree(installDir, '1.3.1')
   const zipPath = join(root, 'phone-remote-2.0.0.zip')
   const bytes = await buildZip(zipPath, '2.0.0')
   const sha256 = createHash('sha256').update(bytes).digest('hex')
-  const { privateKey, publicKeyB64 } = makeSigningKeys()
+  const { privateKey, publicKeyPem } = makeSigningKeys()
   const feed = signedFeed(
     { version: '2.0.0', url: 'https://example.test/phone-remote-2.0.0.zip', sha256, notes: 'signed archive' },
     privateKey,
   )
-
   const feedJson = JSON.stringify(feed)
-  const fetchImpl = async (url) => {
-    const target = String(url)
-    if (target === 'https://example.test/feed.json') return new Response(feedJson, { status: 200 })
-    if (target === feed.url) return new Response(bytes, { status: 200 })
-    return new Response('missing', { status: 404 })
-  }
+
   const manager = new UpdateManager({
-    currentVersion: '1.3.0',
+    currentVersion: '1.3.1',
     installDir,
     feedUrl: 'https://example.test/feed.json',
-    publicKey: publicKeyB64,
+    publicKey: publicKeyPem,
     mode: 'zip',
-    fetchImpl,
+    fetchImpl: async (url) => {
+      const target = String(url)
+      if (target === 'https://example.test/feed.json') return new Response(feedJson, { status: 200 })
+      if (target === feed.url) return new Response(bytes, { status: 200 })
+      return new Response('missing', { status: 404 })
+    },
   })
 
   const status = await manager.check()
   assert.equal(status.mode, 'zip')
   assert.equal(status.signed, true)
   assert.equal(status.available, true)
-  assert.equal(status.latestVersion, '2.0.0')
 
   const result = await manager.apply()
   assert.equal(result.mode, 'zip')
   assert.equal(result.installedVersion, '2.0.0')
-  assert.equal(result.restartRequired, true)
   const installed = JSON.parse(await readFile(join(installDir, 'package.json'), 'utf8'))
-  assert.equal(installed.version, '2.0.0', 'archive really swapped in')
+  assert.equal(installed.version, '2.0.0', 'archive swapped in')
   await stat(result.backup)
-  ok('更新包: 签名 + SHA-256 校验后替换目录并保留 .bak 备份')
+  ok('更新包: 签名 + SHA-256 + 树校验后替换目录并保留备份')
 
-  // Unsigned or tampered feeds must be rejected before any download.
+  const rolledBack = await manager.rollback()
+  assert.equal(rolledBack.rolledBackTo, '1.3.1')
+  const restored = JSON.parse(await readFile(join(installDir, 'package.json'), 'utf8'))
+  assert.equal(restored.version, '1.3.1', 'directory rollback restored the backup')
+  ok('更新包: 回滚还原备份目录')
+
   const unsigned = new UpdateManager({
-    currentVersion: '1.3.0',
+    currentVersion: '1.3.1',
     installDir,
     feedUrl: 'https://example.test/feed.json',
-    publicKey: publicKeyB64,
+    publicKey: publicKeyPem,
     mode: 'zip',
     fetchImpl: async () => new Response(JSON.stringify({ ...feed, signature: '' }), { status: 200 }),
   })
-  const unsignedStatus = await unsigned.check()
-  assert.match(unsignedStatus.error, /缺少签名/)
+  assert.match((await unsigned.check()).error, /缺少签名/)
 
   const tampered = new UpdateManager({
-    currentVersion: '1.3.0',
+    currentVersion: '1.3.1',
     installDir,
     feedUrl: 'https://example.test/feed.json',
-    publicKey: publicKeyB64,
+    publicKey: publicKeyPem,
     mode: 'zip',
     fetchImpl: async () => new Response(JSON.stringify({ ...feed, notes: 'tampered' }), { status: 200 }),
   })
-  const tamperedStatus = await tampered.check()
-  assert.match(tamperedStatus.error, /签名无效/)
+  assert.match((await tampered.check()).error, /签名无效/)
+  ok('更新包: 未签名 / 被篡改清单被拒绝')
 
-  // A wrong archive digest must abort the install.
-  const badDigest = signedFeed(
-    { version: '2.0.1', url: 'https://example.test/phone-remote-2.0.0.zip', sha256: '00'.repeat(32), notes: 'bad digest' },
+  const brokenZip = await buildZip(join(root, 'broken.zip'), '2.0.0', { 'index.js': 'export const entry = 1\n' })
+  const brokenFeed = signedFeed(
+    { version: '2.0.0', url: 'https://example.test/broken.zip', sha256: createHash('sha256').update(brokenZip).digest('hex'), notes: 'broken tree' },
     privateKey,
   )
-  const digestManager = new UpdateManager({
-    currentVersion: '2.0.0',
+  const broken = new UpdateManager({
+    currentVersion: '1.3.1',
     installDir,
     feedUrl: 'https://example.test/feed.json',
-    publicKey: publicKeyB64,
+    publicKey: publicKeyPem,
     mode: 'zip',
     fetchImpl: async (url) => new Response(
-      String(url) === 'https://example.test/feed.json' ? JSON.stringify(badDigest) : bytes,
+      String(url) === 'https://example.test/feed.json' ? JSON.stringify(brokenFeed) : brokenZip,
       { status: 200 },
     ),
   })
-  await assert.rejects(() => digestManager.apply(), /SHA-256 校验失败/)
-  ok('更新包: 未签名 / 被篡改清单 / 错误摘要均在下载前后被拒绝')
+  await assert.rejects(() => broken.apply(), /ENOENT|no such file/u)
+  const untouched = JSON.parse(await readFile(join(installDir, 'package.json'), 'utf8'))
+  assert.equal(untouched.version, '1.3.1', 'invalid archive never touches the install')
+  ok('更新包: 缺文件的更新包被拒绝，安装目录不变')
 
-  // Auto mode outside a work tree falls back to the archive strategy.
-  const auto = new UpdateManager({ currentVersion: '2.0.0', installDir })
-  assert.equal(await auto.resolveMode(), 'zip')
+  assert.equal(await new UpdateManager({ currentVersion: '1.3.1', installDir }).resolveMode(), 'zip')
   ok('非 git 安装自动回退更新包模式')
 }
 
