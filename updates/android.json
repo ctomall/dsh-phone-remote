@@ -1,8 +1,8 @@
 {
-  "versionCode": 20,
-  "versionName": "0.17.0",
-  "apkUrl": "https://raw.githubusercontent.com/ctomall/dsh-phone-remote/main/updates/DSHNative-0.17.0.apk",
-  "sha256": "aa6c692ccfb8bfa13073515a9466f646f99604c578160ddc4586bf34d00be449",
-  "notes": "文件图片预览、2MB 字节读取、历史分页、队列 steer、ECDSA 清单。",
-  "signature": "MEQCICMCVV3jvByMTl4Xyli95ZkuK1nG8skl0Tq5Y4JhfI6OAiBVLwisTRB3WuI4S5Q5ax/e4C8l+u1bsW8ybl2P/ACcHg=="
+  "versionCode": 21,
+  "versionName": "0.18.0",
+  "apkUrl": "https://raw.githubusercontent.com/ctomall/dsh-phone-remote/main/updates/DSHNative-0.18.0.apk",
+  "sha256": "d3c6f8c45e16f58314ed67b62e084d615cf8fde4882079da116084cf66442c22",
+  "notes": "修复更新清单相对地址导致的 404；清单请求绕过 raw 缓存；保留文件图片预览与历史分页。",
+  "signature": "MEUCIQDwEdM+2Lp8YdG9mWwW6QergnMhlp4Ubwo//YY/YQKm5AIgHXRVPXmCP0yTACJgRNYTZjNXsT87AT6IC+yhLJHuDoQ="
 }

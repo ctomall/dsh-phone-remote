@@ -26,7 +26,10 @@ class UpdateClient {
 
     suspend fun check(manifestUrl: String): AppUpdate? = withContext(Dispatchers.IO) {
         val url = manifestUrl.toHttpUrlOrNull() ?: throw DshException("更新地址无效")
-        val request = Request.Builder().url(url).header("cache-control", "no-cache").build()
+        // Raw GitHub caches for several minutes; a per-check query makes the
+        // manifest refresh immediately and does not affect signed fields.
+        val fresh = url.newBuilder().addQueryParameter("_", System.currentTimeMillis().toString()).build()
+        val request = Request.Builder().url(fresh).header("cache-control", "no-cache").build()
         http.newCall(request).execute().use { response ->
             if (!response.isSuccessful) throw DshException("检查更新失败：HTTP ${response.code}")
             val json = org.json.JSONObject(response.body?.string().orEmpty())
@@ -34,7 +37,18 @@ class UpdateClient {
             if (versionCode <= 0) return@use null
             verifyManifest(json, versionCode)
             val apk = json.optString("apkUrl")
-            val resolved = if (apk.startsWith("http")) apk else url.resolve(apk)?.toString() ?: "$url/$apk"
+            val resolved = if (apk.startsWith("http")) {
+                apk
+            } else {
+                // Accept both "DSHNative.apk" and the historical "updates/DSHNative.apk"
+                // while the manifest itself lives under .../updates/.
+                val relative = if (apk.startsWith("updates/") && url.encodedPath.endsWith("/updates/android.json")) {
+                    apk.removePrefix("updates/")
+                } else {
+                    apk
+                }
+                url.resolve(relative)?.toString() ?: "$url/$relative"
+            }
             AppUpdate(
                 versionCode = versionCode,
                 versionName = json.optString("versionName", versionCode.toString()),
