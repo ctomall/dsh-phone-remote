@@ -1,4 +1,4 @@
-# DSH 原生 Android 客户端（0.18.0）
+# DSH 原生 Android 客户端（0.19.0）
 
 这不是 WebView 壳。它直接对接 DSH 的 Remote API：
 
@@ -35,12 +35,12 @@
 | 二维码扫描 | ✅ ZXing 扫码，自动填地址与配对码 |
 | 模型选择 | ✅ `session/modelCatalog` + `session/selectModel` |
 | 专用工具摘要 | ✅ bash/read/write/grep/subagent 参数摘要 |
-| 附件 | ✅ 图片 base64 直传；其它文件 `uploadFileBinary` 上传回执 |
+| 附件 | ✅ 相册/拍照/文件入口；图片压缩到长边 1600px；上传进度/失败重试；待发送状态卡 |
 | 排队消息 | ✅ 解析 `agent/inbox/spliced`，支持移除/转向 |
 | 主题 | ✅ 纸白 / 深海双主题，可切换并持久化 |
 | 启动页/图标 | ✅ 纸白底 + 靛蓝 D 图标，Android 12 Splash 同步 |
 | 会话列表 | ✅ 标题/目录/时间、搜索、今天/昨天分组 |
-| 消息渲染 | ✅ Markdown 代码块、复制按钮、助手头像 |
+| 消息渲染 | ✅ Markdown、图片缩略图/全屏预览、文件卡片、助手流式三点、回到底部 |
 
 ## 构建
 
@@ -50,7 +50,35 @@ cp local.properties.example local.properties  # 改成你的 SDK 路径
 # app/build/outputs/apk/release/app-release.apk
 ```
 
-环境：JDK 17、Android SDK 34、Gradle 8.7。安装包在 `dist/DSHNative-0.18.0.apk`。
+环境：JDK 17、Android SDK 34、Gradle 8.7。
+
+**release 必须使用固定的发布证书。** 把 `android/keystore/keystore.properties` 放好（该目录被 gitignore）：
+
+```properties
+storeFile=keystore/dshnative-release.jks
+storePassword=…
+keyAlias=dshnative
+keyPassword=…
+```
+
+没有 keystore 时 Gradle 会退回 debug 签名——这样的 APK 与已安装的正式版签名不一致，**无法覆盖安装**，不能发布。
+
+## 发布
+
+发布需要一个 release 签名 APK，以及清单签名私钥（ECDSA P-256，对应客户端内置公钥）：
+
+```bash
+ANDROID_MANIFEST_KEY=/path/to/manifest-signing.pem \
+  node updates/publish-android.mjs \
+  android/app/build/outputs/apk/release/app-release.apk \
+  "附件与消息列表重设计，新增上传进度 / 失败重试"
+
+git add updates/DSHNative-<版本>.apk updates/android.json
+git commit -m "release: <版本>"
+git push origin main
+```
+
+脚本会：拒绝 debug 签名 APK → 复制 APK 到 `updates/` → 计算 SHA-256 → 写 `updates/android.json`（绝对 URL）→ 用私钥签名清单 → 校验私钥是否与客户端内置公钥匹配。客户端「设置 → 检查更新」即可拿到本次发布。
 
 ## 协议
 
