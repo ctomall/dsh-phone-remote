@@ -1,5 +1,7 @@
 package com.ila3.dshnative.ui
 
+import android.content.Context
+import android.content.Intent
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -57,6 +59,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.FileProvider
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -69,6 +73,7 @@ import org.json.JSONObject
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
+import java.io.File
 import java.util.Locale
 
 private val CardShape = RoundedCornerShape(18.dp)
@@ -311,8 +316,55 @@ internal fun FilePreviewSheet(vm: NativeViewModel) {
                 )
                 else -> Text("无法预览这个文件", color = DshMuted, fontSize = 12.sp)
             }
+            Spacer(Modifier.height(14.dp))
+            val context = LocalContext.current
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    "分享",
+                    color = DshOnAccent,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.clip(RoundedCornerShape(10.dp)).background(DshTeal)
+                        .clickable { sharePreview(context, preview) }
+                        .padding(horizontal = 16.dp, vertical = 9.dp),
+                )
+                Text(
+                    "复制",
+                    color = DshText,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium,
+                    modifier = Modifier.clip(RoundedCornerShape(10.dp)).background(DshSurface2)
+                        .clickable { copyPreview(context, preview) }
+                        .padding(horizontal = 16.dp, vertical = 9.dp),
+                )
+            }
         }
     }
+}
+
+private fun sharePreview(context: Context, preview: NativeViewModel.FilePreviewData) {
+    val send = Intent(Intent.ACTION_SEND)
+    if (preview.bitmap != null) {
+        val dir = File(context.cacheDir, "share").apply { mkdirs() }
+        val file = File(dir, preview.name.ifBlank { "preview.png" })
+        runCatching {
+            file.outputStream().use { preview.bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }
+            val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+            send.type = "image/png"
+            send.putExtra(Intent.EXTRA_STREAM, uri)
+            send.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+    } else {
+        send.type = "text/plain"
+        send.putExtra(Intent.EXTRA_TEXT, preview.text.orEmpty())
+    }
+    runCatching { context.startActivity(Intent.createChooser(send, "分享")) }
+}
+
+private fun copyPreview(context: Context, preview: NativeViewModel.FilePreviewData) {
+    val text = preview.text ?: preview.name
+    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+    clipboard.setPrimaryClip(android.content.ClipData.newPlainText("DSH", text))
 }
 
 private fun sizeLabel(bytes: Long): String = when {
