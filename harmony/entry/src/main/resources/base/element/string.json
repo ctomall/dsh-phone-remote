@@ -1,0 +1,7 @@
+{
+  "string": [
+    { "name": "module_desc", "value": "DSH 原生客户端（HarmonyOS）" },
+    { "name": "EntryAbility_desc", "value": "连接 DSH 主机，随时查看与接手任务" },
+    { "name": "app_name", "value": "DSH 原生" }
+  ]
+}

@@ -1,0 +1,51 @@
+{
+  "name": "Ink",
+  "description": "DSH mobile design language shared by the Android and HarmonyOS clients.",
+  "colors": {
+    "light": {
+      "canvas": "#F6F7FB",
+      "surface": "#FFFFFF",
+      "surface2": "#F1F4FB",
+      "ink": "#0B1220",
+      "ink2": "#334155",
+      "muted": "#64748B",
+      "faint": "#94A3B8",
+      "line": "#E9EEF8",
+      "brand": "#4D6BFE",
+      "brandSoft": "#EEF2FF",
+      "mint": "#14B8A6",
+      "success": "#10B981",
+      "warn": "#F59E0B",
+      "danger": "#EF4444"
+    },
+    "dark": {
+      "canvas": "#070D18",
+      "surface": "#0F1C2E",
+      "surface2": "#0A1626",
+      "ink": "#E8F1FF",
+      "ink2": "#C3D5EC",
+      "muted": "#8EA6C4",
+      "faint": "#5D7695",
+      "line": "#1E3A52",
+      "brand": "#2DD4BF",
+      "brandSoft": "#143A4A",
+      "mint": "#5EEAD4",
+      "success": "#34D399",
+      "warn": "#FBBF24",
+      "danger": "#FCA5A5"
+    }
+  },
+  "typography": {
+    "display": { "size": 26, "weight": "bold", "letterSpacing": -0.6 },
+    "title": { "size": 16, "weight": "semibold" },
+    "body": { "size": 14.5, "weight": "regular", "lineHeight": 21 },
+    "caption": { "size": 12, "weight": "regular" },
+    "meta": { "size": 10.5, "weight": "regular" }
+  },
+  "spacing": { "xs": 4, "sm": 8, "md": 12, "lg": 16, "xl": 20, "xxl": 24 },
+  "radius": { "chip": 12, "card": 18, "bubble": 20, "field": 26 },
+  "screens": {
+    "home": { "tabs": ["会话", "收件箱", "工作区", "设置"], "runningCardGradient": ["#3347D8", "#5B78FF"] },
+    "chat": { "userBubble": "brandSoft", "assistantCard": "surface", "composer": "surface" }
+  }
+}

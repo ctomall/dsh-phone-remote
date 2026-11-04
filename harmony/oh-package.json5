@@ -1,0 +1,10 @@
+{
+  "modelVersion": "5.0.0",
+  "name": "dsh-native-harmony",
+  "version": "0.1.0",
+  "description": "DSH native client for HarmonyOS NEXT",
+  "main": "",
+  "author": "ila3",
+  "license": "MIT",
+  "dependencies": {}
+}

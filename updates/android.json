@@ -1,8 +1,8 @@
 {
-  "versionCode": 24,
-  "versionName": "0.19.5",
-  "apkUrl": "https://raw.githubusercontent.com/ctomall/dsh-phone-remote/main/updates/DSHNative-0.19.5.apk",
-  "sha256": "dcf9086304aa52c00fd04ca9c9708c8ea7bbdfcf00b007da4e3d12db26662f5d",
-  "notes": "修复会话打开时列表滚动越界崩溃；通知/任务/语音与后台保持",
-  "signature": "MEUCIQDmS/ImuhjN52bUZHwBr0BjW16zR0Z4yredT2e5OEI2VAIgS1y8FHeplIap3wZ3n8N7Dhc1ZFWVJWE+3IAA8gil4Ig="
+  "versionCode": 25,
+  "versionName": "0.19.6",
+  "apkUrl": "https://raw.githubusercontent.com/ctomall/dsh-phone-remote/main/updates/DSHNative-0.19.6.apk",
+  "sha256": "69cc550ef8c38add8695dbc1ded4ab3a8a5c5bf49266e3364881a8b8c4886376",
+  "notes": "Ink 设计系统落地：会话主页重做（运行中卡/待处理卡/底部四 Tab/工作区）；HarmonyOS 工程骨架",
+  "signature": "MEUCIDfbSBLFPWtrA2OY6Pp44JamTSp5mAyySLFA3853/eg4AiEAlRqzswukSof6XLul2v/36PxcVUF9z2Uh4y9HvMsv08g="
 }

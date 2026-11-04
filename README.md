@@ -6,6 +6,8 @@ DSH 手机远程插件与原生 Android 客户端，带 Git 仓库在线升级�
 
 - `plugin/`：`@local/phone-remote` 插件，公网/内网/Cloudflare 隧道入口、设备配对、在线升级。
 - `android/`：Kotlin + Compose 原生客户端，源码与 Gradle 工程。
+- `harmony/`：HarmonyOS NEXT（ArkTS）原生客户端工程骨架，与 Android 共用 Ink 设计令牌。
+- `design/`：Ink 设计系统（颜色/字号/间距/圆角 token 与页面规则）。
 - `updates/`：在线升级清单与安装包；客户端和插件都从这里检查更新。
 
 ## 安装插件

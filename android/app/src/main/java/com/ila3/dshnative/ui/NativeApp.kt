@@ -169,7 +169,7 @@ fun NativeApp(vm: NativeViewModel = viewModel()) {
     ) {
         when (val screen = vm.screen) {
             Screen.Servers -> ServersScreen(vm)
-            Screen.Sessions -> SessionsScreen(vm)
+            Screen.Sessions -> HomeScreen(vm)
             Screen.Chat -> ChatScreen(vm)
             Screen.Files -> FilesScreen(vm)
             Screen.Terminal -> TerminalScreen(vm)
