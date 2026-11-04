@@ -13,6 +13,7 @@ import com.ila3.dshnative.ui.ProductInboxFirstPreview
 import com.ila3.dshnative.ui.ProductTaskDetailPreview
 import com.ila3.dshnative.ui.ProductWorkspacePreview
 import com.ila3.dshnative.ui.ProductNowPreview
+import com.ila3.dshnative.ui.ProductMultiQuestionPreview
 import com.ila3.dshnative.ui.ProductNavCustomPreview
 import com.ila3.dshnative.ui.ProductInboxPreview
 import com.ila3.dshnative.ui.ProductSettingsPreview
@@ -123,6 +124,13 @@ class NativeScreenshotTest {
         val activity = Robolectric.buildActivity(ComponentActivity::class.java).setup().get()
         activity.setContent { ProductWorkspacePreview() }
         capture(activity, "full-workspace.png")
+    }
+
+    @Test
+    fun captureProductMultiQuestion() {
+        val activity = Robolectric.buildActivity(ComponentActivity::class.java).setup().get()
+        activity.setContent { DshNativeTheme { ProductMultiQuestionPreview() } }
+        capture(activity, "product-question-multi.png")
     }
 
     @Test

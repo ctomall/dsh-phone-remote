@@ -7,6 +7,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -46,6 +47,7 @@ import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -556,6 +558,7 @@ private fun InboxQuestionCard(vm: NativeViewModel, question: NativeViewModel.Ses
     )
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun InboxQuestionContent(
     pending: DshClient.PendingQuestion,
@@ -564,7 +567,24 @@ internal fun InboxQuestionContent(
     onOpen: () -> Unit,
 ) {
     val question = pending.questions.firstOrNull() ?: return
-    val quickAnswer = pending.questions.size == 1 && !question.multiSelect && question.options.isNotEmpty()
+    val single = pending.questions.size == 1 && !question.multiSelect && question.options.isNotEmpty()
+    val multi = pending.questions.size == 1 && question.multiSelect && question.options.isNotEmpty()
+    val freeText = pending.questions.size == 1 && question.options.isEmpty()
+    val selected = remember(pending.callId) { mutableStateMapOf<String, Boolean>() }
+    var custom by remember(pending.callId) { mutableStateOf("") }
+
+    fun submit() {
+        val labels = selected.filterValues { it }.keys.toList()
+        val answers = JSONArray()
+        if (labels.isNotEmpty()) {
+            answers.put(JSONObject().put("id", question.id).put("selected", JSONArray(labels)))
+        }
+        if (custom.isNotBlank()) {
+            answers.put(JSONObject().put("id", question.id).put("selected", JSONArray()).put("custom", custom.trim()))
+        }
+        if (answers.length() > 0) onAnswer(answers)
+    }
+
     Column(
         Modifier.fillMaxWidth().padding(horizontal = 20.dp)
             .background(DshSurface, CardShape)
@@ -584,38 +604,90 @@ internal fun InboxQuestionContent(
             }
         }
         Text(question.question, color = DshText, fontSize = 13.sp, lineHeight = 19.sp)
-        if (quickAnswer) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                question.options.take(3).forEach { option ->
+        when {
+            single -> {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    question.options.take(3).forEach { option ->
+                        Text(
+                            option.label,
+                            color = DshOnAccent,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(DshTeal)
+                                .clickable {
+                                    onAnswer(
+                                        JSONArray().put(
+                                            JSONObject().put("id", question.id).put("selected", JSONArray().put(option.label)),
+                                        ),
+                                    )
+                                }
+                                .padding(horizontal = 12.dp, vertical = 7.dp),
+                        )
+                    }
+                }
+            }
+            multi -> {
+                androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    question.options.forEach { option ->
+                        val checked = selected[option.label] == true
+                        Text(
+                            option.label,
+                            color = if (checked) DshOnAccent else DshText,
+                            fontSize = 12.sp,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(if (checked) DshTeal else DshSurface2)
+                                .clickable { selected[option.label] = !checked }
+                                .padding(horizontal = 12.dp, vertical = 7.dp),
+                        )
+                    }
+                }
+                Text(
+                    "提交",
+                    color = DshOnAccent,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(if (selected.any { it.value }) DshTeal else DshMuted.copy(alpha = 0.35f))
+                        .clickable(enabled = selected.any { it.value }) { submit() }
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                )
+            }
+            freeText -> {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    androidx.compose.foundation.text.BasicTextField(
+                        value = custom,
+                        onValueChange = { custom = it },
+                        textStyle = androidx.compose.ui.text.TextStyle(color = DshText, fontSize = 13.sp),
+                        cursorBrush = androidx.compose.ui.graphics.SolidColor(DshTeal),
+                        modifier = Modifier.weight(1f).background(DshSurface2, RoundedCornerShape(10.dp)).padding(horizontal = 10.dp, vertical = 9.dp),
+                    )
+                    Spacer(Modifier.width(8.dp))
                     Text(
-                        option.label,
+                        "提交",
                         color = DshOnAccent,
                         fontSize = 12.sp,
-                        fontWeight = FontWeight.Medium,
+                        fontWeight = FontWeight.SemiBold,
                         modifier = Modifier
                             .clip(RoundedCornerShape(10.dp))
-                            .background(DshTeal)
-                            .clickable {
-                                onAnswer(
-                                    JSONArray().put(
-                                        JSONObject()
-                                            .put("id", question.id)
-                                            .put("selected", JSONArray().put(option.label)),
-                                    ),
-                                )
-                            }
-                            .padding(horizontal = 12.dp, vertical = 7.dp),
+                            .background(if (custom.isNotBlank()) DshTeal else DshMuted.copy(alpha = 0.35f))
+                            .clickable(enabled = custom.isNotBlank()) { submit() }
+                            .padding(horizontal = 14.dp, vertical = 8.dp),
                     )
                 }
             }
-        } else {
-            Text(
-                "打开会话处理",
-                color = DshTeal,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Medium,
-                modifier = Modifier.clickable { onOpen() },
-            )
+            else -> {
+                Text(
+                    "打开会话处理",
+                    color = DshTeal,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium,
+                    modifier = Modifier.clickable { onOpen() },
+                )
+            }
         }
     }
 }

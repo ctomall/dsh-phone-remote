@@ -1114,3 +1114,49 @@ internal fun ProductNavCustomPreview() {
         }
     }
 }
+
+@Composable
+internal fun ProductMultiQuestionPreview() {
+    val multi = com.ila3.dshnative.protocol.DshClient.PendingQuestion(
+        callId = "preview-multi",
+        state = "open",
+        questions = listOf(
+            com.ila3.dshnative.protocol.DshClient.QuestionItem(
+                id = "q1",
+                question = "这次一起发布哪些内容？",
+                header = "多选",
+                detail = null,
+                options = listOf(
+                    com.ila3.dshnative.protocol.DshClient.QuestionOption("Android 0.19.17", null),
+                    com.ila3.dshnative.protocol.DshClient.QuestionOption("鸿蒙工程骨架", null),
+                    com.ila3.dshnative.protocol.DshClient.QuestionOption("设计文档", null),
+                ),
+                multiSelect = true,
+            ),
+        ),
+    )
+    val free = com.ila3.dshnative.protocol.DshClient.PendingQuestion(
+        callId = "preview-free",
+        state = "open",
+        questions = listOf(
+            com.ila3.dshnative.protocol.DshClient.QuestionItem(
+                id = "q2",
+                question = "发布说明怎么写？",
+                header = "输入",
+                detail = null,
+                options = emptyList(),
+                multiSelect = false,
+            ),
+        ),
+    )
+    Column(
+        Modifier.fillMaxSize().background(Ink.canvas).padding(horizontal = 20.dp, vertical = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Text("现在 · 需要你", color = Ink.ink, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+        Text("多选与自由输入都不必进会话。", color = Ink.muted, fontSize = 11.sp)
+        Spacer(Modifier.height(6.dp))
+        InboxQuestionContent(multi, sessionTitle = "dsh-phone-remote", onAnswer = {}, onOpen = {})
+        InboxQuestionContent(free, sessionTitle = "dsh-phone-remote", onAnswer = {}, onOpen = {})
+    }
+}
