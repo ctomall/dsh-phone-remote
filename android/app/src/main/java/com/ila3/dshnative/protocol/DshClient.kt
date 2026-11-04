@@ -330,6 +330,78 @@ class DshClient private constructor(
 
 
 
+
+    /** Read raw file bytes through the binary/multipart Remote response. */
+    suspend fun readFileBytes(sessionId: String, path: String, maxBytes: Int = 2 * 1000 * 1000): ByteArray = withContext(Dispatchers.IO) {
+        val envelope = JSONObject()
+            .put("type", "client-request")
+            .put("rpcId", UUID.randomUUID().toString())
+            .put("method", "workspaceFiles/readBytes")
+            .put(
+                "payload",
+                JSONObject().put(
+                    "args",
+                    JSONObject()
+                        .put("workspaceFileScopeId", sessionId)
+                        .put("path", path)
+                        .put("options", JSONObject().put("range", JSONObject().put("offset", 0).put("length", maxBytes))),
+                ),
+            )
+        val body = envelope.toString().toRequestBody(JSON)
+        val request = Request.Builder()
+            .url(base.resolve("api/workspaceFiles/readBytes")!!)
+            .post(body)
+            .build()
+        http.newCall(request).execute().use { response ->
+            if (response.code == 401 || response.code == 403) throw DshException("登录已失效，请重新配对", "auth/required", response.code)
+            if (!response.isSuccessful) throw DshException("读取文件失败：HTTP ${response.code}")
+            val bytes = response.body?.bytes() ?: throw DshException("文件为空")
+            val contentType = response.header("content-type").orEmpty()
+            val boundary = Regex("boundary=([^;]+)").find(contentType)?.groupValues?.get(1)?.trim('"')
+                ?: return@use bytes
+            val parts = parseMultipart(bytes, boundary)
+            val metadata = parts["metadata"]?.let { runCatching { JSONObject(String(it, Charsets.UTF_8)) }.getOrNull() }
+                ?: throw DshException("文件响应缺少 metadata")
+            val result = metadata.optJSONObject("result") ?: throw DshException("文件响应无效")
+            if (!result.optBoolean("ok")) throw DshException(result.optJSONObject("error")?.optString("message") ?: "读取文件失败")
+            val attachments = metadata.optJSONArray("attachments") ?: throw DshException("文件响应缺少附件")
+            val first = attachments.optJSONObject(0) ?: throw DshException("文件响应缺少附件")
+            val part = first.optString("part")
+            parts[part] ?: throw DshException("文件附件缺失")
+        }
+    }
+
+    private fun parseMultipart(body: ByteArray, boundary: String): Map<String, ByteArray> {
+        val delimiter = "--$boundary".toByteArray(Charsets.ISO_8859_1)
+        val result = mutableMapOf<String, ByteArray>()
+        var position = indexOf(body, delimiter, 0)
+        while (position >= 0) {
+            var start = position + delimiter.size
+            if (start + 2 <= body.size && body[start] == '\r'.code.toByte() && body[start + 1] == '\n'.code.toByte()) start += 2
+            val headerEnd = indexOf(body, "\r\n\r\n".toByteArray(Charsets.ISO_8859_1), start)
+            if (headerEnd < 0) break
+            val header = String(body, start, headerEnd - start, Charsets.ISO_8859_1)
+            val bodyStart = headerEnd + 4
+            val next = indexOf(body, delimiter, bodyStart)
+            if (next < 0) break
+            var bodyEnd = next
+            if (bodyEnd >= 2 && body[bodyEnd - 2] == '\r'.code.toByte() && body[bodyEnd - 1] == '\n'.code.toByte()) bodyEnd -= 2
+            val name = Regex("name=\"([^\"]+)\"").find(header)?.groupValues?.get(1)
+            if (name != null && bodyEnd >= bodyStart) result[name] = body.copyOfRange(bodyStart, bodyEnd)
+            position = next
+        }
+        return result
+    }
+
+    private fun indexOf(haystack: ByteArray, needle: ByteArray, from: Int): Int {
+        if (needle.isEmpty()) return from
+        outer@ for (i in from..haystack.size - needle.size) {
+            for (j in needle.indices) if (haystack[i + j] != needle[j]) continue@outer
+            return i
+        }
+        return -1
+    }
+
     data class HistoryPage(val items: List<ChatItem>, val hasMore: Boolean, val oldestSeq: Long)
 
     suspend fun historyPage(sessionId: String, throughSeq: Long, beforeSeq: Long, maxMessages: Int = 200): HistoryPage {

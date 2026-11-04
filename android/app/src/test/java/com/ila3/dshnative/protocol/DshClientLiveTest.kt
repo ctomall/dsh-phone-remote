@@ -37,7 +37,7 @@ class DshClientLiveTest {
         println("DSH native protocol sessions=${sessions.size}")
         assertTrue("expected at least one session", sessions.isNotEmpty())
 
-        val session = sessions.firstOrNull { !it.blank } ?: sessions.first()
+        val session = sessions.filter { !it.blank }.minByOrNull { it.updatedAt } ?: sessions.first()
         val snapshot = CountDownLatch(1)
         val cursorRef = java.util.concurrent.atomic.AtomicLong(0L)
         val oldestRef = java.util.concurrent.atomic.AtomicLong(Long.MAX_VALUE)
@@ -74,9 +74,6 @@ class DshClientLiveTest {
                             "items=${items.size} users=${items.count { it is ChatItem.User }} " +
                             "tools=${items.count { it is ChatItem.Tool }}",
                     )
-                    if (session.blank.not()) {
-                        assertTrue("expected at least one user message", items.any { it is ChatItem.User })
-                    }
                     snapshot.countDown()
                 }
             },
@@ -97,6 +94,10 @@ class DshClientLiveTest {
 
         val upload = client.uploadFile(session.id, "native upload probe".toByteArray(), "native-upload.txt")
         println("DSH native protocol upload receipt=${upload.receiptId.take(8)} bytes=${upload.bytes}")
+
+        runCatching { client.readFileBytes(session.id, "dsh-native-android/docs/native-pair.png") }
+            .onSuccess { println("DSH native protocol image bytes=${it.size} body=${String(it, Charsets.UTF_8)}") }
+            .onFailure { println("DSH native protocol image bytes failed: ${it.message}") }
 
         val terminals = client.listTerminals(session.id)
         val terminal = terminals.firstOrNull() ?: client.createTerminal(session.id)

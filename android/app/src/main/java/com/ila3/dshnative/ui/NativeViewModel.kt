@@ -101,7 +101,8 @@ class NativeViewModel(app: Application) : AndroidViewModel(app) {
         private set
     var filePath by mutableStateOf("")
         private set
-    var filePreview by mutableStateOf<Pair<String, String>?>(null)
+    data class FilePreviewData(val name: String, val text: String?, val bitmap: Bitmap?)
+    var filePreview by mutableStateOf<FilePreviewData?>(null)
         private set
     var terminalTitle by mutableStateOf("终端")
         private set
@@ -742,8 +743,18 @@ class NativeViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             busy = true
             try {
-                val text = withContext(Dispatchers.IO) { active.readFileText(activeSessionId, if (filePath.isEmpty()) entry.name else "$filePath/${entry.name}") }
-                filePreview = entry.name to text
+                val path = if (filePath.isEmpty()) entry.name else "$filePath/${entry.name}"
+                val image = entry.name.substringAfterLast('.', "").lowercase() in setOf("png", "jpg", "jpeg", "webp", "gif")
+                if (image && (entry.size ?: 0) < 2_000_000) {
+                    val bytes = withContext(Dispatchers.IO) { active.readFileBytes(activeSessionId, path) }
+                    val bitmap = withContext(Dispatchers.IO) { BitmapFactory.decodeByteArray(bytes, 0, bytes.size) }
+                    if (bitmap != null) {
+                        filePreview = FilePreviewData(entry.name, null, bitmap)
+                        return@launch
+                    }
+                }
+                val text = withContext(Dispatchers.IO) { active.readFileText(activeSessionId, path) }
+                filePreview = FilePreviewData(entry.name, text, null)
             } catch (e: Exception) {
                 error = e.message ?: "读取文件失败"
             } finally {

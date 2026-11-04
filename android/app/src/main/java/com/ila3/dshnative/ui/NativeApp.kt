@@ -1145,18 +1145,27 @@ private fun FilesScreen(vm: NativeViewModel) {
             }
         }
     }
-    vm.filePreview?.let { (name, text) ->
+    vm.filePreview?.let { preview ->
         AlertDialog(
             onDismissRequest = { vm.dismissFilePreview() },
-            title = { Text(name, color = DshText, fontSize = 15.sp) },
+            title = { Text(preview.name, color = DshText, fontSize = 15.sp) },
             text = {
-                Text(
-                    text.ifBlank { "（空文件）" },
-                    color = DshText,
-                    fontFamily = FontFamily.Monospace,
-                    fontSize = 10.sp,
-                    modifier = Modifier.verticalScroll(rememberScrollState()).height(400.dp),
-                )
+                if (preview.bitmap != null) {
+                    Image(
+                        preview.bitmap.asImageBitmap(),
+                        contentDescription = preview.name,
+                        modifier = Modifier.fillMaxWidth().heightIn(max = 480.dp),
+                        contentScale = androidx.compose.ui.layout.ContentScale.Fit,
+                    )
+                } else {
+                    Text(
+                        preview.text.orEmpty().ifBlank { "（空文件）" },
+                        color = DshText,
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 10.sp,
+                        modifier = Modifier.verticalScroll(rememberScrollState()).height(400.dp),
+                    )
+                }
             },
             confirmButton = {
                 TextButton(onClick = { vm.dismissFilePreview() }) { Text("关闭", color = DshTealSoft) }
@@ -1401,8 +1410,8 @@ internal fun SettingsPreviewContent() {
         onMode = {},
         onServers = {},
         onBack = {},
-        version = "0.16.0",
-        updateLabel = "当前 0.16.0",
+        version = "0.17.0",
+        updateLabel = "当前 0.17.0",
         onCheckUpdate = {},
     )
 }
