@@ -1,6 +1,7 @@
 package com.ila3.dshnative.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -18,35 +19,36 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.Checklist
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Inbox
+import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -64,33 +66,28 @@ private val CardShape = RoundedCornerShape(18.dp)
 
 @Composable
 internal fun HomeScreen(vm: NativeViewModel) {
-    val tab = vm.homeTab
-    var query by remember { mutableStateOf("") }
-
     Column(Modifier.fillMaxSize()) {
         Box(Modifier.weight(1f).fillMaxWidth()) {
-            when (tab) {
-                0 -> SessionsTab(vm, query) { query = it }
-                1 -> InboxTab(vm)
-                2 -> WorkspaceTab(vm)
-                else -> SettingsTab(vm)
+            when (vm.navSelection) {
+                "tasks" -> TasksTab(vm)
+                "files" -> WorkspaceTab(vm)
+                "settings" -> SettingsTab(vm)
+                "more" -> MoreTab(vm)
+                "automation" -> PlaceholderTab("自动化", "定时任务将在 P2 接入：列表、启停、运行记录。")
+                "team" -> PlaceholderTab("团队", "子代理与团队树将在 P3 接入。")
+                else -> NowTab(vm)
             }
         }
-        BottomNavigation(active = tab) { index -> vm.updateHomeTab(index) }
+        BottomNavigation(vm)
     }
 }
 
-/* ------------------------------- 会话 ------------------------------- */
+/* ------------------------------- 现在 ------------------------------- */
 
 @Composable
-private fun SessionsTab(vm: NativeViewModel, query: String, onQuery: (String) -> Unit) {
+private fun NowTab(vm: NativeViewModel) {
     val running = vm.sessions.filter { it.running }
-    val filtered = vm.sessions.filter { session ->
-        query.isBlank() ||
-            session.title?.contains(query, ignoreCase = true) == true ||
-            session.id.contains(query, ignoreCase = true) ||
-            session.cwd?.contains(query, ignoreCase = true) == true
-    }
+    val recent = vm.sessions.filter { !it.running }.take(5)
     LazyColumn(
         Modifier.fillMaxSize(),
         contentPadding = PaddingValues(bottom = 16.dp),
@@ -98,48 +95,289 @@ private fun SessionsTab(vm: NativeViewModel, query: String, onQuery: (String) ->
     ) {
         item(key = "header") {
             HomeHeader(
-                title = "会话",
-                subtitle = "${vm.connection} · ${vm.sessions.size} 个会话",
+                title = "现在",
+                subtitle = "${vm.pendingQuestions.size} 项需要你 · ${running.size} 个任务运行中",
                 actions = {
                     IconButtonBubble(Icons.Filled.Refresh, "刷新") { vm.refreshSessions() }
-                    Spacer(Modifier.width(8.dp))
-                    IconButtonBubble(Icons.Filled.Add, "新建会话") { vm.newSession() }
                 },
             )
         }
-        item(key = "search") {
-            SearchField(query, onQuery)
+        item(key = "need-title") { SectionCaption("需要你") }
+        if (vm.pendingQuestions.isEmpty()) {
+            item(key = "need-empty") { HintRow("目前没有待处理事项；Agent 需要你时会出现在这里并推送通知。") }
+        } else {
+            item(key = "need-card") { InboxQuestionCard(vm) }
         }
-        if (running.isNotEmpty()) {
-            item(key = "running") { RunningCard(running) { vm.openTasks() } }
+        item(key = "running-title") { SectionCaption("运行中") }
+        if (running.isEmpty()) {
+            item(key = "running-empty") { HintRow("没有运行中的任务。") }
+        } else {
+            items(running, key = { "run-${it.id}" }) { session ->
+                HomeSessionRow(session, active = session.id == vm.activeSessionId) { vm.openSession(session) }
+            }
         }
-        if (vm.pendingQuestions.isNotEmpty()) {
-            item(key = "approval") { InboxQuestionCard(vm) }
+        item(key = "recent-title") { SectionCaption("最近完成") }
+        if (recent.isEmpty()) {
+            item(key = "recent-empty") { HintRow("还没有已完成的会话。") }
+        } else {
+            items(recent, key = { "done-${it.id}" }) { session ->
+                HomeSessionRow(session, active = false) { vm.openSession(session) }
+            }
         }
+    }
+}
+
+/* ------------------------------- 任务 ------------------------------- */
+
+@Composable
+private fun TasksTab(vm: NativeViewModel) {
+    val ordered = vm.sessions.sortedByDescending { it.running }
+    LazyColumn(
+        Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(bottom = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        item { HomeHeader("任务", "${vm.sessions.size} 个 · ${vm.sessions.count { it.running }} 个运行中") }
         when {
-            vm.busy && vm.sessions.isEmpty() -> item(key = "loading") {
+            vm.busy && vm.sessions.isEmpty() -> item {
                 Box(Modifier.fillMaxWidth().padding(40.dp), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator(color = DshTeal)
                 }
             }
-            filtered.isEmpty() -> item(key = "empty") {
-                EmptyState(
-                    title = if (vm.sessions.isEmpty()) "还没有会话" else "没有匹配的会话",
-                    hint = if (vm.sessions.isEmpty()) "新建一个会话，或先在网页端开始" else "换个关键词试试",
-                )
+            ordered.isEmpty() -> item { HintRow("还没有任务。新建会话后，任务会出现在这里。") }
+            else -> items(ordered, key = { it.id }) { session ->
+                HomeSessionRow(session, active = session.id == vm.activeSessionId) { vm.openSession(session) }
             }
-            else -> {
-                val groups = filtered.groupBy { dateGroup(it.updatedAt) }
-                groups.forEach { (label, items) ->
-                    item(key = "group-$label") { SectionCaption(label) }
-                    items(items, key = { it.id }) { session ->
-                        HomeSessionRow(session, active = session.id == vm.activeSessionId) { vm.openSession(session) }
+        }
+    }
+}
+
+/* ------------------------------- 更多 ------------------------------- */
+
+@Composable
+private fun MoreTab(vm: NativeViewModel) {
+    val hidden = vm.hiddenNavIds()
+    Column(Modifier.fillMaxSize()) {
+        HomeHeader("更多", "隐藏的入口 · ${hidden.size} 个")
+        Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            hidden.forEach { id ->
+                val item = NavById[id] ?: return@forEach
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 20.dp)
+                        .background(DshSurface, CardShape)
+                        .clickable { vm.selectNav(id) }
+                        .padding(horizontal = 14.dp, vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(navIcon(id), contentDescription = item.label, tint = DshMuted, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(12.dp))
+                    Text(item.label, color = DshText, fontSize = 14.sp, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
+                    Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = DshMuted, modifier = Modifier.size(17.dp))
+                }
+            }
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp)
+                    .background(DshSurface2, RoundedCornerShape(14.dp))
+                    .clickable { vm.openNavSettings() }
+                    .padding(horizontal = 14.dp, vertical = 13.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(Icons.Filled.Settings, contentDescription = null, tint = DshTeal, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(12.dp))
+                Text("编辑底部导航", color = DshText, fontSize = 14.sp, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
+                Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = DshMuted, modifier = Modifier.size(17.dp))
+            }
+        }
+    }
+}
+
+@Composable
+private fun PlaceholderTab(title: String, hint: String) {
+    Column(Modifier.fillMaxSize()) {
+        HomeHeader(title, "")
+        HintRow(hint)
+    }
+}
+
+/* ------------------------------- 工作区 ------------------------------- */
+
+@Composable
+private fun WorkspaceTab(vm: NativeViewModel) {
+    val groups = vm.sessions
+        .groupBy { it.cwd?.takeIf { path -> path.isNotBlank() } ?: "默认工作区" }
+        .toList()
+        .sortedByDescending { (_, list) -> list.maxOf { it.updatedAt } }
+    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        item { HomeHeader("文件", "${groups.size} 个目录 · ${vm.sessions.size} 个任务") }
+        if (groups.isEmpty()) {
+            item { HintRow("还没有工作区。会话建立后会按目录出现在这里。") }
+        }
+        items(groups, key = { "ws-${it.first}" }) { (cwd, list) ->
+            val latest = list.maxByOrNull { it.updatedAt }
+            val name = cwd.substringAfterLast('/').ifBlank { cwd }
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = 20.dp)
+                    .background(DshSurface, CardShape)
+                    .clickable { latest?.let { vm.openSession(it) } }
+                    .padding(horizontal = 14.dp, vertical = 14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(Modifier.size(40.dp).background(DshSurface2, RoundedCornerShape(12.dp)), contentAlignment = Alignment.Center) {
+                    Icon(Icons.Filled.Folder, contentDescription = null, tint = DshTeal, modifier = Modifier.size(19.dp))
+                }
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(name, color = DshText, fontSize = 14.5.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text("${list.size} 个会话 · 最近 ${formatTime(latest?.updatedAt ?: 0L)}", color = DshMuted, fontSize = 11.5.sp, modifier = Modifier.padding(top = 2.dp))
+                }
+                Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = DshMuted, modifier = Modifier.size(17.dp))
+            }
+        }
+    }
+}
+
+/* ------------------------------- 导航自定义 ------------------------------- */
+
+@Composable
+internal fun NavSettingsScreen(vm: NativeViewModel) {
+    Column(Modifier.fillMaxSize()) {
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                "‹",
+                color = DshText,
+                fontSize = 26.sp,
+                modifier = Modifier.clickable { vm.closeNavSettings() }.padding(horizontal = 8.dp),
+            )
+            Column(Modifier.weight(1f)) {
+                Text("底部导航", color = DshText, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                Text("拖动排序 · 控制显示 · 最多 4 个", color = DshMuted, fontSize = 10.5.sp)
+            }
+        }
+        Text(
+            "隐藏的入口会收进「更多」，不会丢失。",
+            color = DshMuted,
+            fontSize = 11.sp,
+            modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
+        )
+        Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
+            Column(
+                Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp)
+                    .background(DshSurface, RoundedCornerShape(18.dp)),
+            ) {
+                DefaultNavItems.forEachIndexed { index, item ->
+                    val visible = item.id !in vm.navHidden
+                    Row(
+                        Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(Modifier.width(30.dp)) {
+                            if (!item.locked) {
+                                Text("↑", color = DshMuted, fontSize = 14.sp, modifier = Modifier.clickable { vm.moveNav(item.id, -1) }.padding(2.dp))
+                                Text("↓", color = DshMuted, fontSize = 14.sp, modifier = Modifier.clickable { vm.moveNav(item.id, 1) }.padding(2.dp))
+                            }
+                        }
+                        Box(Modifier.size(30.dp).background(DshSurface2, RoundedCornerShape(9.dp)), contentAlignment = Alignment.Center) {
+                            Icon(navIcon(item.id), contentDescription = null, tint = if (visible) DshTeal else DshMuted, modifier = Modifier.size(16.dp))
+                        }
+                        Spacer(Modifier.width(10.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(item.label, color = if (visible) DshText else DshMuted, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                            if (item.locked) Text("固定显示", color = DshMuted, fontSize = 10.sp)
+                        }
+                        Switch(
+                            checked = visible,
+                            onCheckedChange = { vm.toggleNav(item.id) },
+                            enabled = !item.locked,
+                            colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = DshTeal),
+                        )
                     }
+                    if (index != DefaultNavItems.lastIndex) {
+                        HorizontalDivider(color = DshBorder, modifier = Modifier.padding(start = 74.dp))
+                    }
+                }
+            }
+            Row(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text("恢复默认", color = DshTeal, fontSize = 12.sp, fontWeight = FontWeight.Medium, modifier = Modifier.clickable { vm.resetNav() })
+                Spacer(Modifier.weight(1f))
+                Text("规则：至少 2 个；「现在」固定", color = DshMuted, fontSize = 10.5.sp)
+            }
+        }
+        PreviewNavBar(vm)
+    }
+}
+
+@Composable
+private fun PreviewNavBar(vm: NativeViewModel) {
+    val visible = vm.visibleNavIds()
+    val hidden = vm.hiddenNavIds()
+    val shown = visible + if (hidden.isNotEmpty()) listOf("more") else emptyList()
+    Column(Modifier.fillMaxWidth().background(DshSurface).padding(vertical = 8.dp)) {
+        Box(Modifier.fillMaxWidth().height(1.dp).background(DshBorder))
+        Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp), horizontalArrangement = Arrangement.SpaceAround) {
+            shown.forEach { id ->
+                val label = NavById[id]?.label ?: "更多"
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(navIcon(id), contentDescription = label, tint = if (id == "now") DshTeal else DshMuted, modifier = Modifier.size(20.dp))
+                    Text(label, color = if (id == "now") DshTeal else DshMuted, fontSize = 9.5.sp, modifier = Modifier.padding(top = 1.dp))
                 }
             }
         }
     }
 }
+
+/* ------------------------------- 底部导航 ------------------------------- */
+
+@Composable
+private fun BottomNavigation(vm: NativeViewModel) {
+    val visible = vm.visibleNavIds()
+    val hidden = vm.hiddenNavIds()
+    val shown = visible + if (hidden.isNotEmpty()) listOf("more") else emptyList()
+    Column(Modifier.navigationBarsPadding()) {
+        Box(Modifier.fillMaxWidth().height(1.dp).background(DshBorder))
+        Row(
+            Modifier.fillMaxWidth().background(DshSurface).padding(horizontal = 12.dp, vertical = 7.dp),
+            horizontalArrangement = Arrangement.SpaceAround,
+        ) {
+            shown.forEach { id ->
+                val label = NavById[id]?.label ?: "更多"
+                val active = vm.navSelection == id
+                Column(
+                    Modifier.widthIn(min = 64.dp).clickable { vm.selectNav(id) }.padding(vertical = 4.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    Icon(
+                        navIcon(id),
+                        contentDescription = label,
+                        tint = if (active) DshTeal else DshMuted.copy(alpha = 0.55f),
+                        modifier = Modifier.size(22.dp),
+                    )
+                    Text(
+                        label,
+                        color = if (active) DshTeal else DshMuted.copy(alpha = 0.75f),
+                        fontSize = 10.sp,
+                        fontWeight = if (active) FontWeight.SemiBold else FontWeight.Normal,
+                        modifier = Modifier.padding(top = 2.dp),
+                    )
+                }
+            }
+        }
+    }
+}
+
+private fun navIcon(id: String): ImageVector = when (id) {
+    "now" -> Icons.Filled.Home
+    "tasks" -> Icons.Filled.Checklist
+    "files" -> Icons.Filled.Folder
+    "settings" -> Icons.Filled.Settings
+    "automation" -> Icons.Filled.Inbox
+    "team" -> Icons.Filled.MoreHoriz
+    else -> Icons.Filled.MoreHoriz
+}
+
+/* ------------------------------- 通用 ------------------------------- */
 
 @Composable
 private fun HomeHeader(title: String, subtitle: String, actions: @Composable () -> Unit = {}) {
@@ -149,14 +387,16 @@ private fun HomeHeader(title: String, subtitle: String, actions: @Composable () 
     ) {
         Column(Modifier.weight(1f)) {
             Text(title, color = DshText, fontSize = 26.sp, fontWeight = FontWeight.Bold, letterSpacing = (-0.6).sp)
-            Text(subtitle, color = DshMuted, fontSize = 12.sp, modifier = Modifier.padding(top = 2.dp))
+            if (subtitle.isNotBlank()) {
+                Text(subtitle, color = DshMuted, fontSize = 12.sp, modifier = Modifier.padding(top = 2.dp))
+            }
         }
         actions()
     }
 }
 
 @Composable
-private fun IconButtonBubble(icon: androidx.compose.ui.graphics.vector.ImageVector, description: String, onClick: () -> Unit) {
+private fun IconButtonBubble(icon: ImageVector, description: String, onClick: () -> Unit) {
     Box(
         Modifier.size(34.dp).background(DshSurface, CircleShape).clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
@@ -164,59 +404,26 @@ private fun IconButtonBubble(icon: androidx.compose.ui.graphics.vector.ImageVect
 }
 
 @Composable
-private fun SearchField(query: String, onQuery: (String) -> Unit) {
-    Row(
-        Modifier.fillMaxWidth().padding(horizontal = 20.dp)
-            .background(DshSurface, RoundedCornerShape(14.dp))
-            .padding(horizontal = 12.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(Icons.Filled.Search, contentDescription = null, tint = DshMuted, modifier = Modifier.size(17.dp))
-        Spacer(Modifier.width(8.dp))
-        Box(Modifier.weight(1f)) {
-            if (query.isEmpty()) {
-                Text("搜索标题、ID 或目录", color = DshMuted, fontSize = 12.5.sp)
-            }
-            BasicTextField(
-                value = query,
-                onValueChange = onQuery,
-                singleLine = true,
-                textStyle = TextStyle(color = DshText, fontSize = 12.5.sp),
-                cursorBrush = SolidColor(DshTeal),
-                modifier = Modifier.fillMaxWidth(),
-            )
-        }
-    }
+private fun SectionCaption(text: String) {
+    Text(
+        text,
+        color = DshMuted.copy(alpha = 0.85f),
+        fontSize = 11.sp,
+        fontWeight = FontWeight.Medium,
+        letterSpacing = 0.4.sp,
+        modifier = Modifier.padding(start = 22.dp, top = 12.dp, bottom = 2.dp),
+    )
 }
 
 @Composable
-private fun RunningCard(running: List<SessionSummary>, onClick: () -> Unit) {
-    Row(
-        Modifier.fillMaxWidth().padding(horizontal = 20.dp)
-            .background(
-                Brush.linearGradient(listOf(Color(0xFF3347D8), Color(0xFF5B78FF))),
-                RoundedCornerShape(20.dp),
-            )
-            .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 14.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column(Modifier.weight(1f)) {
-            Text("${running.size} 个任务正在运行", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-            Text(
-                running.first().title?.takeIf { it.isNotBlank() } ?: running.first().id.take(18),
-                color = Color.White.copy(alpha = 0.78f),
-                fontSize = 11.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(top = 3.dp),
-            )
-        }
-        Box(
-            Modifier.size(30.dp).background(Color.White.copy(alpha = 0.16f), CircleShape),
-            contentAlignment = Alignment.Center,
-        ) { Icon(Icons.Filled.Checklist, contentDescription = "查看任务", tint = Color.White, modifier = Modifier.size(17.dp)) }
-    }
+private fun HintRow(text: String) {
+    Text(
+        text,
+        color = DshMuted,
+        fontSize = 11.5.sp,
+        lineHeight = 17.sp,
+        modifier = Modifier.padding(horizontal = 22.dp, vertical = 6.dp),
+    )
 }
 
 @Composable
@@ -238,7 +445,7 @@ internal fun InboxQuestionContent(
     val question = pending.questions.firstOrNull() ?: return
     val quickAnswer = pending.questions.size == 1 && !question.multiSelect && question.options.isNotEmpty()
     Column(
-        Modifier.fillMaxWidth()
+        Modifier.fillMaxWidth().padding(horizontal = 20.dp)
             .background(DshSurface, CardShape)
             .padding(14.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -289,18 +496,6 @@ internal fun InboxQuestionContent(
 }
 
 @Composable
-private fun SectionCaption(text: String) {
-    Text(
-        text,
-        color = DshMuted.copy(alpha = 0.85f),
-        fontSize = 11.sp,
-        fontWeight = FontWeight.Medium,
-        letterSpacing = 0.4.sp,
-        modifier = Modifier.padding(start = 22.dp, top = 12.dp, bottom = 2.dp),
-    )
-}
-
-@Composable
 private fun HomeSessionRow(session: SessionSummary, active: Boolean, onClick: () -> Unit) {
     val title = session.title?.takeIf { it.isNotBlank() } ?: session.id.take(18)
     val initial = title.firstOrNull()?.toString()?.uppercase() ?: "D"
@@ -348,137 +543,6 @@ private fun HomeSessionRow(session: SessionSummary, active: Boolean, onClick: ()
         }
         Text(formatTime(session.updatedAt), color = DshMuted.copy(alpha = 0.8f), fontSize = 10.5.sp)
     }
-}
-
-/* ------------------------------- 收件箱 ------------------------------- */
-
-@Composable
-private fun InboxTab(vm: NativeViewModel) {
-    val running = vm.sessions.filter { it.running }
-    val recent = vm.sessions.filter { !it.running }.take(8)
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        item { HomeHeader("收件箱", "需要你处理的 ${running.size + vm.pendingQuestions.size} 项") }
-        item { SectionCaption("待处理") }
-        if (vm.pendingQuestions.isEmpty() && running.isEmpty()) {
-            item { EmptyState("没有待处理事项", "Agent 需要你时会出现在这里，并推送通知") }
-        }
-        if (vm.pendingQuestions.isNotEmpty()) {
-            item { InboxQuestionCard(vm) }
-        }
-        items(running, key = { "inbox-${it.id}" }) { session ->
-            HomeSessionRow(session, active = session.id == vm.activeSessionId) { vm.openSession(session) }
-        }
-        item { SectionCaption("最近完成") }
-        if (recent.isEmpty()) {
-            item { EmptyState("暂无已完成会话", "") }
-        } else {
-            items(recent, key = { "recent-${it.id}" }) { session ->
-                HomeSessionRow(session, active = false) { vm.openSession(session) }
-            }
-        }
-    }
-}
-
-/* ------------------------------- 工作区 ------------------------------- */
-
-@Composable
-private fun WorkspaceTab(vm: NativeViewModel) {
-    val groups = vm.sessions
-        .groupBy { it.cwd?.takeIf { path -> path.isNotBlank() } ?: "默认工作区" }
-        .toList()
-        .sortedByDescending { (_, list) -> list.maxOf { it.updatedAt } }
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        item { HomeHeader("工作区", "${groups.size} 个目录 · ${vm.sessions.size} 个会话") }
-        if (groups.isEmpty()) {
-            item { EmptyState("还没有工作区", "会话建立后会按目录出现在这里") }
-        }
-        items(groups, key = { "ws-${it.first}" }) { (cwd, list) ->
-            val latest = list.maxByOrNull { it.updatedAt }
-            val name = cwd.substringAfterLast('/').ifBlank { cwd }
-            Row(
-                Modifier.fillMaxWidth().padding(horizontal = 20.dp)
-                    .background(DshSurface, CardShape)
-                    .clickable { latest?.let { vm.openSession(it) } }
-                    .padding(horizontal = 14.dp, vertical = 14.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Box(Modifier.size(40.dp).background(DshSurface2, RoundedCornerShape(12.dp)), contentAlignment = Alignment.Center) {
-                    Icon(Icons.Filled.Folder, contentDescription = null, tint = DshTeal, modifier = Modifier.size(19.dp))
-                }
-                Spacer(Modifier.width(12.dp))
-                Column(Modifier.weight(1f)) {
-                    Text(name, color = DshText, fontSize = 14.5.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text("${list.size} 个会话 · 最近 ${formatTime(latest?.updatedAt ?: 0L)}", color = DshMuted, fontSize = 11.5.sp, modifier = Modifier.padding(top = 2.dp))
-                }
-                Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = DshMuted, modifier = Modifier.size(17.dp))
-            }
-        }
-    }
-}
-
-@Composable
-private fun EmptyState(title: String, hint: String) {
-    Column(
-        Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 36.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(6.dp),
-    ) {
-        Text(title, color = DshText, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-        if (hint.isNotBlank()) Text(hint, color = DshMuted, fontSize = 12.sp)
-    }
-}
-
-/* ------------------------------- 底部导航 ------------------------------- */
-
-@Composable
-private fun BottomNavigation(active: Int, onSelect: (Int) -> Unit) {
-    val items = listOf(
-        Triple("会话", Icons.Filled.Chat, 0),
-        Triple("收件箱", Icons.Filled.Inbox, 1),
-        Triple("工作区", Icons.Filled.Folder, 2),
-        Triple("设置", Icons.Filled.Settings, 3),
-    )
-    Column(Modifier.navigationBarsPadding()) {
-        Box(Modifier.fillMaxWidth().height(1.dp).background(DshBorder))
-        Row(
-            Modifier.fillMaxWidth().background(DshSurface).padding(horizontal = 12.dp, vertical = 7.dp),
-            horizontalArrangement = Arrangement.SpaceAround,
-        ) {
-            items.forEach { (label, icon, index) ->
-                Column(
-                    Modifier.widthIn(min = 64.dp).clickable { onSelect(index) }.padding(vertical = 4.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    Icon(
-                        icon,
-                        contentDescription = label,
-                        tint = if (active == index) DshTeal else DshMuted.copy(alpha = 0.55f),
-                        modifier = Modifier.size(22.dp),
-                    )
-                    Text(
-                        label,
-                        color = if (active == index) DshTeal else DshMuted.copy(alpha = 0.75f),
-                        fontSize = 10.sp,
-                        fontWeight = if (active == index) FontWeight.SemiBold else FontWeight.Normal,
-                        modifier = Modifier.padding(top = 2.dp),
-                    )
-                }
-            }
-        }
-    }
-}
-
-private fun dateGroup(time: Long): String {
-    val now = Calendar.getInstance()
-    val then = Calendar.getInstance().apply { timeInMillis = time }
-    val sameDay = now.get(Calendar.YEAR) == then.get(Calendar.YEAR) &&
-        now.get(Calendar.DAY_OF_YEAR) == then.get(Calendar.DAY_OF_YEAR)
-    if (sameDay) return "今天"
-    now.add(Calendar.DAY_OF_YEAR, -1)
-    val yesterday = now.get(Calendar.YEAR) == then.get(Calendar.YEAR) &&
-        now.get(Calendar.DAY_OF_YEAR) == then.get(Calendar.DAY_OF_YEAR)
-    if (yesterday) return "昨天"
-    return SimpleDateFormat("MM-dd", Locale.getDefault()).format(Date(time))
 }
 
 private fun formatTime(time: Long): String =

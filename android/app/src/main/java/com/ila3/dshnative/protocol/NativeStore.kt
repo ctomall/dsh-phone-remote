@@ -12,6 +12,8 @@ data class ServerProfile(
 )
 
 /** Small SharedPreferences-backed profile catalog; cookies live in CookieStore. */
+private val DefaultNavOrder = listOf("now", "tasks", "files", "settings", "automation", "team")
+
 class NativeStore(context: Context) {
     private val prefs = context.getSharedPreferences("dsh_native", Context.MODE_PRIVATE)
 
@@ -81,6 +83,22 @@ class NativeStore(context: Context) {
 
     fun setKeepAlive(value: Boolean) {
         prefs.edit().putBoolean("keep_alive", value).apply()
+    }
+
+    fun navOrder(): List<String> = prefs.getString("nav_order", "")
+        ?.split(',')?.filter { it.isNotBlank() }?.takeIf { it.isNotEmpty() }
+        ?: DefaultNavOrder
+
+    fun setNavOrder(order: List<String>) {
+        prefs.edit().putString("nav_order", order.joinToString(",")).apply()
+    }
+
+    fun navHidden(): Set<String> = prefs.getString("nav_hidden", "")
+        ?.split(',')?.filter { it.isNotBlank() }?.toSet()
+        ?: emptySet()
+
+    fun setNavHidden(hidden: Set<String>) {
+        prefs.edit().putString("nav_hidden", hidden.joinToString(",")).apply()
     }
 
     fun thinkExpanded(): Boolean = prefs.getBoolean("think_expanded", false)

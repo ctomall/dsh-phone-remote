@@ -1,8 +1,8 @@
 {
-  "versionCode": 28,
-  "versionName": "0.19.9",
-  "apkUrl": "https://raw.githubusercontent.com/ctomall/dsh-phone-remote/main/updates/DSHNative-0.19.9.apk",
-  "sha256": "b8af177dd0396d9bb8805d85985bd9db0984673bdf4066655e0b2872c5aa5da4",
-  "notes": "聊天日期分隔；收件箱快捷回答（单选直接回传）；问题通知带「打开处理」动作",
-  "signature": "MEYCIQC7Cz4SWeheA6tzrSQx4FtskKUD4sCh7jt4zRO521QKOwIhAJeZlrHwB6BpAZIU0UdxcoIi976sZKQSMUO+klOeq0Ey"
+  "versionCode": 29,
+  "versionName": "0.19.10",
+  "apkUrl": "https://raw.githubusercontent.com/ctomall/dsh-phone-remote/main/updates/DSHNative-0.19.10.apk",
+  "sha256": "471470cb573de280b686871d5c97929d68a8b72dbd8f6b3c0fa1c51ef4af89ce",
+  "notes": "Now 首页（需要你/运行中/最近完成）+ 任务/文件/设置导航；底部导航可排序与显隐（更多收纳）",
+  "signature": "MEUCIDy9PrrOw+jbkfciFUlzSnntEAaBlYefk30q9bAkZbqRAiEAqkptLg1CrcG5Rm1X3f+7nvNDWktOk695g5fb3K4WqC8="
 }

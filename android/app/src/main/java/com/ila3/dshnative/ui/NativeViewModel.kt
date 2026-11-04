@@ -46,6 +46,7 @@ sealed interface Screen {
     data object Terminal : Screen
     data object Settings : Screen
     data object Tasks : Screen
+    data object NavSettings : Screen
 }
 
 class NativeViewModel(app: Application) : AndroidViewModel(app) {
@@ -53,7 +54,11 @@ class NativeViewModel(app: Application) : AndroidViewModel(app) {
     private val notifications = NativeNotifications(app)
     var notifyEnabled by mutableStateOf(store.notifyEnabled())
         private set
-    var homeTab by mutableStateOf(0)
+    var navSelection by mutableStateOf("now")
+        private set
+    var navOrder by mutableStateOf(store.navOrder())
+        private set
+    var navHidden by mutableStateOf(store.navHidden())
         private set
     var keepAliveEnabled by mutableStateOf(store.keepAlive())
         private set
@@ -1198,13 +1203,57 @@ class NativeViewModel(app: Application) : AndroidViewModel(app) {
         error = message
     }
 
-    fun updateHomeTab(index: Int) {
-        homeTab = index
+    fun selectNav(id: String) {
+        navSelection = id
+    }
+
+    fun visibleNavIds(): List<String> {
+        val order = navOrder.ifEmpty { listOf("now", "tasks", "files", "settings") }
+        val visible = order.filter { it == "now" || it !in navHidden }
+        return if (hiddenNavIds().isNotEmpty()) visible.take(3) else visible.take(4)
+    }
+
+    fun hiddenNavIds(): List<String> =
+        navOrder.filter { it != "now" && it in navHidden }
+
+    fun toggleNav(id: String) {
+        if (id == "now") return
+        navHidden = if (id in navHidden) navHidden - id else navHidden + id
+        store.setNavHidden(navHidden)
+    }
+
+    fun moveNav(id: String, delta: Int) {
+        if (id == "now") return
+        val list = navOrder.toMutableList()
+        val index = list.indexOf(id)
+        if (index < 0) return
+        val target = (index + delta).coerceIn(1, list.size - 1)
+        if (target == index) return
+        list.removeAt(index)
+        list.add(target, id)
+        navOrder = list
+        store.setNavOrder(list)
+    }
+
+    fun resetNav() {
+        navOrder = DefaultNavItems.map { it.id }
+        navHidden = emptySet()
+        store.setNavOrder(navOrder)
+        store.setNavHidden(navHidden)
+        if (navSelection !in navOrder) navSelection = "now"
+    }
+
+    fun openNavSettings() {
+        screen = Screen.NavSettings
+    }
+
+    fun closeNavSettings() {
+        screen = Screen.Settings
     }
 
     /** Jump to the inbox tab (notification action). */
     fun openInbox() {
-        homeTab = 1
+        navSelection = "now"
         if (screen != Screen.Chat) screen = Screen.Sessions
     }
 
