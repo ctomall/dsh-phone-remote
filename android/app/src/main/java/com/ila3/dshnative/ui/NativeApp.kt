@@ -42,6 +42,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -1222,6 +1223,15 @@ private fun UpdateDialog(vm: NativeViewModel, context: android.content.Context) 
             Column {
                 Text(update.notes.ifBlank { "包含体验改进与问题修复。" }, color = DshText, fontSize = 13.sp)
                 Text("当前 ${com.ila3.dshnative.BuildConfig.VERSION_NAME} → ${update.versionName}", color = DshMuted, fontSize = 10.sp, modifier = Modifier.padding(top = 8.dp))
+                if (vm.updateDownloading) {
+                    LinearProgressIndicator(
+                        progress = vm.updateProgress / 100f,
+                        color = DshTeal,
+                        trackColor = DshSurface2,
+                        modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+                    )
+                    Text("${vm.updateProgress}%", color = DshMuted, fontSize = 10.sp, modifier = Modifier.padding(top = 4.dp))
+                }
             }
         },
         confirmButton = {
@@ -1247,8 +1257,8 @@ internal fun SettingsPreviewContent() {
         onMode = {},
         onServers = {},
         onBack = {},
-        version = "0.12.0",
-        updateLabel = "当前 0.12.0",
+        version = "0.13.0",
+        updateLabel = "当前 0.13.0",
         onCheckUpdate = {},
     )
 }

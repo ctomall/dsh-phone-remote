@@ -24,6 +24,8 @@ import com.ila3.dshnative.protocol.NativeStore
 import com.ila3.dshnative.protocol.ServerProfile
 import com.ila3.dshnative.protocol.SessionSummary
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.WebSocket
@@ -69,6 +71,10 @@ class NativeViewModel(app: Application) : AndroidViewModel(app) {
         private set
     var updateDownloading by mutableStateOf(false)
         private set
+    var updateProgress by mutableStateOf(0)
+        private set
+    private var pendingApk: File? = null
+    private var permissionRequested = false
     private val updateClient = com.ila3.dshnative.protocol.UpdateClient()
     var input by mutableStateOf("")
     var busy by mutableStateOf(false)
@@ -101,6 +107,10 @@ class NativeViewModel(app: Application) : AndroidViewModel(app) {
 
     private var client: DshClient? = null
     private var socket: WebSocket? = null
+    private var followRetryJob: Job? = null
+    private var following = false
+    private var followAttempt = 0
+    private var followGeneration = 0
     private var lastSeq = 0L
 
     val currentProfile: ServerProfile?
@@ -193,8 +203,7 @@ class NativeViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun openClient(profile: ServerProfile) {
         client?.close()
-        socket?.cancel()
-        socket = null
+        stopFollowing()
         client = DshClient(getApplication(), profile.url, profile.id)
         sessions = emptyList()
         screen = Screen.Sessions
@@ -233,8 +242,7 @@ class NativeViewModel(app: Application) : AndroidViewModel(app) {
 
     fun openSession(session: SessionSummary) {
         val active = client ?: return
-        socket?.cancel()
-        socket = null
+        stopFollowing()
         activeSessionId = session.id
         activeSessionTitle = session.title?.takeIf { it.isNotBlank() }
             ?: if (session.blank) "新会话" else "会话 ${session.id.take(8)}"
@@ -245,15 +253,8 @@ class NativeViewModel(app: Application) : AndroidViewModel(app) {
         screen = Screen.Chat
         connection = "连接中"
         error = ""
-        val address = JSONObject()
-            .put("kind", "session")
-            .put("sessionId", session.id)
-        val request = JSONObject()
-            .put("address", address)
-            .put("assistantStream", true)
-            .put("maxMessages", 500)
-            .put("turnWindow", JSONObject().put("minMessages", 50).put("minTurns", 2))
-        val args = JSONObject().put("request", request)
+        following = true
+        followAttempt = 0
         viewModelScope.launch {
             runCatching {
                 withContext(Dispatchers.IO) {
@@ -266,15 +267,63 @@ class NativeViewModel(app: Application) : AndroidViewModel(app) {
                 currentModel = selected
             }
         }
+        startFollow()
+    }
+
+    /** Open one follow generation; failures schedule an exponential retry. */
+    private fun startFollow() {
+        val active = client ?: return
+        if (!following || activeSessionId.isEmpty()) return
+        val address = JSONObject().put("kind", "session").put("sessionId", activeSessionId)
+        val request = JSONObject()
+            .put("address", address)
+            .put("assistantStream", true)
+            .put("maxMessages", 500)
+            .put("turnWindow", JSONObject().put("minMessages", 50).put("minTurns", 2))
+        socket?.cancel()
+        val generation = ++followGeneration
         socket = active.openStream(
             "session/follow",
-            args,
-            onValue = { value -> handleFollowValue(value) },
+            JSONObject().put("request", request),
+            onValue = { value ->
+                if (generation == followGeneration) handleFollowValue(value)
+            },
             onFailure = { failure ->
-                connection = "连接中断"
-                error = failure.message ?: "会话流中断"
+                if (generation == followGeneration) scheduleFollowRetry(failure)
             },
         )
+    }
+
+    private fun scheduleFollowRetry(failure: Throwable) {
+        if (!following || activeSessionId.isEmpty()) return
+        if (failure is DshException && (failure.status == 401 || failure.status == 403)) {
+            following = false
+            connection = "登录已失效"
+            error = "登录已失效，请重新配对"
+            screen = Screen.Servers
+            return
+        }
+        if (followRetryJob?.isActive == true) return
+        connection = "连接中断，重连中…"
+        val waitMs = (1000L shl followAttempt.coerceAtMost(5)).coerceAtMost(30_000L)
+        followAttempt += 1
+        val targetSession = activeSessionId
+        followRetryJob = viewModelScope.launch {
+            delay(waitMs)
+            if (following && activeSessionId == targetSession) {
+                connection = "重连中…"
+                startFollow()
+            }
+        }
+    }
+
+    private fun stopFollowing() {
+        following = false
+        followGeneration += 1
+        followRetryJob?.cancel()
+        followRetryJob = null
+        socket?.cancel()
+        socket = null
     }
 
     fun checkUpdate() {
@@ -317,7 +366,11 @@ class NativeViewModel(app: Application) : AndroidViewModel(app) {
             updateDownloading = true
             try {
                 val target = File(context.cacheDir, "updates/DSHNative-${update.versionCode}.apk")
-                val file = withContext(Dispatchers.IO) { updateClient.download(update, target) }
+                updateProgress = 0
+                val file = withContext(Dispatchers.IO) {
+                    updateClient.download(update, target) { progress -> updateProgress = progress }
+                }
+                pendingApk = file
                 updateInfo = null
                 onReady(file)
             } catch (e: Exception) {
@@ -330,6 +383,8 @@ class NativeViewModel(app: Application) : AndroidViewModel(app) {
 
     fun installApk(context: Context, file: File) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && !context.packageManager.canRequestPackageInstalls()) {
+            pendingApk = file
+            permissionRequested = true
             runCatching {
                 context.startActivity(
                     Intent(
@@ -347,7 +402,21 @@ class NativeViewModel(app: Application) : AndroidViewModel(app) {
                     .setDataAndType(uri, "application/vnd.android.package-archive")
                     .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK),
             )
+            pendingApk = null
+            permissionRequested = false
         }.onFailure { error = it.message ?: "无法启动安装器" }
+    }
+
+    /** Called from Activity.onResume after the unknown-sources settings page closes. */
+    fun resumePendingInstall(context: Context) {
+        val file = pendingApk ?: return
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O || context.packageManager.canRequestPackageInstalls()) {
+            installApk(context, file)
+        } else if (permissionRequested) {
+            permissionRequested = false
+            pendingApk = null
+            error = "未授予安装未知应用权限"
+        }
     }
 
     fun openSettings() {
@@ -624,8 +693,7 @@ class NativeViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun closeSession() {
-        socket?.cancel()
-        socket = null
+        stopFollowing()
         activeSessionId = ""
         activeSessionTitle = ""
         activeCwd = null
@@ -644,6 +712,7 @@ class NativeViewModel(app: Application) : AndroidViewModel(app) {
     private fun handleFollowValue(value: JSONObject) {
         when (value.optString("type")) {
             "snapshot" -> {
+                followAttempt = 0
                 connection = "已连接"
                 val records = value.optJSONArray("records")
                 messages.clear()
@@ -825,7 +894,7 @@ class NativeViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     override fun onCleared() {
-        socket?.cancel()
+        stopFollowing()
         client?.close()
         super.onCleared()
     }

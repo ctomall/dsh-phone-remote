@@ -45,14 +45,27 @@ class UpdateClient {
         const val GIT_MANIFEST = "https://raw.githubusercontent.com/ctomall/dsh-phone-remote/main/updates/android.json"
     }
 
-    suspend fun download(update: AppUpdate, target: File): File = withContext(Dispatchers.IO) {
+    suspend fun download(update: AppUpdate, target: File, onProgress: (Int) -> Unit = {}): File = withContext(Dispatchers.IO) {
         target.parentFile?.mkdirs()
         val request = Request.Builder().url(update.apkUrl).build()
         http.newCall(request).execute().use { response ->
             if (!response.isSuccessful) throw DshException("下载安装包失败：HTTP ${response.code}")
-            response.body?.byteStream()?.use { input ->
-                target.outputStream().use { output -> input.copyTo(output) }
-            } ?: throw DshException("安装包为空")
+            val body = response.body ?: throw DshException("安装包为空")
+            val total = body.contentLength()
+            body.byteStream().use { input ->
+                target.outputStream().use { output ->
+                    val buffer = ByteArray(16 * 1024)
+                    var copied = 0L
+                    while (true) {
+                        val read = input.read(buffer)
+                        if (read <= 0) break
+                        output.write(buffer, 0, read)
+                        copied += read
+                        if (total > 0) onProgress(((copied * 100) / total).toInt().coerceIn(0, 100))
+                    }
+                }
+            }
+            onProgress(100)
         }
         if (update.sha256.isNotEmpty()) {
             val digest = MessageDigest.getInstance("SHA-256")
