@@ -70,16 +70,10 @@ internal fun HomeScreen(vm: NativeViewModel) {
                 0 -> SessionsTab(vm, query) { query = it }
                 1 -> InboxTab(vm)
                 2 -> WorkspaceTab(vm)
-                else -> SessionsTab(vm, query) { query = it }
+                else -> SettingsTab(vm)
             }
         }
-        BottomNavigation(active = tab) { index ->
-            if (index == 3) {
-                vm.openSettings()
-            } else {
-                tab = index
-            }
-        }
+        BottomNavigation(active = tab) { index -> tab = index }
     }
 }
 

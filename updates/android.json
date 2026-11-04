@@ -1,8 +1,8 @@
 {
-  "versionCode": 25,
-  "versionName": "0.19.6",
-  "apkUrl": "https://raw.githubusercontent.com/ctomall/dsh-phone-remote/main/updates/DSHNative-0.19.6.apk",
-  "sha256": "69cc550ef8c38add8695dbc1ded4ab3a8a5c5bf49266e3364881a8b8c4886376",
-  "notes": "Ink 设计系统落地：会话主页重做（运行中卡/待处理卡/底部四 Tab/工作区）；HarmonyOS 工程骨架",
-  "signature": "MEUCIDfbSBLFPWtrA2OY6Pp44JamTSp5mAyySLFA3853/eg4AiEAlRqzswukSof6XLul2v/36PxcVUF9z2Uh4y9HvMsv08g="
+  "versionCode": 26,
+  "versionName": "0.19.7",
+  "apkUrl": "https://raw.githubusercontent.com/ctomall/dsh-phone-remote/main/updates/DSHNative-0.19.7.apk",
+  "sha256": "cc4a38de4963ff88b09830c647ba0c9961893d1f43cb9dff46b4cd606d9f198e",
+  "notes": "Ink 设计系统完整落地：聊天页（气泡/工具行/胶囊输入）、设置页底部 Tab、统一头部与配色",
+  "signature": "MEUCIF+SPrWnny13M6lD+1qXTud351MY2THR8Z33OKoNQtM2AiEAggte0pCu32r78YnxGULmQOzJtJxyyPhrdKjmFjEEUSQ="
 }

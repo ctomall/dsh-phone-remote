@@ -105,6 +105,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -785,16 +788,19 @@ private fun ChatScreen(vm: NativeViewModel) {
         val sendEnabled = !attachmentUploading && !attachmentFailed &&
             (vm.input.isNotBlank() || vm.pendingAttachments.isNotEmpty())
         Row(
-            Modifier.fillMaxWidth().imePadding().padding(10.dp),
-            verticalAlignment = Alignment.Bottom,
+            Modifier.fillMaxWidth().imePadding().padding(horizontal = 12.dp, vertical = 8.dp)
+                .clip(RoundedCornerShape(26.dp))
+                .background(DshSurface)
+                .border(1.dp, DshBorder, RoundedCornerShape(26.dp))
+                .padding(horizontal = 4.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
             IconButton(
                 onClick = { vm.openAttachSheet() },
-                modifier = Modifier.size(42.dp).clip(CircleShape).background(DshSurface2),
+                modifier = Modifier.size(40.dp),
             ) {
-                Icon(Icons.Filled.Add, contentDescription = "添加附件", tint = DshTeal)
+                Icon(Icons.Filled.Add, contentDescription = "添加附件", tint = DshMuted, modifier = Modifier.size(20.dp))
             }
-            Spacer(Modifier.width(6.dp))
             IconButton(
                 onClick = {
                     val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
@@ -805,28 +811,30 @@ private fun ChatScreen(vm: NativeViewModel) {
                     runCatching { speechLauncher.launch(intent) }
                         .onFailure { vm.showError("设备没有可用的语音识别服务") }
                 },
-                modifier = Modifier.size(42.dp).clip(CircleShape).background(DshSurface2),
+                modifier = Modifier.size(40.dp),
             ) {
-                Icon(Icons.Filled.Mic, contentDescription = "语音输入", tint = DshTeal, modifier = Modifier.size(20.dp))
+                Icon(Icons.Filled.Mic, contentDescription = "语音输入", tint = DshMuted, modifier = Modifier.size(19.dp))
             }
-            Spacer(Modifier.width(6.dp))
-            OutlinedTextField(
-                value = vm.input,
-                onValueChange = { vm.input = it },
-                placeholder = { Text("跟进…", color = DshMuted, fontSize = 13.sp) },
-                maxLines = 5,
-                colors = fieldColors(),
-                shape = RoundedCornerShape(22.dp),
-                modifier = Modifier.weight(1f),
-            )
-            Spacer(Modifier.width(8.dp))
-            IconButton(
-                onClick = { if (sendEnabled) vm.send() },
-                modifier = Modifier.clip(CircleShape)
-                    .background(if (sendEnabled) DshTeal else DshMuted.copy(alpha = 0.32f))
-                    .size(46.dp),
+            Box(Modifier.weight(1f)) {
+                if (vm.input.isEmpty()) {
+                    Text("跟进…", color = DshMuted, fontSize = 14.sp, modifier = Modifier.padding(horizontal = 6.dp))
+                }
+                BasicTextField(
+                    value = vm.input,
+                    onValueChange = { vm.input = it },
+                    textStyle = TextStyle(color = DshText, fontSize = 14.sp, lineHeight = 20.sp),
+                    cursorBrush = SolidColor(DshTeal),
+                    maxLines = 5,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 10.dp),
+                )
+            }
+            Box(
+                Modifier.size(38.dp).clip(CircleShape)
+                    .background(if (sendEnabled) DshTeal else DshMuted.copy(alpha = 0.3f))
+                    .clickable(enabled = sendEnabled) { vm.send() },
+                contentAlignment = Alignment.Center,
             ) {
-                Icon(Icons.Filled.ArrowUpward, contentDescription = "发送", tint = DshOnAccent)
+                Icon(Icons.Filled.ArrowUpward, contentDescription = "发送", tint = DshOnAccent, modifier = Modifier.size(18.dp))
             }
         }
     }
@@ -1169,8 +1177,7 @@ private fun AssistantMessageRow(item: ChatItem.Assistant, vm: NativeViewModel?, 
                 .weight(1f)
                 .clip(RoundedCornerShape(18.dp))
                 .background(DshSurface)
-                .border(1.dp, DshBorder, RoundedCornerShape(18.dp))
-                .padding(horizontal = 12.dp, vertical = 10.dp),
+                .padding(horizontal = 14.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1580,11 +1587,10 @@ private fun ToolCard(tool: ChatItem.Tool) {
     Column(
         Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(DshSurface2)
-            .border(1.dp, tint.copy(alpha = 0.32f), RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(14.dp))
+            .background(DshSurface)
             .clickable { expanded = !expanded }
-            .padding(14.dp),
+            .padding(horizontal = 14.dp, vertical = 11.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.size(6.dp).clip(CircleShape).background(tint))
@@ -1644,13 +1650,13 @@ private fun TopBar(
     actions: @Composable () -> Unit = {},
 ) {
     Row(
-        Modifier.fillMaxWidth().height(56.dp).padding(horizontal = 8.dp),
+        Modifier.fillMaxWidth().height(58.dp).padding(horizontal = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        IconButton(onClick = onBack) { Icon(backIcon, contentDescription = "返回", tint = DshMuted) }
+        IconButton(onClick = onBack) { Icon(backIcon, contentDescription = "返回", tint = DshText.copy(alpha = 0.8f)) }
         Column(Modifier.weight(1f)) {
-            Text(title, color = DshText, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
-            Text(subtitle, color = DshMuted, fontSize = 10.sp)
+            Text(title, color = DshText, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+            Text(subtitle, color = DshMuted, fontSize = 10.5.sp)
         }
         actions()
     }
@@ -2078,6 +2084,54 @@ private fun SettingsScreen(vm: NativeViewModel) {
 }
 
 @Composable
+internal fun SettingsTab(vm: NativeViewModel) {
+    val context = LocalContext.current
+    Column(Modifier.fillMaxSize()) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 14.dp)) {
+            Column {
+                Text(
+                    "设置",
+                    color = DshText,
+                    fontSize = 26.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = (-0.6).sp,
+                )
+                Text(
+                    "${vm.currentProfile?.name ?: "未绑定"} · ${vm.connection}",
+                    color = DshMuted,
+                    fontSize = 12.sp,
+                    modifier = Modifier.padding(top = 2.dp),
+                )
+            }
+        }
+        SettingsContent(
+            profileName = vm.currentProfile?.name ?: "未绑定",
+            profileUrl = vm.currentProfile?.url ?: "",
+            connected = vm.connection,
+            mode = DshTheme.mode,
+            onMode = { mode ->
+                DshTheme.mode = mode
+                context.getSharedPreferences("dsh_native", android.content.Context.MODE_PRIVATE)
+                    .edit().putString("theme_mode", if (mode == DshThemeMode.PAPER) "paper" else "aurora").apply()
+            },
+            onServers = { vm.showServers() },
+            onBack = {},
+            version = com.ila3.dshnative.BuildConfig.VERSION_NAME,
+            updateLabel = if (vm.updateChecking) "检查中…" else "当前 ${com.ila3.dshnative.BuildConfig.VERSION_NAME}",
+            onCheckUpdate = { vm.checkUpdate() },
+            thinkExpanded = vm.thinkExpanded,
+            onThinkExpanded = { vm.updateThinkExpanded(it) },
+            notifyEnabled = vm.notifyEnabled,
+            onNotify = { vm.updateNotifyEnabled(it) },
+            keepAlive = vm.keepAliveEnabled,
+            onKeepAlive = { vm.updateKeepAlive(it) },
+            showTopBar = false,
+        )
+    }
+    vm.updateInfo?.let { UpdateDialog(vm, context) }
+}
+
+@Composable
 private fun UpdateDialog(vm: NativeViewModel, context: android.content.Context) {
     val update = vm.updateInfo ?: return
     AlertDialog(
@@ -2151,9 +2205,10 @@ private fun SettingsContent(
     onNotify: (Boolean) -> Unit,
     keepAlive: Boolean,
     onKeepAlive: (Boolean) -> Unit,
+    showTopBar: Boolean = true,
 ) {
     Column(Modifier.fillMaxSize()) {
-        TopBar("设置", profileName, onBack, Icons.AutoMirrored.Filled.ArrowBack)
+        if (showTopBar) TopBar("设置", profileName, onBack, Icons.AutoMirrored.Filled.ArrowBack)
         Column(
             Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
