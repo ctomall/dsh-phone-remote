@@ -1,5 +1,10 @@
 package com.ila3.dshnative.ui
 
+import android.content.ContentValues
+import android.net.Uri
+import android.os.Build
+import android.os.Environment
+import android.provider.MediaStore
 import android.content.Context
 import android.content.Intent
 import androidx.compose.foundation.Image
@@ -318,6 +323,7 @@ internal fun FilePreviewSheet(vm: NativeViewModel) {
             }
             Spacer(Modifier.height(14.dp))
             val context = LocalContext.current
+            var saved by remember(preview.name) { mutableStateOf("") }
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(
                     "分享",
@@ -337,6 +343,18 @@ internal fun FilePreviewSheet(vm: NativeViewModel) {
                         .clickable { copyPreview(context, preview) }
                         .padding(horizontal = 16.dp, vertical = 9.dp),
                 )
+                Text(
+                    "保存",
+                    color = DshText,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium,
+                    modifier = Modifier.clip(RoundedCornerShape(10.dp)).background(DshSurface2)
+                        .clickable { saved = savePreview(context, preview) }
+                        .padding(horizontal = 16.dp, vertical = 9.dp),
+                )
+            }
+            if (saved.isNotEmpty()) {
+                Text(saved, color = DshTeal, fontSize = 11.sp, modifier = Modifier.padding(top = 6.dp))
             }
         }
     }
@@ -359,6 +377,56 @@ private fun sharePreview(context: Context, preview: NativeViewModel.FilePreviewD
         send.putExtra(Intent.EXTRA_TEXT, preview.text.orEmpty())
     }
     runCatching { context.startActivity(Intent.createChooser(send, "分享")) }
+}
+
+private fun savePreview(context: Context, preview: NativeViewModel.FilePreviewData): String {
+    return runCatching {
+        val resolver = context.contentResolver
+        if (preview.bitmap != null) {
+            val values = ContentValues().apply {
+                put(MediaStore.Images.Media.DISPLAY_NAME, preview.name.ifBlank { "dsh-preview.png" })
+                put(MediaStore.Images.Media.MIME_TYPE, "image/png")
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    put(MediaStore.Images.Media.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/DSH")
+                    put(MediaStore.Images.Media.IS_PENDING, 1)
+                }
+            }
+            val uri = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
+                ?: return "保存失败：无法创建媒体条目"
+            resolver.openOutputStream(uri)?.use { out ->
+                preview.bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, out)
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                values.clear()
+                values.put(MediaStore.Images.Media.IS_PENDING, 0)
+                resolver.update(uri, values, null, null)
+            }
+            "已保存到相册（Pictures/DSH）"
+        } else {
+            val bytes = preview.text.orEmpty().toByteArray()
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                val values = ContentValues().apply {
+                    put(MediaStore.Downloads.DISPLAY_NAME, preview.name.ifBlank { "dsh-file.txt" })
+                    put(MediaStore.Downloads.MIME_TYPE, "text/plain")
+                    put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/DSH")
+                    put(MediaStore.Downloads.IS_PENDING, 1)
+                }
+                val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
+                    ?: return "保存失败：无法创建下载条目"
+                resolver.openOutputStream(uri)?.use { it.write(bytes) }
+                values.clear()
+                values.put(MediaStore.Downloads.IS_PENDING, 0)
+                resolver.update(uri, values, null, null)
+                "已保存到下载（Download/DSH）"
+            } else {
+                val dir = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "DSH")
+                dir.mkdirs()
+                val file = File(dir, preview.name.ifBlank { "dsh-file.txt" })
+                file.writeBytes(bytes)
+                "已保存到 ${file.absolutePath}"
+            }
+        }
+    }.getOrElse { "保存失败：${it.message}" }
 }
 
 private fun copyPreview(context: Context, preview: NativeViewModel.FilePreviewData) {
