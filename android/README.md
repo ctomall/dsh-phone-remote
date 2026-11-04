@@ -1,4 +1,4 @@
-# DSH 原生 Android 客户端（0.15.0）
+# DSH 原生 Android 客户端（0.16.0）
 
 这不是 WebView 壳。它直接对接 DSH 的 Remote API：
 
@@ -50,7 +50,7 @@ cp local.properties.example local.properties  # 改成你的 SDK 路径
 # app/build/outputs/apk/release/app-release.apk
 ```
 
-环境：JDK 17、Android SDK 34、Gradle 8.7。安装包在 `dist/DSHNative-0.15.0.apk`。
+环境：JDK 17、Android SDK 34、Gradle 8.7。安装包在 `dist/DSHNative-0.16.0.apk`。
 
 ## 协议
 

@@ -3,6 +3,8 @@ package com.ila3.dshnative.ui
 import android.app.Application
 import android.content.Context
 import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Build
 import androidx.core.content.FileProvider
@@ -57,6 +59,16 @@ class NativeViewModel(app: Application) : AndroidViewModel(app) {
     val queue = mutableStateListOf<QueuedMessage>()
     var pendingQuestions by mutableStateOf<List<DshClient.PendingQuestion>>(emptyList())
         private set
+    var hasMoreHistory by mutableStateOf(false)
+        private set
+    var loadingHistory by mutableStateOf(false)
+        private set
+    var historyVersion by mutableStateOf(0)
+        private set
+    var historyAdded by mutableStateOf(0)
+        private set
+    private var historyCursor = 0L
+    private var oldestSeq = Long.MAX_VALUE
     var activeSessionId by mutableStateOf("")
         private set
     var activeSessionTitle by mutableStateOf("")
@@ -103,7 +115,7 @@ class NativeViewModel(app: Application) : AndroidViewModel(app) {
     private var terminalHandle: DshClient.StreamHandle? = null
     private var terminalSequence = 0L
 
-    data class PendingAttachment(val id: String, val name: String, val attachment: DshClient.Attachment)
+    data class PendingAttachment(val id: String, val name: String, val attachment: DshClient.Attachment, val preview: Bitmap? = null)
 
     data class QueuedMessage(val id: String, val text: String)
 
@@ -252,6 +264,10 @@ class NativeViewModel(app: Application) : AndroidViewModel(app) {
         messages.clear()
         queue.clear()
         pendingQuestions = emptyList()
+        hasMoreHistory = false
+        loadingHistory = false
+        historyCursor = 0L
+        oldestSeq = Long.MAX_VALUE
         lastSeq = 0L
         screen = Screen.Chat
         connection = "连接中"
@@ -664,6 +680,34 @@ class NativeViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    fun loadOlderMessages() {
+        val active = client ?: return
+        val session = activeSessionId
+        if (session.isEmpty() || loadingHistory || !hasMoreHistory || historyCursor <= 0 || oldestSeq == Long.MAX_VALUE) return
+        viewModelScope.launch {
+            loadingHistory = true
+            try {
+                val page = withContext(Dispatchers.IO) {
+                    active.historyPage(session, historyCursor, oldestSeq)
+                }
+                if (activeSessionId != session) return@launch
+                if (page.items.isEmpty()) {
+                    hasMoreHistory = false
+                } else {
+                    messages.addAll(0, page.items)
+                    historyAdded = page.items.size
+                    historyVersion += 1
+                    if (page.oldestSeq != Long.MAX_VALUE) oldestSeq = page.oldestSeq
+                    hasMoreHistory = page.hasMore
+                }
+            } catch (e: Exception) {
+                error = e.message ?: "加载更早消息失败"
+            } finally {
+                loadingHistory = false
+            }
+        }
+    }
+
     fun openFiles() {
         if (activeSessionId.isEmpty()) return
         filePath = ""
@@ -755,6 +799,9 @@ class NativeViewModel(app: Application) : AndroidViewModel(app) {
                     }
                 }
                 lastSeq = maxSeq(records, lastSeq)
+                historyCursor = value.optLong("cursor", 0L)
+                hasMoreHistory = value.optBoolean("hasMore", false)
+                oldestSeq = minSeq(records)
             }
             "event" -> {
                 connection = "已连接"
@@ -850,7 +897,11 @@ class NativeViewModel(app: Application) : AndroidViewModel(app) {
                 } ?: throw DshException("无法读取文件")
                 if (bytes.size > 20 * 1024 * 1024) throw DshException("附件不能超过 20 MB")
                 val mime = resolver.getType(uri) ?: "application/octet-stream"
+                var preview: Bitmap? = null
                 val attachment = if (mime in setOf("image/png", "image/jpeg", "image/webp", "image/gif")) {
+                    preview = withContext(Dispatchers.IO) {
+                        BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                    }
                     DshClient.Attachment.Image(
                         mediaType = mime,
                         data = Base64.getEncoder().encodeToString(bytes),
@@ -860,7 +911,7 @@ class NativeViewModel(app: Application) : AndroidViewModel(app) {
                     val receipt = withContext(Dispatchers.IO) { active.uploadFile(activeSessionId, bytes, name) }
                     DshClient.Attachment.File(receipt.receiptId, name)
                 }
-                pendingAttachments.add(PendingAttachment(UUID.randomUUID().toString(), name, attachment))
+                pendingAttachments.add(PendingAttachment(UUID.randomUUID().toString(), name, attachment, preview))
             } catch (e: Exception) {
                 error = e.message ?: "添加附件失败"
             } finally {
@@ -938,6 +989,16 @@ class NativeViewModel(app: Application) : AndroidViewModel(app) {
         if (!value.startsWith("http://") && !value.startsWith("https://")) value = "https://$value"
         if (!value.endsWith("/")) value += "/"
         return value
+    }
+
+    private fun minSeq(records: org.json.JSONArray?): Long {
+        records ?: return Long.MAX_VALUE
+        var min = Long.MAX_VALUE
+        for (i in 0 until records.length()) {
+            val seq = records.optJSONObject(i)?.optJSONObject("event")?.optLong("seq", 0L) ?: 0L
+            if (seq in 1 until min) min = seq
+        }
+        return min
     }
 
     private fun maxSeq(records: org.json.JSONArray?, fallback: Long): Long {

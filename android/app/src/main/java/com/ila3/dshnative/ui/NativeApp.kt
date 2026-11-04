@@ -1,5 +1,6 @@
 package com.ila3.dshnative.ui
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -90,6 +91,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -98,6 +100,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -456,6 +459,8 @@ private fun SessionRow(session: SessionSummary, active: Boolean = false, onClick
 private fun ChatScreen(vm: NativeViewModel) {
     val listState = rememberLazyListState()
     var initialScrollDone by remember(vm.activeSessionId) { mutableStateOf(false) }
+    var historyAnchorIndex by remember { mutableStateOf(-1) }
+    var historyAnchorOffset by remember { mutableStateOf(0) }
     val filePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         uri?.let { vm.attach(it) }
     }
@@ -469,14 +474,30 @@ private fun ChatScreen(vm: NativeViewModel) {
             // Opening a long conversation must land on the newest message
             // immediately. animateScrollToItem would visibly travel from the
             // top through hundreds of records.
-            listState.scrollToItem(lastIndex)
+            listState.scrollToItem(lastIndex + 1)
             initialScrollDone = true
         } else {
             // Follow live output only while the reader is already near the
             // bottom; scrolling up to read history must not be interrupted.
             val lastVisible = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1
             if (lastVisible >= vm.messages.size - 3) {
-                listState.animateScrollToItem(lastIndex)
+                listState.animateScrollToItem(lastIndex + 1)
+            }
+        }
+    }
+    LaunchedEffect(vm.historyVersion) {
+        if (historyAnchorIndex >= 0) {
+            listState.scrollToItem((historyAnchorIndex + vm.historyAdded).coerceAtLeast(0), historyAnchorOffset)
+            historyAnchorIndex = -1
+        }
+    }
+    LaunchedEffect(listState, initialScrollDone, vm.activeSessionId) {
+        if (!initialScrollDone) return@LaunchedEffect
+        snapshotFlow { listState.firstVisibleItemIndex }.collect { index ->
+            if (index <= 1 && vm.hasMoreHistory && !vm.loadingHistory && vm.messages.isNotEmpty()) {
+                historyAnchorIndex = listState.firstVisibleItemIndex
+                historyAnchorOffset = listState.firstVisibleItemScrollOffset
+                vm.loadOlderMessages()
             }
         }
     }
@@ -498,6 +519,29 @@ private fun ChatScreen(vm: NativeViewModel) {
             contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
+            item(key = "history-loader") {
+                when {
+                    vm.loadingHistory -> Row(
+                        Modifier.fillMaxWidth().padding(10.dp),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        CircularProgressIndicator(Modifier.size(16.dp), color = DshTeal, strokeWidth = 2.dp)
+                        Spacer(Modifier.width(8.dp))
+                        Text("加载更早消息…", color = DshMuted, fontSize = 11.sp)
+                    }
+                    vm.hasMoreHistory -> Row(
+                        Modifier.fillMaxWidth().padding(4.dp),
+                        horizontalArrangement = Arrangement.Center,
+                    ) {
+                        TextButton(onClick = {
+                            historyAnchorIndex = listState.firstVisibleItemIndex
+                            historyAnchorOffset = listState.firstVisibleItemScrollOffset
+                            vm.loadOlderMessages()
+                        }) { Text("加载更早消息", color = DshTeal, fontSize = 11.sp) }
+                    }
+                }
+            }
             items(vm.messages.size) { index ->
                 MessageRow(vm.messages[index])
             }
@@ -540,9 +584,18 @@ private fun ChatScreen(vm: NativeViewModel) {
             ) {
                 vm.pendingAttachments.forEach { pending ->
                     Row(
-                        Modifier.clip(RoundedCornerShape(10.dp)).background(DshSurface).padding(horizontal = 8.dp, vertical = 6.dp),
+                        Modifier.clip(RoundedCornerShape(10.dp)).background(DshSurface).padding(horizontal = 6.dp, vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
+                        pending.preview?.let { bitmap ->
+                            Image(
+                                bitmap.asImageBitmap(),
+                                contentDescription = null,
+                                modifier = Modifier.size(28.dp).clip(RoundedCornerShape(6.dp)),
+                                contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                            )
+                            Spacer(Modifier.width(6.dp))
+                        }
                         Text(pending.name, color = DshText, fontSize = 10.sp, maxLines = 1)
                         Spacer(Modifier.width(4.dp))
                         Icon(
@@ -1348,8 +1401,8 @@ internal fun SettingsPreviewContent() {
         onMode = {},
         onServers = {},
         onBack = {},
-        version = "0.15.0",
-        updateLabel = "当前 0.15.0",
+        version = "0.16.0",
+        updateLabel = "当前 0.16.0",
         onCheckUpdate = {},
     )
 }

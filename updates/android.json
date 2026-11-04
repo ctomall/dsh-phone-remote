@@ -1,8 +1,8 @@
 {
-  "versionCode": 18,
-  "versionName": "0.15.0",
-  "apkUrl": "updates/DSHNative-0.15.0.apk",
-  "sha256": "6818b87c0d6384ab0fb0b404b4ecbcf798f834f26c7a596827adeb0c63466b5f",
-  "notes": "更新清单 ECDSA 签名校验；ask_user_question 回答卡片；固定 release 签名。",
-  "signature": "MEUCIQDxD+G432zIKrYqPq2ESAWmdI0HRirQQNbmjhj7J43b8gIgfDecWCYLWS8ZiV4TKd7ESunPM0N5Gtz21qkbZMIZ9U4="
+  "versionCode": 19,
+  "versionName": "0.16.0",
+  "apkUrl": "updates/DSHNative-0.16.0.apk",
+  "sha256": "00ec647c74eb172c77ca6117c7508708989e85f19abbe214118720d56db9499e",
+  "notes": "历史消息分页、图片附件缩略图、ECDSA 清单签名、固定 release 签名。",
+  "signature": "MEUCIEp4v6zazutFFxQzkauUkcJnVOeo6sVIB8/9gO4FQPe+AiEA6QDi7s7JEu/IQizXf40zmjVXYgC7bKjYS7Pnw0z0UFU="
 }

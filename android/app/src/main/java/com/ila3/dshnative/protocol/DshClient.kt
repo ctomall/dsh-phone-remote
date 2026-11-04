@@ -329,6 +329,30 @@ class DshClient private constructor(
 
 
 
+
+    data class HistoryPage(val items: List<ChatItem>, val hasMore: Boolean, val oldestSeq: Long)
+
+    suspend fun historyPage(sessionId: String, throughSeq: Long, beforeSeq: Long, maxMessages: Int = 200): HistoryPage {
+        val request = JSONObject()
+            .put("address", JSONObject().put("kind", "session").put("sessionId", sessionId))
+            .put("throughSeq", throughSeq)
+            .put("beforeSeq", beforeSeq)
+            .put("maxMessages", maxMessages)
+            .put("turnWindow", JSONObject().put("minMessages", 20).put("minTurns", 1))
+        val value = call("session/page", JSONObject().put("request", request))
+        val records = value.optJSONArray("records") ?: org.json.JSONArray()
+        var oldest = Long.MAX_VALUE
+        for (i in 0 until records.length()) {
+            val seq = records.optJSONObject(i)?.optJSONObject("event")?.optLong("seq", 0L) ?: 0L
+            if (seq in 1 until oldest) oldest = seq
+        }
+        return HistoryPage(
+            items = ChatParser.parseRecords(records),
+            hasMore = value.optBoolean("hasMore", false),
+            oldestSeq = oldest,
+        )
+    }
+
     data class QuestionOption(val label: String, val description: String?)
     data class QuestionItem(
         val id: String,

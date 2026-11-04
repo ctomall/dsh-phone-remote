@@ -39,6 +39,8 @@ class DshClientLiveTest {
 
         val session = sessions.firstOrNull { !it.blank } ?: sessions.first()
         val snapshot = CountDownLatch(1)
+        val cursorRef = java.util.concurrent.atomic.AtomicLong(0L)
+        val oldestRef = java.util.concurrent.atomic.AtomicLong(Long.MAX_VALUE)
         val address = JSONObject().put("kind", "session").put("sessionId", session.id)
         val request = JSONObject()
             .put("address", address)
@@ -52,6 +54,21 @@ class DshClientLiveTest {
                 if (value.optString("type") == "snapshot") {
                     val records = value.optJSONArray("records")
                     val items = ChatParser.parseRecords(records)
+                    val snapshotValue = value
+                    cursorRef.set(snapshotValue.optLong("cursor", 0L))
+                    var oldest = Long.MAX_VALUE
+                    for (i in 0 until (records?.length() ?: 0)) {
+                        val seq = records?.optJSONObject(i)?.optJSONObject("event")?.optLong("seq", 0L) ?: 0L
+                        if (seq in 1 until oldest) oldest = seq
+                    }
+                    oldestRef.set(oldest)
+                    var maxSeq = 0L
+                    for (i in 0 until (records?.length() ?: 0)) {
+                        val seq = records?.optJSONObject(i)?.optJSONObject("event")?.optLong("seq", 0L) ?: 0L
+                        if (seq > maxSeq) maxSeq = seq
+                    }
+                    if (cursorRef.get() <= 0) cursorRef.set(maxSeq)
+                    println("DSH native protocol cursor=${cursorRef.get()} oldest=$oldest")
                     println(
                         "DSH native protocol snapshot records=${records?.length() ?: 0} " +
                             "items=${items.size} users=${items.count { it is ChatItem.User }} " +
@@ -66,6 +83,10 @@ class DshClientLiveTest {
             onFailure = { it.printStackTrace() },
         )
         assertTrue("expected session/follow snapshot", snapshot.await(20, TimeUnit.SECONDS))
+        if (cursorRef.get() > 0 && oldestRef.get() != Long.MAX_VALUE) {
+            val page = client.historyPage(session.id, cursorRef.get(), oldestRef.get())
+            println("DSH native protocol history page items=${page.items.size} hasMore=${page.hasMore}")
+        }
         socket.cancel()
         val files = client.listFiles(session.id, ".")
         println("DSH native protocol files=${files.size}")
