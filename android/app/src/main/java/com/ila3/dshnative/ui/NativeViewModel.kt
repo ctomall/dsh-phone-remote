@@ -832,6 +832,16 @@ class NativeViewModel(app: Application) : AndroidViewModel(app) {
         loadFiles("")
     }
 
+    /** Open the Files tab for one task's workspace. */
+    fun openWorkspace(session: SessionSummary) {
+        if (session.id != activeSessionId) openSession(session)
+        navSelection = "files"
+        screen = Screen.Sessions
+        filePath = ""
+        files = emptyList()
+        loadFiles("")
+    }
+
     fun loadFiles(path: String) {
         val active = client ?: return
         if (activeSessionId.isEmpty()) return
