@@ -131,6 +131,23 @@ window.__ModuleLoader__.load({
 .pr-card-title { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 600; }
 .pr-card-title svg { color: var(--dsw-alias-label-tertiary); }
 .pr-card-sub { margin: 0; color: var(--dsw-alias-label-quaternary); font-size: 12px; line-height: 1.55; }
+
+.pr-progress { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border: 1px solid var(--dsw-alias-border-l2); border-radius: 12px; background: var(--dsw-alias-bg-l1); }
+.pr-progress-label { flex: none; font-size: 12px; color: var(--dsw-alias-label-secondary); }
+.pr-progress-bar { flex: 1; height: 6px; border-radius: 999px; background: var(--dsw-alias-bg-l2, rgba(127,127,127,0.1)); overflow: hidden; }
+.pr-progress-fill { height: 100%; border-radius: 999px; background: var(--dsw-alias-state-success-primary); transition: width 0.3s ease; }
+.pr-task { display: flex; flex-direction: column; gap: 14px; padding: 16px; border: 1px solid var(--dsw-alias-border-l2); border-radius: 14px; background: var(--dsw-alias-bg-l1); }
+.pr-task-head { display: flex; align-items: center; gap: 10px; }
+.pr-task-no { display: grid; place-items: center; flex: none; width: 22px; height: 22px; border-radius: 50%; background: var(--dsw-alias-bg-l2, rgba(127,127,127,0.12)); color: var(--dsw-alias-label-secondary); font-size: 11.5px; font-weight: 650; }
+.pr-task.done .pr-task-no { background: var(--dsw-alias-state-success-primary); color: #fff; }
+.pr-task-title { font-size: 14px; font-weight: 600; }
+.pr-task-status { margin-left: auto; flex: none; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--dsw-alias-border-l2); font-size: 11.5px; color: var(--dsw-alias-label-tertiary); }
+.pr-task.done .pr-task-status { color: var(--dsw-alias-state-success-primary); border-color: color-mix(in srgb, var(--dsw-alias-state-success-primary) 40%, transparent); }
+.pr-task-hint { margin: 0; color: var(--dsw-alias-label-quaternary); font-size: 12px; line-height: 1.55; }
+.pr-task-body { display: flex; flex-direction: column; gap: 14px; }
+.pr-task-body .pr-card { border: 0; padding: 0; background: transparent; }
+.pr-task-body .pr-card-head { align-items: flex-start; }
+.pr-task-body .pr-card-title { font-size: 13px; }
 .pr-pair { display: flex; gap: 18px; align-items: center; }
 .pr-qr { flex: none; display: grid; place-items: center; width: 188px; height: 188px; padding: 6px; border-radius: 14px; background: #fff; box-shadow: 0 0 0 1px rgba(0,0,0,0.06), 0 8px 24px rgba(0,0,0,0.08); }
 .pr-qr img { width: 176px; height: 176px; display: block; }
@@ -807,7 +824,61 @@ window.__ModuleLoader__.load({
       }
 
       const warnings = status.warnings ?? []
+      const deviceCount = Number(status.deviceCount ?? 0)
       const phaseClass = status.phase === 'error' ? 'error' : status.phase === 'running' ? 'running' : status.phase === 'starting' ? 'starting' : 'stopped'
+      const hasEntry = status.phase === 'running'
+      const tasks = [
+        {
+          key: 'entry',
+          title: '开通手机入口',
+          required: true,
+          done: hasEntry,
+          status: hasEntry ? '已完成' : '待启动',
+          hint: '公网 / 内网 / 隧道地址至少有一个在运行，手机才能连进来。',
+          body: h(AccessCard, { status }),
+        },
+        {
+          key: 'pairing',
+          title: '配对一台手机',
+          required: true,
+          done: deviceCount > 0,
+          status: deviceCount > 0 ? '已完成' : '待配对',
+          hint: '生成一次性配对码，用手机相机或 App 扫码；5 分钟内有效。',
+          body: h(PairingCard, { status, onError: setError }),
+        },
+        {
+          key: 'devices',
+          title: '管理已授权设备',
+          required: true,
+          done: deviceCount > 0,
+          status: deviceCount > 0 ? `${deviceCount} 台` : '暂无设备',
+          hint: '随时撤销设备；撤销后下一次请求就会被拦下，需要重新配对。',
+          body: h(DeviceCard, { status, onChanged: load, onError: setError }),
+        },
+        {
+          key: 'diagnose',
+          title: '验证入口可达性',
+          required: false,
+          done: false,
+          status: '可随时运行',
+          hint: '从服务器本机探测上游与入口地址；云主机 NAT 回环可能失败，最终以手机实际访问为准。',
+          body: h(DiagnosticsCard, { onError: setError }),
+        },
+        {
+          key: 'update',
+          title: '保持插件最新',
+          required: false,
+          done: false,
+          status: '可随时检查',
+          hint: 'Git 安装走快进，打包安装走签名更新包；升级与回滚都需要重启 DSH 生效。',
+          body: h(UpdateCard, { onError: setError }),
+        },
+      ]
+      const requiredTasks = tasks.filter((task) => task.required)
+      const doneCount = requiredTasks.filter((task) => task.done).length
+      const progress = requiredTasks.length === 0 ? 0 : Math.round((doneCount / requiredTasks.length) * 100)
+      // The plugin detail page is drawn by the host (title, icon, crumb), so this
+      // page renders the task board itself and nothing that duplicates the chrome.
       return h(
         React.Fragment,
         null,
@@ -818,7 +889,7 @@ window.__ModuleLoader__.load({
           h(
             'div',
             { className: 'pr-head' },
-            h('div', null, h('h2', { className: 'pr-title' }, TEXT.title), h('p', { className: 'pr-sub' }, TEXT.subtitle)),
+            h('p', { className: 'pr-sub' }, TEXT.subtitle),
             h(
               'div',
               { className: 'pr-head-meta' },
@@ -830,17 +901,25 @@ window.__ModuleLoader__.load({
           warnings.map((warning, index) => h('div', { className: `pr-banner ${warning.level}`, key: index }, warning.text)),
           h(
             'div',
-            { className: 'pr-grid' },
-            h(PairingCard, { status, onError: setError }),
+            { className: 'pr-progress' },
+            h('span', { className: 'pr-progress-label' }, `开通任务 ${doneCount}/${requiredTasks.length} · 运维事项可随时执行`),
+            h('div', { className: 'pr-progress-bar' }, h('div', { className: 'pr-progress-fill', style: { width: `${progress}%` } })),
+          ),
+          tasks.map((task, index) =>
             h(
-              'div',
-              { style: { display: 'flex', flexDirection: 'column', gap: 16 } },
-              h(AccessCard, { status }),
-              h(DiagnosticsCard, { onError: setError }),
+              'section',
+              { className: `pr-task${task.done ? ' done' : ''}`, key: task.key, 'aria-label': task.title },
+              h(
+                'div',
+                { className: 'pr-task-head' },
+                h('span', { className: 'pr-task-no' }, task.done ? '✓' : String(index + 1)),
+                h('span', { className: 'pr-task-title' }, task.title),
+                h('span', { className: 'pr-task-status' }, task.status),
+              ),
+              h('p', { className: 'pr-task-hint' }, task.hint),
+              h('div', { className: 'pr-task-body' }, task.body),
             ),
           ),
-          h(DeviceCard, { status, onChanged: load, onError: setError }),
-          h(UpdateCard, { onError: setError }),
           h('div', { className: 'pr-security' }, h('p', null, h('b', null, `${TEXT.securityTitle}：`), TEXT.securityBody)),
         ),
       )
@@ -851,18 +930,17 @@ window.__ModuleLoader__.load({
       apply(ctx) {
         ctx.effect(
           () =>
-            ctx.slots.inject('settings.section', () =>
+            ctx.slots.inject('plugins.bundle.config', () =>
               ctx.slots.register(
                 {
-                  name: 'settings.section',
-                  id: 'phone-remote',
-                  order: 45,
-                  label: '手机远程',
+                  name: 'plugins.bundle.config',
+                  key: '@local/phone-remote',
+                  order: 10,
                 },
                 PhoneRemotePage,
               ),
             ),
-          'phone-remote: settings page',
+          'phone-remote: plugin detail page',
         )
       },
     }

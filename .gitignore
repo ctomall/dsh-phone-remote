@@ -5,3 +5,6 @@ android/local.properties
 android/.idea/
 plugin/node_modules/
 *.bak-*
+
+# phone-remote self-update rollback record
+.phone-remote-update.json

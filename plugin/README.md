@@ -23,13 +23,13 @@ nginx 443          10.0.4.7:8080      Cloudflare 边缘
 
 - **一次性配对码**：8 位、5 分钟有效、单次使用；默认按 IP 限制尝试次数（10 分钟 15 次）。
 - **设备级授权**：配对成功写入 `HttpOnly` 设备 cookie（`dsh_phone`），每个请求都在网关校验；撤销后下一次请求立即被拦下。
-- **配对二维码**：设置页直接展示 SVG 二维码，扫码即可带出地址与配对码。
+- **配对二维码**：插件详情页直接展示 SVG 二维码，扫码即可带出地址与配对码。
 - **两种部署形态**：
   - 直连：网关监听 `0.0.0.0:8443`，自带自签名 HTTPS 证书（首次启动用 `openssl` 生成，按公网 IP 生成 SAN）。
   - 反代：网关只监听 `127.0.0.1`，由 nginx/Caddy 终止 TLS，通过 `/phone/` 前缀转发（本机默认采用这种）。
 - **内网入口**：额外监听一个私有 IPv4 的 HTTP 端口（默认 `10.0.4.7:8080`），手机在同一局域网/VPN 时不需要域名、TLS 或公网出口即可使用；与公网入口共享设备清单和配对码。
 - **无公网 IP 隧道**：通过 `cloudflared` 主动出站连接 Cloudflare，得到一个 `https://*.trycloudflare.com`（或自有域名）入口，不需要入站端口、端口映射或公网 IP；仍走设备配对。
-- **多入口二维码**：设置页用「公网入口 / 内网入口 / 隧道入口」标签切换，分别生成二维码与链接。
+- **多入口二维码**：插件详情页用「公网入口 / 内网入口 / 隧道入口」标签切换，分别生成二维码与链接。
 - **设备清单与审计**：显示设备名、平台、最近 IP、最近活跃时间；支持逐台撤销。
 - **可达性诊断**：从服务端探测每个入口的上游与入口地址，区分“服务没起来”和“防火墙没放行”。
 - **Agent 工具**：`phone_remote`，支持 `status` / `pair` / `devices` / `revoke`；`pair` 可指定 `entry: public | lan | all`。
@@ -44,7 +44,7 @@ plugin_manager({
 })
 ```
 
-安装后刷新页面。**设置 → 手机远程** 会出现新的一页。
+安装后刷新页面。**插件 → 手机远程 → 详情页** 会出现任务面板（设置里不再重复一页）。
 
 ## 配置
 
@@ -69,7 +69,7 @@ plugin_manager({
 | `lanPort` | `8080` | 内网监听端口 |
 | `lanBasePath` | `/phone` | 内网挂载前缀；`/phone` 对应 `http://<lanHost>:<lanPort>/phone/` |
 | `lanPublicUrl` | 自动生成 | 覆盖内网二维码/链接的根地址，例如 `http://10.0.4.7:8080/phone/` |
-| `lanLabel` | `内网入口` | 设置页和工具里显示的名称 |
+| `lanLabel` | `内网入口` | 插件详情页和工具里显示的名称 |
 | `tunnelEnabled` | `false` | 是否启动 Cloudflare 隧道入口 |
 | `tunnelMode` | `quick` | `quick` 临时隧道 / `named` 命名隧道 |
 | `tunnelName` | 空 | `named` 模式下的 Cloudflare 隧道名 |
@@ -79,7 +79,7 @@ plugin_manager({
 | `tunnelTarget` | 自动 | 隧道回源的本地地址，默认指向公网网关监听 |
 | `tunnelStartTimeoutSec` | `45` | 等待公网 URL 的超时 |
 | `tunnelAutoRestart` | `true` | 异常退出后自动重试 |
-| `tunnelLabel` | `隧道入口` | 设置页和工具里显示的名称 |
+| `tunnelLabel` | `隧道入口` | 插件详情页和工具里显示的名称 |
 | `dataDir` | `$DSH_HOME/phone-remote` | 设备清单与自签名证书目录 |
 | `updateMode` | `auto` | 升级策略：`auto`（在 git 工作区内走快进，否则用更新包）/ `git` / `zip` |
 | `updateFeedUrl` | 空 | 更新包模式的 HTTPS 签名清单地址 |
@@ -178,7 +178,7 @@ http://10.0.4.7:8080/phone/
 - 仍然需要一次性配对码和设备 cookie；配对后设备会出现在同一个设备清单里。
 - 不要把 `lanPort` 直接映射到公网，也不要把 `lanHost` 设为 `0.0.0.0` 除非你明确知道自己在做什么。
 - 如果 `lanHost` 自动选错（Docker / VPN 网卡），显式配置正确的网卡地址。
-- 内网端口被占用时，设置页的「内网入口」标签会显示未运行，网关其余入口不受影响。
+- 内网端口被占用时，插件详情页的「内网入口」标签会显示未运行，网关其余入口不受影响。
 - Android App 已允许 HTTP 明文，可直接扫描内网二维码；鸿蒙 App 的系统 WebView 是否允许 HTTP 取决于设备策略，优先使用公网 HTTPS。
 
 ### 没有公网 IP：Cloudflare 隧道
@@ -204,7 +204,7 @@ cloudflared --version
     cloudflaredPath: /usr/local/bin/cloudflared
 ```
 
-启动后设置页出现「隧道入口」标签，地址形如：
+启动后插件详情页出现「隧道入口」标签，地址形如：
 
 ```text
 https://random-words.trycloudflare.com/phone/
@@ -231,7 +231,18 @@ tunnelUrl: https://dsh.example.com
 
 ## 使用
 
-1. 电脑端打开 **设置 → 手机远程**。
+插件详情页（**插件 → 手机远程**）按任务组织，顶部显示任务进度：
+
+1. **开通手机入口** — 公网 / 内网 / 隧道地址与 TLS 状态；
+2. **配对一台手机** — 生成一次性配对码与二维码；
+3. **管理已授权设备** — 设备列表、在线状态与撤销；
+4. **验证入口可达性** — 从本机探测上游与入口地址；
+5. **保持插件最新** — 检查更新、升级与回滚。
+
+完成 1、2 两步后，手机即可扫码进入；3~5 是日常运维任务。
+
+
+1. 电脑端打开 **插件 → 手机远程** 的详情页。
 2. 选择「公网入口」「内网入口」或「隧道入口」标签，点「生成配对码」，得到对应二维码和 8 位配对码。
 3. 手机相机扫码，或打开配对链接输入配对码。
 4. 配对成功后自动跳到 DSH 首页；设备出现在「已配对设备」里。
@@ -293,17 +304,17 @@ Android App 可以直接扫描内网入口或隧道入口的二维码；隧道�
 
 - 直连 `https://127.0.0.1:8443`：健康检查、配对页、配对 303、设备 cookie、反向代理、绝对重定向改写、WebSocket 101、伪造 cookie 401、撤销后 302。
 - 前缀模式 `https://harness.ila3.net/phone/`：配对 → DSH token 跳转 → 首页 200 → 静态资源 200 → `/api/phone-remote/status` 200 → `/phone/api/remote.mux` WebSocket 101。
-- 内网模式 `http://10.0.4.7:8080/phone/`：配对 303 → 首页 200 → 管理 API 200 → `/phone/api/remote.mux` WebSocket 101；设置页「公网/内网」标签与 LAN 二维码渲染通过。
+- 内网模式 `http://10.0.4.7:8080/phone/`：配对 303 → 首页 200 → 管理 API 200 → `/phone/api/remote.mux` WebSocket 101；插件详情页「公网/内网」标签与 LAN 二维码渲染通过。
 - 隧道模式：`cloudflared` quick 隧道生成 `https://*.trycloudflare.com/phone/`，配对 303 → 首页 200 → API 200 → WebSocket 101。
 - 单元/集成测试：`node tests/gateway.test.js`、`node tests/gateway-prefix.test.js`。
-- 设置页在 JSDOM + React 18 中完成渲染测试：CSS 注入、状态卡片、配对码/二维码、撤销请求均通过。
+- 插件详情页在 JSDOM + React 18 中完成渲染测试：CSS 注入、状态卡片、配对码/二维码、撤销请求均通过。
 - `phone_remote` 工具的 `pair` 生成配对码后，经网关兑换、登录、设备入库、撤销的完整链路通过；配对页 `name` 预填与 `auto=1` 自动提交通过。
 
 ## 故障排查
 
 | 现象 | 检查 |
 | --- | --- |
-| 设置页显示「启动失败」 | 端口被占用 / 无权限；改 `port`，或 `ss -lntp \| grep 8443` |
+| 插件详情页显示「启动失败」 | 端口被占用 / 无权限；改 `port`，或 `ss -lntp \| grep 8443` |
 | 手机打不开入口 | `curl https://<publicUrl>/healthz`；云安全组是否放行；`host` 是否为 `0.0.0.0` 或反代链路 |
 | 配对页能开，配对后 401 | 反向代理是否保留 `/phone/` 前缀；`publicUrl` 与访问地址是否一致；DSH 是否在运行 |
 | 页面能开但白屏 | 代理是否透传 WebSocket/SSE；浏览器控制台是否 `/api` 403；检查 `trustProxy` |
@@ -313,10 +324,10 @@ Android App 可以直接扫描内网入口或隧道入口的二维码；隧道�
 | 安卓/鸿蒙 App 提示「配对没有完成」，nginx 日志里 POST `/phone/pair` 为 403 | 旧版网关把 WebView 的 `Origin: null` 当成跨站请求。已修复：`sameOriginPost` 接受缺失/不透明 Origin，仍拒绝明确的外站 Origin。更新插件并重新加载后，**重新生成一个配对码**再扫。 |
 | 配对码总是无效 | 配对码只存在内存中，插件重载/DSH 重启会清空；每次重载后必须重新生成。 |
 | 内网入口打不开 | 手机与服务器是否在同一局域网/VPN；`ss -lntp \| grep 8080`；`curl http://<lanHost>:8080/phone/healthz`；`lanHost` 是否被 Docker/VPN 网卡误选 |
-| 内网标签显示「未运行」 | `lanPort` 被占用或 `lanHost` 不是本机地址；看设置页告警或 `ss -lntp` |
+| 内网标签显示「未运行」 | `lanPort` 被占用或 `lanHost` 不是本机地址；看插件详情页告警或 `ss -lntp` |
 | 内网 HTTP 被鸿蒙 WebView 拦截 | 使用公网 HTTPS 或隧道入口；Android 客户端已允许内网 HTTP |
 | 隧道标签一直「启动中」 | `cloudflared --version` 是否存在；出站 TCP 443 是否可用；`tunnelStartTimeoutSec` 是否太短 |
-| 隧道启动失败 / URL 为空 | 看设置页告警；quick 模式需要访问 `api.cloudflare.com` 与 Cloudflare 边缘；必要时把 `tunnelProtocol` 改为 `quic` 或 `http2` |
+| 隧道启动失败 / URL 为空 | 看插件详情页告警；quick 模式需要访问 `api.cloudflare.com` 与 Cloudflare 边缘；必要时把 `tunnelProtocol` 改为 `quic` 或 `http2` |
 | 隧道 URL 变化后旧手机失效 | 重新生成隧道二维码并配对；或改用 named 隧道固定域名 |
 
 ## 开发
@@ -324,7 +335,7 @@ Android App 可以直接扫描内网入口或隧道入口的二维码；隧道�
 ```
 phone-remote/
 ├── index.js              # Host 入口：state、gateway、routes、tools
-├── client.js             # 设置页
+├── client.js             # 插件详情页
 ├── lib/state.js          # 设备清单持久化（0600）
 ├── lib/pairing.js        # 一次性配对码
 ├── lib/gateway.js        # HTTP(S) 监听、鉴权、配对、反代调度
@@ -334,7 +345,7 @@ phone-remote/
 ├── lib/tls.js            # 自签名证书生成/校验
 ├── lib/pages.js          # 配对页（无外部资源）
 ├── lib/qr.js             # SVG 二维码
-├── lib/routes.js         # 设置页 API
+├── lib/routes.js         # 插件详情页 API
 ├── lib/tools.js          # phone_remote 工具
 ├── lib/vendor/qrcode.cjs # qrcode-generator (MIT)
 └── tests/                # 独立网关集成测试
@@ -348,14 +359,14 @@ node tests/gateway-prefix.test.js
 
 ## 在线升级
 
-设置页「在线升级」卡片按安装形态自动选择升级方式（`updateMode: auto`）：
+插件详情页「在线升级」卡片按安装形态自动选择升级方式（`updateMode: auto`）：
 
 | 安装形态 | 升级方式 | 行为 |
 | --- | --- | --- |
 | `link:` 到 git 克隆（源码安装） | **Git 快进** | 对插件目录执行 `git merge --ff-only <上游>`，随后做安装校验；失败自动 `git reset --hard` 回滚。工作区有未提交改动时中止。 |
 | 打包安装（无 git 工作区） | **更新包** | 下载 HTTPS 清单里的 zip，校验 ECDSA 签名 + SHA-256、解压后做安装校验，再替换插件目录，旧目录保留为 `.bak-<时间戳>`。 |
 
-两种方式都会把「替换了什么」写入插件目录旁的 `.phone-remote-update.json`，设置页的「回滚上一次更新」据此撤销：
+两种方式都会把「替换了什么」写入插件目录旁的 `.phone-remote-update.json`，插件详情页的「回滚上一次更新」据此撤销：
 
 - Git 安装：`git reset --hard <升级前提交>`；
 - 更新包安装：把 `.bak-*` 备份目录换回来。
