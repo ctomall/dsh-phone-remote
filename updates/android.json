@@ -1,8 +1,8 @@
 {
   "versionCode": 20,
   "versionName": "0.17.0",
-  "apkUrl": "updates/DSHNative-0.17.0.apk",
+  "apkUrl": "https://raw.githubusercontent.com/ctomall/dsh-phone-remote/main/updates/DSHNative-0.17.0.apk",
   "sha256": "aa6c692ccfb8bfa13073515a9466f646f99604c578160ddc4586bf34d00be449",
   "notes": "文件图片预览、2MB 字节读取、历史分页、队列 steer、ECDSA 清单。",
-  "signature": "MEUCIGWNyp5Hi0G1HWsFFPDZhU0XXrzd+jR3R9s9yfyEOGOpAiEAqaR3fpk+Mqu6B59UWC5E3ub3x6a1RO8CsE+VJwVWbNY="
+  "signature": "MEQCICMCVV3jvByMTl4Xyli95ZkuK1nG8skl0Tq5Y4JhfI6OAiBVLwisTRB3WuI4S5Q5ax/e4C8l+u1bsW8ybl2P/ACcHg=="
 }
