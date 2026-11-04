@@ -17,8 +17,8 @@ android {
         applicationId 'com.ila3.dshnative'
         minSdk 26
         targetSdk 34
-        versionCode 41
-        versionName '0.19.22'
+        versionCode 42
+        versionName '0.19.23'
     }
 
     buildFeatures {

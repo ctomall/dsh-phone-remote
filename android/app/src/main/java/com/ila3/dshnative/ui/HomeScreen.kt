@@ -157,12 +157,19 @@ private fun NowTab(vm: NativeViewModel) {
 @Composable
 private fun TasksTab(vm: NativeViewModel) {
     var filter by remember { mutableStateOf(0) }
+    var query by remember { mutableStateOf("") }
     val running = vm.sessions.count { it.running }
     val ordered = vm.sessions.sortedByDescending { it.running }
+    val searched = ordered.filter {
+        query.isBlank() ||
+            it.title?.contains(query, ignoreCase = true) == true ||
+            it.cwd?.contains(query, ignoreCase = true) == true ||
+            it.id.contains(query, ignoreCase = true)
+    }
     val shown = when (filter) {
-        1 -> ordered.filter { it.running }
-        2 -> ordered.filter { !it.running }
-        else -> ordered
+        1 -> searched.filter { it.running }
+        2 -> searched.filter { !it.running }
+        else -> searched
     }
     Column(Modifier.fillMaxSize()) {
         HomeHeader("任务", "${vm.sessions.size} 个 · $running 个运行中")
@@ -182,6 +189,29 @@ private fun TasksTab(vm: NativeViewModel) {
                         .clickable { filter = index }
                         .padding(horizontal = 12.dp, vertical = 7.dp),
                 )
+            }
+        }
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 4.dp)
+                .background(DshSurface, RoundedCornerShape(12.dp))
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(Icons.Filled.Search, contentDescription = null, tint = DshMuted, modifier = Modifier.size(16.dp))
+            Spacer(Modifier.width(8.dp))
+            Box(Modifier.weight(1f)) {
+                if (query.isEmpty()) Text("搜索任务标题、目录或 ID", color = DshMuted, fontSize = 12.sp)
+                BasicTextField(
+                    value = query,
+                    onValueChange = { query = it },
+                    singleLine = true,
+                    textStyle = TextStyle(color = DshText, fontSize = 12.5.sp),
+                    cursorBrush = SolidColor(DshTeal),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+            if (query.isNotEmpty()) {
+                Text("×", color = DshMuted, fontSize = 14.sp, modifier = Modifier.clickable { query = "" }.padding(horizontal = 4.dp))
             }
         }
         LazyColumn(
