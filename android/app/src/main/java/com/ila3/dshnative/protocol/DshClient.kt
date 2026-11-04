@@ -328,6 +328,72 @@ class DshClient private constructor(
 
 
 
+
+    data class QuestionOption(val label: String, val description: String?)
+    data class QuestionItem(
+        val id: String,
+        val question: String,
+        val header: String?,
+        val detail: String?,
+        val options: List<QuestionOption>,
+        val multiSelect: Boolean,
+    )
+    data class PendingQuestion(
+        val callId: String,
+        val state: String,
+        val questions: List<QuestionItem>,
+    )
+
+    suspend fun pendingQuestions(sessionId: String): List<PendingQuestion> {
+        val value = call("session/projections", JSONObject().put("request", JSONObject().put("sessionId", sessionId)))
+        val questions = value.optJSONObject("values")?.optJSONObject("userQuestions") ?: return emptyList()
+        val active = questions.optJSONArray("active") ?: return emptyList()
+        return buildList {
+            for (i in 0 until active.length()) {
+                val pending = active.optJSONObject(i) ?: continue
+                val callId = pending.optString("callId")
+                if (callId.isEmpty()) continue
+                val items = pending.optJSONArray("questions") ?: continue
+                val parsed = buildList {
+                    for (j in 0 until items.length()) {
+                        val item = items.optJSONObject(j) ?: continue
+                        val id = item.optString("id")
+                        if (id.isEmpty()) continue
+                        val options = buildList {
+                            val array = item.optJSONArray("options") ?: JSONArray()
+                            for (k in 0 until array.length()) {
+                                val option = array.optJSONObject(k) ?: continue
+                                val label = option.optString("label")
+                                if (label.isNotEmpty()) add(QuestionOption(label, option.optString("description").takeIf { it.isNotEmpty() }))
+                            }
+                        }
+                        add(
+                            QuestionItem(
+                                id = id,
+                                question = item.optString("question"),
+                                header = item.optString("header").takeIf { it.isNotEmpty() },
+                                detail = item.optString("detail").takeIf { it.isNotEmpty() },
+                                options = options,
+                                multiSelect = item.optBoolean("multiSelect", false),
+                            ),
+                        )
+                    }
+                }
+                if (parsed.isNotEmpty()) add(PendingQuestion(callId, pending.optString("state", "open"), parsed))
+            }
+        }
+    }
+
+    suspend fun answerQuestions(sessionId: String, callId: String, answers: JSONArray) {
+        call(
+            "userQuestions/answer",
+            JSONObject()
+                .put("agentId", sessionId)
+                .put("callId", callId)
+                .put("answer", JSONObject().put("answers", answers)),
+        )
+    }
+
     data class ModelChoice(val provider: String, val model: String, val name: String)
     data class ModelGroup(val id: String, val name: String, val models: List<ModelChoice>)
     data class ModelCatalogData(val default: ModelChoice?, val groups: List<ModelGroup>)

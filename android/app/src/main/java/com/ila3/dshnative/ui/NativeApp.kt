@@ -41,7 +41,9 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
@@ -88,6 +90,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -499,6 +502,9 @@ private fun ChatScreen(vm: NativeViewModel) {
                 MessageRow(vm.messages[index])
             }
         }
+        vm.pendingQuestions.firstOrNull()?.let { pending ->
+            QuestionCard(pending, onSubmit = { answers -> vm.answerQuestion(pending.callId, answers) })
+        }
         if (vm.queue.isNotEmpty()) {
             Column(
                 Modifier
@@ -640,6 +646,91 @@ private fun RenameDialog(vm: NativeViewModel) {
         dismissButton = { TextButton(onClick = { vm.dismissRename() }) { Text("取消", color = DshMuted) } },
         containerColor = DshSurface,
     )
+}
+
+@Composable
+internal fun QuestionCard(pending: DshClient.PendingQuestion, onSubmit: (org.json.JSONArray) -> Unit) {
+    val selections = remember(pending.callId) {
+        mutableStateMapOf<String, MutableSet<String>>().apply {
+            pending.questions.forEach { put(it.id, mutableSetOf()) }
+        }
+    }
+    val customs = remember(pending.callId) { mutableStateMapOf<String, String>() }
+    Column(
+        Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 6.dp)
+            .clip(RoundedCornerShape(18.dp)).background(DshSurface)
+            .border(1.dp, DshTeal.copy(alpha = 0.3f), RoundedCornerShape(18.dp))
+            .padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text("DSH 需要你的确认", color = DshTeal, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
+        pending.questions.forEach { question ->
+            question.header?.let { Text(it, color = DshMuted, fontSize = 10.sp) }
+            Text(question.question, color = DshText, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+            question.detail?.let { Text(it, color = DshMuted, fontSize = 11.sp) }
+            if (question.options.isEmpty()) {
+                OutlinedTextField(
+                    value = customs[question.id].orEmpty(),
+                    onValueChange = { customs[question.id] = it },
+                    placeholder = { Text("输入回答", color = DshMuted, fontSize = 12.sp) },
+                    colors = fieldColors(),
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            } else {
+                question.options.forEach { option ->
+                    val selected = selections[question.id]?.contains(option.label) == true
+                    Row(
+                        Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp))
+                            .clickable {
+                                val set = selections.getOrPut(question.id) { mutableSetOf() }
+                                if (question.multiSelect) {
+                                    if (selected) set.remove(option.label) else set.add(option.label)
+                                } else {
+                                    set.clear(); set.add(option.label)
+                                }
+                            }
+                            .padding(horizontal = 6.dp, vertical = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        if (question.multiSelect) {
+                            Checkbox(checked = selected, onCheckedChange = null)
+                        } else {
+                            RadioButton(selected = selected, onClick = null)
+                        }
+                        Column {
+                            Text(option.label, color = DshText, fontSize = 13.sp)
+                            option.description?.let { Text(it, color = DshMuted, fontSize = 10.sp) }
+                        }
+                    }
+                }
+            }
+        }
+        val ready = pending.questions.all { question ->
+            selections[question.id]?.isNotEmpty() == true || customs[question.id]?.isNotBlank() == true
+        }
+        Button(
+            enabled = ready,
+            onClick = {
+                val answers = org.json.JSONArray()
+                pending.questions.forEach { question ->
+                    val selected = selections[question.id]?.toList().orEmpty()
+                    val custom = customs[question.id]?.trim().orEmpty()
+                    if (selected.isNotEmpty() || custom.isNotEmpty()) {
+                        answers.put(
+                            org.json.JSONObject().put("id", question.id)
+                                .put("selected", org.json.JSONArray(selected))
+                                .apply { if (custom.isNotEmpty()) put("custom", custom) },
+                        )
+                    }
+                }
+                if (answers.length() > 0) onSubmit(answers)
+            },
+            colors = ButtonDefaults.buttonColors(containerColor = DshTeal, contentColor = DshOnAccent),
+            shape = RoundedCornerShape(14.dp),
+            modifier = Modifier.fillMaxWidth(),
+        ) { Text("提交回答") }
+    }
 }
 
 @Composable
@@ -1257,8 +1348,8 @@ internal fun SettingsPreviewContent() {
         onMode = {},
         onServers = {},
         onBack = {},
-        version = "0.13.0",
-        updateLabel = "当前 0.13.0",
+        version = "0.14.0",
+        updateLabel = "当前 0.14.0",
         onCheckUpdate = {},
     )
 }
@@ -1375,3 +1466,37 @@ private fun SettingRow(label: String, value: String, onClick: (() -> Unit)? = nu
         if (onClick != null) Icon(Icons.Filled.KeyboardArrowRight, contentDescription = null, tint = DshMuted, modifier = Modifier.size(16.dp))
     }
 }
+
+@Composable
+internal fun QuestionPreviewContent() {
+    Column(Modifier.fillMaxSize().background(DshBackgroundBrush)) {
+        TopBar("检查未提交改动", "DSH 需要你的确认", {}, Icons.AutoMirrored.Filled.ArrowBack) {}
+        Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text(
+                "DSH 在继续执行前需要你确认一个选择。",
+                color = DshMuted,
+                fontSize = 12.sp,
+            )
+            QuestionCard(
+                DshClient.PendingQuestion(
+                    callId = "preview-question",
+                    state = "open",
+                    questions = listOf(
+                        DshClient.QuestionItem(
+                            id = "q1",
+                            question = "是否继续生成 diff？",
+                            header = "确认",
+                            detail = "将读取最近一次修改并生成补丁。",
+                            options = listOf(
+                                DshClient.QuestionOption("继续", "生成并展示 diff"),
+                                DshClient.QuestionOption("暂不", "保留当前改动"),
+                            ),
+                            multiSelect = false,
+                        ),
+                    ),
+                ),
+            ) {}
+        }
+    }
+}
+

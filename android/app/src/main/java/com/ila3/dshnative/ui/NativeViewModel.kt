@@ -55,6 +55,8 @@ class NativeViewModel(app: Application) : AndroidViewModel(app) {
     var messages = mutableStateListOf<ChatItem>()
     var pendingAttachments = mutableStateListOf<PendingAttachment>()
     val queue = mutableStateListOf<QueuedMessage>()
+    var pendingQuestions by mutableStateOf<List<DshClient.PendingQuestion>>(emptyList())
+        private set
     var activeSessionId by mutableStateOf("")
         private set
     var activeSessionTitle by mutableStateOf("")
@@ -249,6 +251,7 @@ class NativeViewModel(app: Application) : AndroidViewModel(app) {
         activeCwd = session.cwd
         messages.clear()
         queue.clear()
+        pendingQuestions = emptyList()
         lastSeq = 0L
         screen = Screen.Chat
         connection = "连接中"
@@ -268,6 +271,31 @@ class NativeViewModel(app: Application) : AndroidViewModel(app) {
             }
         }
         startFollow()
+        loadQuestions()
+    }
+
+    private fun loadQuestions() {
+        val active = client ?: return
+        val session = activeSessionId
+        if (session.isEmpty()) return
+        viewModelScope.launch {
+            runCatching { withContext(Dispatchers.IO) { active.pendingQuestions(session) } }
+                .onSuccess { if (activeSessionId == session) pendingQuestions = it }
+        }
+    }
+
+    fun answerQuestion(callId: String, answers: org.json.JSONArray) {
+        val active = client ?: return
+        val session = activeSessionId
+        if (session.isEmpty()) return
+        viewModelScope.launch {
+            try {
+                withContext(Dispatchers.IO) { active.answerQuestions(session, callId, answers) }
+                pendingQuestions = pendingQuestions.filterNot { it.callId == callId }
+            } catch (e: Exception) {
+                error = e.message ?: "回答失败"
+            }
+        }
     }
 
     /** Open one follow generation; failures schedule an exponential retry. */
@@ -697,6 +725,7 @@ class NativeViewModel(app: Application) : AndroidViewModel(app) {
         activeSessionId = ""
         activeSessionTitle = ""
         activeCwd = null
+        pendingQuestions = emptyList()
         showChatActions = false
         showRenameDialog = false
         messages.clear()
@@ -714,6 +743,7 @@ class NativeViewModel(app: Application) : AndroidViewModel(app) {
             "snapshot" -> {
                 followAttempt = 0
                 connection = "已连接"
+                loadQuestions()
                 val records = value.optJSONArray("records")
                 messages.clear()
                 queue.clear()
@@ -734,6 +764,9 @@ class NativeViewModel(app: Application) : AndroidViewModel(app) {
                 if (seq > lastSeq) lastSeq = seq
                 applyInbox(event)
                 applyTitle(event)
+                if (event.optString("type") == "tool/call" && event.optJSONObject("data")?.optString("name") == "ask_user_question") {
+                    loadQuestions()
+                }
                 ChatParser.parseEvent(event)?.let { appendItem(it) }
             }
             "assistant-stream" -> {

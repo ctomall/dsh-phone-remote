@@ -1,7 +1,7 @@
 {
-  "versionCode": 16,
-  "versionName": "0.13.0",
-  "apkUrl": "updates/DSHNative-0.13.0.apk",
-  "sha256": "ee51c81fd2d6f9b993cebfce5cf360f16d7c4bc3bfb68bb44de4510e10edde82",
-  "notes": "固定发布签名；未知来源授权后自动续装；下载进度；WebSocket 自动重连。注意：从 0.12 debug 签名升级需先卸载一次。"
+  "versionCode": 17,
+  "versionName": "0.14.0",
+  "apkUrl": "updates/DSHNative-0.14.0.apk",
+  "sha256": "0c6a83a27c91ded5e29755aae7a35aa1fba71bda03d1f1e5dddcc7ae60900a39",
+  "notes": "新增 ask_user_question 原生回答卡片；固定 release 签名；未知来源授权续装；下载进度；WebSocket 自动重连。"
 }

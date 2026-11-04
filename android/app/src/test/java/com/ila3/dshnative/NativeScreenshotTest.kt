@@ -10,6 +10,7 @@ import com.ila3.dshnative.ui.DshNativeTheme
 import com.ila3.dshnative.ui.DshTheme
 import com.ila3.dshnative.ui.DshThemeMode
 import com.ila3.dshnative.ui.SessionsPreviewContent
+import com.ila3.dshnative.ui.QuestionPreviewContent
 import com.ila3.dshnative.ui.SettingsPreviewContent
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -49,6 +50,13 @@ class NativeScreenshotTest {
         val activity = Robolectric.buildActivity(ComponentActivity::class.java).setup().get()
         activity.setContent { DshNativeTheme { SettingsPreviewContent() } }
         capture(activity, "native-settings.png")
+    }
+
+    @Test
+    fun captureQuestion() {
+        val activity = Robolectric.buildActivity(ComponentActivity::class.java).setup().get()
+        activity.setContent { DshNativeTheme { QuestionPreviewContent() } }
+        capture(activity, "native-question.png")
     }
 
     @Test
