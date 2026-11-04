@@ -19,3 +19,7 @@
     tunnelStartTimeoutSec: 60
     pairingTtlSec: 300
     deviceMaxAgeDays: 180
+    # 升级方式：auto = git 安装走快进、否则用更新包；也可强制 git / zip。
+    updateMode: auto
+    # 更新包模式的签名清单；Git 快进模式不读取它。
+    updateFeedUrl: https://raw.githubusercontent.com/ctomall/dsh-phone-remote/main/updates/phone-remote.json

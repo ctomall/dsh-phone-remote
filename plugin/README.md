@@ -81,6 +81,11 @@ plugin_manager({
 | `tunnelAutoRestart` | `true` | 异常退出后自动重试 |
 | `tunnelLabel` | `隧道入口` | 设置页和工具里显示的名称 |
 | `dataDir` | `$DSH_HOME/phone-remote` | 设备清单与自签名证书目录 |
+| `updateMode` | `auto` | 升级策略：`auto`（在 git 工作区内走快进，否则用更新包）/ `git` / `zip` |
+| `updateFeedUrl` | 空 | 更新包模式的 HTTPS 清单地址；官方源见「在线升级」 |
+| `updatePublicKey` | 内置公钥 | 覆盖清单签名公钥（X.509 DER, base64） |
+| `updateRequireSignature` | `true` | 清单缺少签名时是否拒绝更新 |
+| `updateGitRemote` | `origin` | Git 快进使用的远端名 |
 
 ### 直连模式
 
@@ -343,10 +348,41 @@ node tests/gateway-prefix.test.js
 
 ## 在线升级
 
-插件设置页新增「在线升级」卡片，读取 HTTPS 更新清单：
+设置页「在线升级」卡片会按安装形态自动选择升级方式（`updateMode: auto`）：
+
+| 安装形态 | 升级方式 | 行为 |
+| --- | --- | --- |
+| `link:` 到 git 克隆（本机开发/自带源码） | **Git 快进** | 对插件目录执行 `git merge --ff-only <上游>`；校验升级后的版本不倒退；失败自动 `git reset --hard` 回滚。工作区有未提交改动时直接中止。 |
+| 打包安装（无 git 工作区） | **更新包** | 下载 HTTPS 清单里的 zip，校验 ECDSA 签名 + SHA-256 后解压替换插件目录，旧目录保留为 `.bak-<时间戳>` 用于回滚。 |
+
+两种方式都需要**重启 DSH**：运行中的 Host 仍持有旧模块，只有重启后新代码才生效。设置页的「检查更新」会显示当前版本、可用版本、落后提交数或签名校验状态；有可用更新时才出现「立即升级」按钮。
+
+### 更新清单
 
 ```json
-{"version":"1.3.0","url":"https://…/phone-remote-1.3.0.zip","sha256":"…","notes":"…"}
+{
+  "version": "1.4.0",
+  "url": "https://…/phone-remote-1.4.0.zip",
+  "sha256": "…",
+  "notes": "…",
+  "signature": "MEUCIQ…"
+}
 ```
 
-检查 → 下载 → SHA-256 校验 → 解压替换插件目录；运行中的 Host 仍持有旧模块，必须重启 DSH 才会加载新代码。
+签名是 ECDSA P-256 / SHA-256 / DER，覆盖的字节（UTF-8，无尾随换行）为：
+
+```text
+version\nurl\nsha256(小写)\nnotes
+```
+
+内置公钥与 Android 客户端清单用的是同一把，可用 `updatePublicKey` 覆盖；`updateRequireSignature` 默认 `true`，清单缺少签名即拒绝。自建更新源时可以自行生成密钥对并关闭/替换校验收据。
+
+校验清单签名的命令：
+
+```bash
+printf '%s\n%s\n%s\n%s' "$version" "$url" "$sha256" "$notes" > /tmp/feed.payload
+openssl dgst -sha256 -verify feed-pub.pem -signature /tmp/feed.sig /tmp/feed.payload
+```
+
+Git 快进模式不读取清单签名：代码来自 HTTPS 的 origin，由 git 自身的 TLS + 提交历史保证完整性。
+
