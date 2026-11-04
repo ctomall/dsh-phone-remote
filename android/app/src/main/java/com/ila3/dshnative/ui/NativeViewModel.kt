@@ -1218,7 +1218,13 @@ class NativeViewModel(app: Application) : AndroidViewModel(app) {
 
     fun toggleNav(id: String) {
         if (id == "now") return
-        navHidden = if (id in navHidden) navHidden - id else navHidden + id
+        if (id in navHidden) {
+            navHidden = navHidden - id
+        } else {
+            val visible = navOrder.count { it == "now" || it !in navHidden }
+            if (visible <= 2) return
+            navHidden = navHidden + id
+        }
         store.setNavHidden(navHidden)
     }
 
