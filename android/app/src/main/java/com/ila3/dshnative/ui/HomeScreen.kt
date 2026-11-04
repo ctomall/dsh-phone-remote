@@ -113,7 +113,7 @@ private fun NowTab(vm: NativeViewModel) {
             item(key = "running-empty") { HintRow("没有运行中的任务。") }
         } else {
             items(running, key = { "run-${it.id}" }) { session ->
-                HomeSessionRow(session, active = session.id == vm.activeSessionId) { vm.openSession(session) }
+                HomeSessionRow(session, active = session.id == vm.activeSessionId) { vm.openTask(session) }
             }
         }
         item(key = "recent-title") { SectionCaption("最近完成") }
@@ -121,7 +121,7 @@ private fun NowTab(vm: NativeViewModel) {
             item(key = "recent-empty") { HintRow("还没有已完成的会话。") }
         } else {
             items(recent, key = { "done-${it.id}" }) { session ->
-                HomeSessionRow(session, active = false) { vm.openSession(session) }
+                HomeSessionRow(session, active = false) { vm.openTask(session) }
             }
         }
     }
@@ -146,7 +146,7 @@ private fun TasksTab(vm: NativeViewModel) {
             }
             ordered.isEmpty() -> item { HintRow("还没有任务。新建会话后，任务会出现在这里。") }
             else -> items(ordered, key = { it.id }) { session ->
-                HomeSessionRow(session, active = session.id == vm.activeSessionId) { vm.openSession(session) }
+                HomeSessionRow(session, active = session.id == vm.activeSessionId) { vm.openTask(session) }
             }
         }
     }

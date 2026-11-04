@@ -47,6 +47,7 @@ sealed interface Screen {
     data object Settings : Screen
     data object Tasks : Screen
     data object NavSettings : Screen
+    data object TaskDetail : Screen
 }
 
 class NativeViewModel(app: Application) : AndroidViewModel(app) {
@@ -1261,6 +1262,32 @@ class NativeViewModel(app: Application) : AndroidViewModel(app) {
     fun openInbox() {
         navSelection = "now"
         if (screen != Screen.Chat) screen = Screen.Sessions
+    }
+
+    var taskTitle by mutableStateOf("")
+        private set
+    var taskRunning by mutableStateOf(false)
+        private set
+
+    /** Open one task's detail; the underlying chat is loaded in parallel. */
+    fun openTask(session: SessionSummary) {
+        taskTitle = session.title?.takeIf { it.isNotBlank() } ?: session.id.take(18)
+        taskRunning = session.running
+        if (session.id != activeSessionId) {
+            openSession(session)
+        }
+        screen = Screen.TaskDetail
+    }
+
+    fun closeTask() {
+        screen = if (activeSessionId.isNotEmpty()) Screen.Chat else Screen.Sessions
+    }
+
+    fun reloadTask() {
+        val session = sessions.firstOrNull { it.id == activeSessionId } ?: return
+        taskRunning = session.running
+        openSession(session)
+        screen = Screen.TaskDetail
     }
 
     fun openTasks() {
