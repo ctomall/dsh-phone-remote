@@ -9,6 +9,7 @@ import com.ila3.dshnative.ui.AttachSheetPreviewContent
 import com.ila3.dshnative.ui.ChatPreviewContent
 import com.ila3.dshnative.ui.ProductChatPreview
 import com.ila3.dshnative.ui.ProductHomePreview
+import com.ila3.dshnative.ui.ProductInboxPreview
 import com.ila3.dshnative.ui.ProductSettingsPreview
 import com.ila3.dshnative.ui.DshNativeTheme
 import com.ila3.dshnative.ui.DshTheme
@@ -82,6 +83,13 @@ class NativeScreenshotTest {
         val activity = Robolectric.buildActivity(ComponentActivity::class.java).setup().get()
         activity.setContent { ProductChatPreview() }
         capture(activity, "product-chat.png")
+    }
+
+    @Test
+    fun captureProductInbox() {
+        val activity = Robolectric.buildActivity(ComponentActivity::class.java).setup().get()
+        activity.setContent { DshNativeTheme { ProductInboxPreview() } }
+        capture(activity, "product-inbox.png")
     }
 
     @Test

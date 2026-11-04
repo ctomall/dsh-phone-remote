@@ -435,3 +435,35 @@ internal fun ProductSettingsPreview() {
         BottomNav(active = 3)
     }
 }
+
+@Composable
+internal fun ProductInboxPreview() {
+    val pending = com.ila3.dshnative.protocol.DshClient.PendingQuestion(
+        callId = "preview-question",
+        state = "open",
+        questions = listOf(
+            com.ila3.dshnative.protocol.DshClient.QuestionItem(
+                id = "q1",
+                question = "是否继续生成 diff？",
+                header = "确认",
+                detail = "将读取最近一次修改并生成补丁。",
+                options = listOf(
+                    com.ila3.dshnative.protocol.DshClient.QuestionOption("继续", "生成并展示 diff"),
+                    com.ila3.dshnative.protocol.DshClient.QuestionOption("暂不", "保留当前改动"),
+                ),
+                multiSelect = false,
+            ),
+        ),
+    )
+    Column(
+        Modifier.fillMaxSize().background(Ink.canvas).padding(horizontal = 20.dp, vertical = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Text("收件箱", color = Ink.ink, fontSize = 26.sp, fontWeight = FontWeight.Bold)
+        Text("需要你处理的 1 项", color = Ink.muted, fontSize = 12.sp)
+        Spacer(Modifier.height(18.dp))
+        InboxQuestionContent(pending, {}, {})
+        Spacer(Modifier.height(14.dp))
+        Text("点击选项即可直接回传给 Agent，无需进入会话。", color = Ink.muted, fontSize = 11.sp)
+    }
+}

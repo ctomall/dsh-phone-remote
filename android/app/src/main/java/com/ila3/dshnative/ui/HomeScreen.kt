@@ -222,10 +222,23 @@ private fun RunningCard(running: List<SessionSummary>, onClick: () -> Unit) {
 @Composable
 private fun InboxQuestionCard(vm: NativeViewModel) {
     val pending = vm.pendingQuestions.firstOrNull() ?: return
+    InboxQuestionContent(
+        pending = pending,
+        onAnswer = { answers -> vm.answerQuestion(pending.callId, answers) },
+        onOpen = { vm.sessions.firstOrNull { it.id == vm.activeSessionId }?.let { vm.openSession(it) } },
+    )
+}
+
+@Composable
+internal fun InboxQuestionContent(
+    pending: DshClient.PendingQuestion,
+    onAnswer: (JSONArray) -> Unit,
+    onOpen: () -> Unit,
+) {
     val question = pending.questions.firstOrNull() ?: return
     val quickAnswer = pending.questions.size == 1 && !question.multiSelect && question.options.isNotEmpty()
     Column(
-        Modifier.fillMaxWidth().padding(horizontal = 20.dp)
+        Modifier.fillMaxWidth()
             .background(DshSurface, CardShape)
             .padding(14.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -251,12 +264,13 @@ private fun InboxQuestionCard(vm: NativeViewModel) {
                             .clip(RoundedCornerShape(10.dp))
                             .background(DshTeal)
                             .clickable {
-                                val answers = JSONArray().put(
-                                    JSONObject()
-                                        .put("id", question.id)
-                                        .put("selected", JSONArray().put(option.label)),
+                                onAnswer(
+                                    JSONArray().put(
+                                        JSONObject()
+                                            .put("id", question.id)
+                                            .put("selected", JSONArray().put(option.label)),
+                                    ),
                                 )
-                                vm.answerQuestion(pending.callId, answers)
                             }
                             .padding(horizontal = 12.dp, vertical = 7.dp),
                     )
@@ -268,9 +282,7 @@ private fun InboxQuestionCard(vm: NativeViewModel) {
                 color = DshTeal,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Medium,
-                modifier = Modifier.clickable {
-                    vm.sessions.firstOrNull { it.id == vm.activeSessionId }?.let { vm.openSession(it) }
-                },
+                modifier = Modifier.clickable { onOpen() },
             )
         }
     }
