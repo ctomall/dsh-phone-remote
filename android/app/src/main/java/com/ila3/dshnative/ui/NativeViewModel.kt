@@ -55,6 +55,10 @@ class NativeViewModel(app: Application) : AndroidViewModel(app) {
     private val notifications = NativeNotifications(app)
     var notifyEnabled by mutableStateOf(store.notifyEnabled())
         private set
+    data class SessionQuestion(val sessionId: String, val sessionTitle: String, val pending: DshClient.PendingQuestion)
+
+    var inbox by mutableStateOf<List<SessionQuestion>>(emptyList())
+        private set
     var navSelection by mutableStateOf("now")
         private set
     var navOrder by mutableStateOf(store.navOrder())
@@ -299,6 +303,7 @@ class NativeViewModel(app: Application) : AndroidViewModel(app) {
                 val list = withContext(Dispatchers.IO) { active.sessions() }
                 sessions = list.sortedByDescending { it.updatedAt }
                 connection = "已连接"
+                refreshInbox()
                 if (pendingOpenSessionId.isNotEmpty()) {
                     val target = sessions.firstOrNull { it.id == pendingOpenSessionId }
                     if (target != null) {
@@ -367,6 +372,47 @@ class NativeViewModel(app: Application) : AndroidViewModel(app) {
                         maybeNotifyQuestion()
                     }
                 }
+        }
+    }
+
+    private fun refreshInbox() {
+        val active = client ?: return
+        val running = sessions.filter { it.running }.take(6)
+        viewModelScope.launch {
+            val collected = mutableListOf<SessionQuestion>()
+            for (session in running) {
+                val pending = runCatching {
+                    withContext(Dispatchers.IO) { active.pendingQuestions(session.id) }
+                }.getOrDefault(emptyList())
+                pending.forEach { question ->
+                    collected.add(
+                        SessionQuestion(
+                            sessionId = session.id,
+                            sessionTitle = session.title?.takeIf { it.isNotBlank() } ?: session.id.take(12),
+                            pending = question,
+                        ),
+                    )
+                }
+            }
+            inbox = collected
+        }
+    }
+
+    fun answerSessionQuestion(question: SessionQuestion, answers: org.json.JSONArray) {
+        val active = client ?: return
+        viewModelScope.launch {
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    active.answerQuestions(question.sessionId, question.pending.callId, answers)
+                }
+            }.onSuccess {
+                inbox = inbox.filterNot {
+                    it.sessionId == question.sessionId && it.pending.callId == question.pending.callId
+                }
+                if (question.sessionId == activeSessionId) {
+                    pendingQuestions = pendingQuestions.filterNot { it.callId == question.pending.callId }
+                }
+            }.onFailure { error = it.message ?: "回答失败" }
         }
     }
 

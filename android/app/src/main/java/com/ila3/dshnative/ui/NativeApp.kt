@@ -1389,6 +1389,7 @@ private fun EmptyChatState() {
 private fun TaskDetailScreen(vm: NativeViewModel) {
     val state = remember(vm.messages.size, vm.activeSessionId) { parseTaskState(vm.messages) }
     val tools = remember(vm.messages.size) { vm.messages.filterIsInstance<ChatItem.Tool>().takeLast(6) }
+    val activeQuestion = vm.inbox.firstOrNull { it.sessionId == vm.activeSessionId }
     val artifacts = remember(vm.messages.size) {
         vm.messages.filterIsInstance<ChatItem.Tool>()
             .filter { it.name in setOf("write", "edit", "apply_patch", "notebook_edit") }
@@ -1459,7 +1460,14 @@ private fun TaskDetailScreen(vm: NativeViewModel) {
                     }
                 }
             }
-            if (vm.pendingQuestions.isNotEmpty()) {
+            if (activeQuestion != null) {
+                InboxQuestionContent(
+                    pending = activeQuestion.pending,
+                    sessionTitle = activeQuestion.sessionTitle,
+                    onAnswer = { answers -> vm.answerSessionQuestion(activeQuestion, answers) },
+                    onOpen = { vm.sessions.firstOrNull { it.id == activeQuestion.sessionId }?.let { vm.openTask(it) } },
+                )
+            } else if (vm.pendingQuestions.isNotEmpty()) {
                 Row(
                     Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(DshErrorBg)
                         .border(1.dp, DshErrorBorder, RoundedCornerShape(16.dp))
