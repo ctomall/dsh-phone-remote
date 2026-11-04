@@ -1511,7 +1511,9 @@ private fun TaskDetailScreen(vm: NativeViewModel) {
             } else {
                 artifacts.forEach { path ->
                     Row(
-                        Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(DshSurface).padding(horizontal = 14.dp, vertical = 11.dp),
+                        Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(DshSurface)
+                            .clickable { vm.openArtifact(path) }
+                            .padding(horizontal = 14.dp, vertical = 11.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Icon(Icons.Filled.Edit, contentDescription = null, tint = DshTeal, modifier = Modifier.size(14.dp))
@@ -1544,6 +1546,7 @@ private fun TaskDetailScreen(vm: NativeViewModel) {
             )
         }
     }
+    FilePreviewSheet(vm)
 }
 
 @Composable

@@ -1,8 +1,8 @@
 {
-  "versionCode": 34,
-  "versionName": "0.19.15",
-  "apkUrl": "https://raw.githubusercontent.com/ctomall/dsh-phone-remote/main/updates/DSHNative-0.19.15.apk",
-  "sha256": "77ecdf82c5a82c9282e34308d6525562c84868e7337449dbef9d85b9c1593b5b",
-  "notes": "文件 Tab：真实目录浏览 + 文件预览（文本/图片）",
-  "signature": "MEUCIQD6MFKKE69RIBjnEPuuFpX+KFJ1BOgm+gUrx+uQGXOQiQIgSEsAwDfhRosUobpfQdAijs6z7Ip4SaED1BVCCOdB2do="
+  "versionCode": 35,
+  "versionName": "0.19.16",
+  "apkUrl": "https://raw.githubusercontent.com/ctomall/dsh-phone-remote/main/updates/DSHNative-0.19.16.apk",
+  "sha256": "6c977b74ae3ab908898be0c86bfe9dc718f286c6df35884c1b5fe06e66aff652",
+  "notes": "文件/产物图片预览；任务详情产物点击打开预览",
+  "signature": "MEQCIF8A1A0+ceWxwhTqtD/FwpJMflrJBdgtKjPKEU8OPJu8AiBAhFV8AOqsjIMqK36hiAEfFE2LO+W9WQLR1JzJdWPHoA=="
 }
