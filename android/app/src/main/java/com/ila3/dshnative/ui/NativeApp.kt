@@ -652,20 +652,22 @@ private fun ChatScreen(vm: NativeViewModel) {
             // Opening a long conversation must land on the newest message
             // immediately. animateScrollToItem would visibly travel from the
             // top through hundreds of records.
-            listState.scrollToItem(lastIndex + 1)
+            runCatching { listState.scrollToItem(lastIndex + 1) }
             initialScrollDone = true
         } else {
             // Follow live output only while the reader is already near the
             // bottom; scrolling up to read history must not be interrupted.
             val lastVisible = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1
             if (lastVisible >= vm.messages.size - 3) {
-                listState.animateScrollToItem(lastIndex + 1)
+                runCatching { listState.animateScrollToItem(lastIndex + 1) }
             }
         }
     }
     LaunchedEffect(vm.historyVersion) {
         if (historyAnchorIndex >= 0) {
-            listState.scrollToItem((historyAnchorIndex + vm.historyAdded).coerceAtLeast(0), historyAnchorOffset)
+            runCatching {
+                listState.scrollToItem((historyAnchorIndex + vm.historyAdded).coerceAtLeast(0), historyAnchorOffset)
+            }
             historyAnchorIndex = -1
         }
     }
@@ -738,7 +740,7 @@ private fun ChatScreen(vm: NativeViewModel) {
         }
         if (!atBottom && vm.messages.isNotEmpty()) {
             SmallFloatingActionButton(
-                onClick = { scope.launch { listState.animateScrollToItem(vm.messages.size) } },
+                onClick = { scope.launch { runCatching { listState.animateScrollToItem(vm.messages.size) } } },
                 modifier = Modifier.align(Alignment.BottomEnd).padding(14.dp),
                 containerColor = DshSurface,
                 contentColor = DshTeal,
