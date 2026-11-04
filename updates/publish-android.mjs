@@ -21,8 +21,15 @@ import { fileURLToPath } from 'node:url'
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const RAW_BASE = 'https://raw.githubusercontent.com/ctomall/dsh-phone-remote/main/updates'
 const FEED = join(ROOT, 'updates', 'android.json')
-const PINNED_PUBLIC_KEY =
-  'MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEzcsZnRGxY3+4KdnLgCH9cHu/joD7VKxpaZfI45fDh4YSY3IBepXf4QHKKXZRP+UtI3YX5Mvs/sLjpDLKiVY3Cw=='
+const PINNED_PUBLIC_KEY = (() => {
+  const source = readFileSync(
+    join(ROOT, 'android/app/src/main/java/com/ila3/dshnative/protocol/UpdateClient.kt'),
+    'utf8',
+  )
+  const match = source.match(/PUBLIC_KEY_B64 = "([^"]+)"/)
+  if (!match) fail('找不到 UpdateClient.kt 里的 PUBLIC_KEY_B64')
+  return match[1]
+})()
 
 const fail = (message) => {
   console.error(`error: ${message}`)

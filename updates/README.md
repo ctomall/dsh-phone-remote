@@ -4,24 +4,33 @@
 - `phone-remote.json`：插件更新清单（插件详情页「在线升级」读取）。
 - `publish-android.mjs`：发布脚本，用法见 `../android/README.md`。
 
-## 0.19.0 手动安装（签名变更）
+## 0.19.1 手动安装（签名轮换，必须重装）
 
-0.19.0 是「重新安装版」：用当前可用的签名构建，和 0.18.0 的正式证书不同，**不能覆盖安装**。
+0.19.1 更换了 APK 签名证书与更新清单密钥，**不能覆盖安装**，需要重装一次：
 
-1. 下载：`https://raw.githubusercontent.com/ctomall/dsh-phone-remote/main/updates/DSHNative-0.19.0.apk`
-2. 卸载旧版（会清掉本机服务器配置，重新配对即可）：
+1. 下载：`https://raw.githubusercontent.com/ctomall/dsh-phone-remote/main/updates/DSHNative-0.19.1.apk`
+2. 卸载旧版（会清掉服务器配置，重新配对即可）：
    `adb uninstall com.ila3.dshnative`，或手机设置里卸载。
 3. 安装 APK，重新扫码配对。
 
-## 关于自动更新
+装好 0.19.1 之后，**App 内自动更新恢复**：以后版本只要用同一套密钥发布，`android.json` 会正常提示更新。
 
-`android.json` 目前仍是 0.18.0（由正式证书 + 原始清单私钥签名的有效清单）。
-0.19.0 的清单没有对应私钥，因此**没有**替换 `android.json`：
+## 密钥与备份
 
-- 0.18.0 老用户：检查更新仍显示「已是最新」，不会拿到 0.19.0；
-- 0.19.0 新用户：同样不会被推送到旧版本，手动安装即可。
+本轮轮换后的私钥/证书**不进仓库**，存放位置：
 
-恢复自动更新有两条路：
+- 更新清单签名私钥：`~/.dsh/phone-remote/keys/manifest-signing-2026-11.pem`
+- release keystore：`android/keystore/dshnative-release.jks` + `keystore.properties`，
+  另有备份 `~/.dsh/phone-remote/keys/dshnative-release-2026-11.{jks,properties}`
 
-1. 提供原始清单私钥（对应客户端内置公钥），`publish-android.mjs` 可直接签 0.19.x 清单；
-2. 或生成新密钥并在 App 里重新固定公钥：0.19.0 之后可以自动更新，但 0.18.x → 0.19.0 仍要手动重装一次。
+**务必离线备份这几个文件**：丢失清单私钥 → 之后的更新清单无法签名；丢失 keystore → 之后的 APK 无法覆盖安装。
+`android/keystore/` 已被 gitignore，不会随仓库分发。
+
+## 发布新版本
+
+```bash
+cd android && ./gradlew assembleRelease
+cd .. && ANDROID_MANIFEST_KEY=~/.dsh/phone-remote/keys/manifest-signing-2026-11.pem \
+  node updates/publish-android.mjs android/app/build/outputs/apk/release/app-release.apk "更新说明"
+git add updates/ && git commit -m "release: <版本>" && git push
+```

@@ -64,7 +64,7 @@ class UpdateClient {
         const val GIT_MANIFEST = "https://raw.githubusercontent.com/ctomall/dsh-phone-remote/main/updates/android.json"
 
         /** ECDSA P-256 public key (X.509 DER, base64) for signed manifests. */
-        private const val PUBLIC_KEY_B64 = "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEzcsZnRGxY3+4KdnLgCH9cHu/joD7VKxpaZfI45fDh4YSY3IBepXf4QHKKXZRP+UtI3YX5Mvs/sLjpDLKiVY3Cw=="
+        private const val PUBLIC_KEY_B64 = "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE01+qvxJkW1xPmkaXwLJwPPTIEBpRLD5rgPbRWS+Xc4W3zOgVQTEVItO8O/HP3Rvqi+DVbRewW+lV3tJJz01Knw=="
     }
 
     private fun verifyManifest(json: org.json.JSONObject, versionCode: Int) {
