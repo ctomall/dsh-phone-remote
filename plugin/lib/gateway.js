@@ -18,6 +18,7 @@ import { PAGE_HEADERS, renderPairPage } from './pages.js'
 import { normalizeCode } from './pairing.js'
 import { normalizeDeviceName, normalizePlatform } from './state.js'
 import { qrDataUrl } from './qr.js'
+import { handleMobileRequest } from './mobile.js'
 
 const VERSION = '1.2.0'
 const MAX_BODY_BYTES = 64 * 1024
@@ -492,6 +493,11 @@ export class PhoneGateway {
       return
     }
     this.state.touch(device, { ip, userAgent: request.headers['user-agent'] ?? '' })
+    if (localPath.startsWith('/api/mobile/v1')) {
+      request.url = `${localPath}${url.search}`
+      await handleMobileRequest(request, response, { upstream: this.upstream })
+      return
+    }
     request.url = `${localPath}${url.search}`
     forwardRequest(request, response, {
       upstream: this.upstream,
