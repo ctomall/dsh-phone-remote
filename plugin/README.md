@@ -394,3 +394,13 @@ version\nurl\nsha256(小写)\nnotes
 ```
 
 内置公钥与 Android 客户端清单用的是同一把，可用 `updatePublicKey` 覆盖；`updateRequireSignature` 默认 `true`，清单缺少签名即拒绝。Git 快进模式不读取清单签名：代码来自 HTTPS 的 origin，由 git 自身的 TLS + 提交历史保证完整性。
+
+## 移动 BFF（1.3.5）
+
+网关在 `/api/mobile/v1` 下提供稳定接口，客户端不再解析原始事件：
+
+- `GET /api/mobile/v1/inbox`：运行中任务的提问 + 运行中/最近任务
+- `GET /api/mobile/v1/tasks`、`GET /api/mobile/v1/tasks/:id`
+- `POST /api/mobile/v1/questions/:sessionId/:callId/answer`
+
+需要重启宿主后生效；未部署时客户端仍走原协议。

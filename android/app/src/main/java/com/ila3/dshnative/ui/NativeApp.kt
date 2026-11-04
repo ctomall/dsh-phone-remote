@@ -1389,6 +1389,18 @@ private fun EmptyChatState() {
 private fun TaskDetailScreen(vm: NativeViewModel) {
     val state = remember(vm.messages.size, vm.activeSessionId) { parseTaskState(vm.messages) }
     val tools = remember(vm.messages.size) { vm.messages.filterIsInstance<ChatItem.Tool>().takeLast(6) }
+    val artifacts = remember(vm.messages.size) {
+        vm.messages.filterIsInstance<ChatItem.Tool>()
+            .filter { it.name in setOf("write", "edit", "apply_patch", "notebook_edit") }
+            .mapNotNull { tool ->
+                runCatching {
+                    val args = org.json.JSONObject(tool.arguments)
+                    args.optString("path").ifBlank { args.optString("file_path") }
+                }.getOrNull()?.takeIf { it.isNotBlank() }
+            }
+            .distinct()
+            .takeLast(6)
+    }
     Column(Modifier.fillMaxSize()) {
         Row(
             Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp),
@@ -1482,6 +1494,21 @@ private fun TaskDetailScreen(vm: NativeViewModel) {
                             modifier = Modifier.weight(1f).padding(start = 8.dp),
                         )
                         Text(if (tool.result != null) "完成" else "执行中", color = DshMuted, fontSize = 10.sp)
+                    }
+                }
+            }
+            Text("产物", color = DshMuted, fontSize = 11.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(top = 6.dp))
+            if (artifacts.isEmpty()) {
+                Text("还没有写入产物（write / edit 后会出现）", color = DshMuted, fontSize = 11.sp)
+            } else {
+                artifacts.forEach { path ->
+                    Row(
+                        Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(DshSurface).padding(horizontal = 14.dp, vertical = 11.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(Icons.Filled.Edit, contentDescription = null, tint = DshTeal, modifier = Modifier.size(14.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text(path, color = DshText, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                 }
             }
