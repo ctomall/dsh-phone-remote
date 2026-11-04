@@ -62,6 +62,8 @@ import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.AddPhotoAlternate
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.ErrorOutline
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Settings
@@ -184,6 +186,7 @@ fun NativeApp(vm: NativeViewModel = viewModel()) {
             Screen.Settings -> SettingsScreen(vm)
             Screen.Tasks -> TasksScreen(vm)
             Screen.NavSettings -> NavSettingsScreen(vm)
+            Screen.TaskDetail -> TaskDetailScreen(vm)
         }
         if (vm.error.isNotEmpty()) {
             ErrorBar(vm.error, vm::dismissError, Modifier.align(Alignment.BottomCenter).padding(16.dp))
@@ -1383,6 +1386,132 @@ private fun EmptyChatState() {
 }
 
 @Composable
+private fun TaskDetailScreen(vm: NativeViewModel) {
+    val state = remember(vm.messages.size, vm.activeSessionId) { parseTaskState(vm.messages) }
+    val tools = remember(vm.messages.size) { vm.messages.filterIsInstance<ChatItem.Tool>().takeLast(6) }
+    Column(Modifier.fillMaxSize()) {
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            IconButton(onClick = { vm.closeTask() }) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回", tint = DshText.copy(alpha = 0.8f))
+            }
+            Column(Modifier.weight(1f)) {
+                Text(vm.taskTitle.ifBlank { "任务" }, color = DshText, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                Text(vm.activeCwd?.takeIf { it.isNotBlank() } ?: (if (vm.taskRunning) "运行中" else "已结束"), color = DshMuted, fontSize = 10.5.sp, maxLines = 1)
+            }
+            if (vm.taskRunning) {
+                Text(
+                    "运行中",
+                    color = DshTeal,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Medium,
+                    modifier = Modifier.background(DshSurface2, RoundedCornerShape(9.dp)).padding(horizontal = 10.dp, vertical = 5.dp),
+                )
+            }
+        }
+        Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            state.first?.let { goal ->
+                Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(DshSurface).padding(14.dp)) {
+                    Text("目标", color = DshTeal, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
+                    Text(goal, color = DshText, fontSize = 14.sp, lineHeight = 20.sp, modifier = Modifier.padding(top = 4.dp))
+                }
+            }
+            Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(DshSurface).padding(14.dp)) {
+                Text("待办", color = DshMuted, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
+                if (state.second.isEmpty()) {
+                    Text("这个任务还没有 todo（Agent 调用 todo_write 后会出现）", color = DshMuted, fontSize = 11.sp, modifier = Modifier.padding(top = 6.dp))
+                } else {
+                    state.second.forEach { (content, status) ->
+                        val done = status == "completed"
+                        val doing = status == "in_progress"
+                        Row(Modifier.fillMaxWidth().padding(vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                when {
+                                    done -> Icons.Filled.CheckCircle
+                                    doing -> Icons.Filled.PlayArrow
+                                    else -> Icons.Filled.RadioButtonUnchecked
+                                },
+                                contentDescription = null,
+                                tint = when {
+                                    done -> DshTeal
+                                    doing -> DshTeal
+                                    else -> DshMuted
+                                },
+                                modifier = Modifier.size(16.dp),
+                            )
+                            Spacer(Modifier.width(10.dp))
+                            Text(content, color = if (done) DshMuted else DshText, fontSize = 13.sp)
+                        }
+                    }
+                }
+            }
+            if (vm.pendingQuestions.isNotEmpty()) {
+                Row(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(DshErrorBg)
+                        .border(1.dp, DshErrorBorder, RoundedCornerShape(16.dp))
+                        .clickable { vm.openSession(vm.sessions.first { it.id == vm.activeSessionId }) }
+                        .padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(Icons.Filled.ErrorOutline, contentDescription = null, tint = DshDanger, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(10.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text("等待你处理", color = DshText, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                        Text("Agent 正在等待回答或批准", color = DshMuted, fontSize = 11.sp)
+                    }
+                    Text("去处理", color = DshTeal, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                }
+            }
+            Text("时间线", color = DshMuted, fontSize = 11.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(top = 6.dp))
+            if (tools.isEmpty()) {
+                Text("暂无工具调用", color = DshMuted, fontSize = 11.sp)
+            } else {
+                tools.forEach { tool ->
+                    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(DshSurface).padding(horizontal = 14.dp, vertical = 11.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Box(Modifier.size(6.dp).clip(CircleShape).background(if (tool.isError) DshDanger else DshTeal))
+                        Spacer(Modifier.width(8.dp))
+                        Text(tool.name, color = DshText, fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold)
+                        Text(
+                            (if (tool.at > 0L) "${formatTime(tool.at)} · " else "") + toolSummary(tool.arguments),
+                            color = DshMuted,
+                            fontSize = 11.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f).padding(start = 8.dp),
+                        )
+                        Text(if (tool.result != null) "完成" else "执行中", color = DshMuted, fontSize = 10.sp)
+                    }
+                }
+            }
+            Spacer(Modifier.height(12.dp))
+        }
+        Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text(
+                "进入会话",
+                color = DshTeal,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Medium,
+                modifier = Modifier.clip(RoundedCornerShape(14.dp)).background(DshSurface).clickable {
+                    vm.sessions.firstOrNull { it.id == vm.activeSessionId }?.let { vm.openSession(it) }
+                }.padding(horizontal = 18.dp, vertical = 11.dp),
+            )
+            Text(
+                "刷新",
+                color = DshOnAccent,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.weight(1f).clip(RoundedCornerShape(14.dp)).background(DshTeal).clickable {
+                    vm.reloadTask()
+                }.padding(vertical = 11.dp),
+                textAlign = TextAlign.Center,
+            )
+        }
+    }
+}
+
+@Composable
 private fun DayDivider(label: String) {
     Text(
         label,
@@ -1391,6 +1520,15 @@ private fun DayDivider(label: String) {
         textAlign = TextAlign.Center,
         modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
     )
+}
+
+private fun toolSummary(arguments: String): String {
+    val parsed = runCatching { org.json.JSONObject(arguments) }.getOrNull() ?: return arguments.lineSequence().first().take(80)
+    for (key in listOf("command", "path", "file_path", "query", "pattern", "url", "description")) {
+        val value = parsed.optString(key)
+        if (value.isNotBlank()) return value.lineSequence().first().take(80)
+    }
+    return arguments.lineSequence().first().take(80)
 }
 
 private fun sameDay(first: Long, second: Long): Boolean {
