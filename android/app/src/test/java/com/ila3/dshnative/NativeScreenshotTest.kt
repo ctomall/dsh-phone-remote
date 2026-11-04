@@ -9,6 +9,9 @@ import com.ila3.dshnative.ui.AttachSheetPreviewContent
 import com.ila3.dshnative.ui.ChatPreviewContent
 import com.ila3.dshnative.ui.ProductChatPreview
 import com.ila3.dshnative.ui.ProductHomePreview
+import com.ila3.dshnative.ui.ProductInboxFirstPreview
+import com.ila3.dshnative.ui.ProductTaskDetailPreview
+import com.ila3.dshnative.ui.ProductWorkspacePreview
 import com.ila3.dshnative.ui.ProductInboxPreview
 import com.ila3.dshnative.ui.ProductSettingsPreview
 import com.ila3.dshnative.ui.DshNativeTheme
@@ -83,6 +86,27 @@ class NativeScreenshotTest {
         val activity = Robolectric.buildActivity(ComponentActivity::class.java).setup().get()
         activity.setContent { ProductChatPreview() }
         capture(activity, "product-chat.png")
+    }
+
+    @Test
+    fun captureFullInbox() {
+        val activity = Robolectric.buildActivity(ComponentActivity::class.java).setup().get()
+        activity.setContent { ProductInboxFirstPreview() }
+        capture(activity, "full-inbox.png")
+    }
+
+    @Test
+    fun captureFullTask() {
+        val activity = Robolectric.buildActivity(ComponentActivity::class.java).setup().get()
+        activity.setContent { ProductTaskDetailPreview() }
+        capture(activity, "full-task.png")
+    }
+
+    @Test
+    fun captureFullWorkspace() {
+        val activity = Robolectric.buildActivity(ComponentActivity::class.java).setup().get()
+        activity.setContent { ProductWorkspacePreview() }
+        capture(activity, "full-workspace.png")
     }
 
     @Test

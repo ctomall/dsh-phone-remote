@@ -20,6 +20,15 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Checklist
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.ErrorOutline
+import androidx.compose.material.icons.filled.FolderOpen
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.RadioButtonUnchecked
+import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.AttachFile
@@ -40,6 +49,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -465,5 +475,414 @@ internal fun ProductInboxPreview() {
         InboxQuestionContent(pending, {}, {})
         Spacer(Modifier.height(14.dp))
         Text("点击选项即可直接回传给 Agent，无需进入会话。", color = Ink.muted, fontSize = 11.sp)
+    }
+}
+
+/* ============================ 完整手机端 IA 设计稿 ============================ */
+
+@Composable
+private fun FullBottomNav(active: Int) {
+    val items = listOf(
+        Triple("收件箱", Icons.Filled.Inbox, 0),
+        Triple("任务", Icons.Filled.Checklist, 1),
+        Triple("工作区", Icons.Filled.Folder, 2),
+        Triple("设置", Icons.Filled.Settings, 3),
+    )
+    Column {
+        Box(Modifier.fillMaxWidth().height(1.dp).background(Ink.line))
+        Row(
+            Modifier.fillMaxWidth().background(Ink.surface).padding(horizontal = 12.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.SpaceAround,
+        ) {
+            items.forEach { (label, icon, index) ->
+                Column(
+                    Modifier.widthIn(min = 64.dp).padding(vertical = 4.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    Icon(
+                        icon,
+                        contentDescription = label,
+                        tint = if (active == index) Ink.brand else Ink.faint,
+                        modifier = Modifier.size(22.dp),
+                    )
+                    Text(
+                        label,
+                        color = if (active == index) Ink.brand else Ink.faint,
+                        fontSize = 10.sp,
+                        fontWeight = if (active == index) FontWeight.SemiBold else FontWeight.Normal,
+                        modifier = Modifier.padding(top = 2.dp),
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun Pill(text: String, background: Color, foreground: Color, border: Color? = null) {
+    Box(
+        Modifier
+            .clip(RoundedCornerShape(10.dp))
+            .background(background)
+            .then(if (border != null) Modifier.border(1.dp, border, RoundedCornerShape(10.dp)) else Modifier)
+            .padding(horizontal = 12.dp, vertical = 7.dp),
+    ) {
+        Text(text, color = foreground, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+    }
+}
+
+@Composable
+private fun FullApprovalCard() {
+    Column(
+        Modifier.fillMaxWidth().padding(horizontal = 20.dp)
+            .background(Ink.surface, RoundedCornerShape(18.dp))
+            .padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.width(4.dp).height(34.dp).background(Ink.warn, RoundedCornerShape(4.dp)))
+            Spacer(Modifier.width(10.dp))
+            Column(Modifier.weight(1f)) {
+                Text("需要批准", color = Ink.ink, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                Text("bash · 删除构建目录", color = Ink.muted, fontSize = 11.sp)
+            }
+            Pill("高风险", Color(0xFFFEF2F2), Ink.danger, Color(0xFFFECACA))
+        }
+        Box(
+            Modifier.fillMaxWidth().background(Ink.canvas, RoundedCornerShape(10.dp)).padding(10.dp),
+        ) {
+            Text("rm -rf build/", color = Ink.ink2, fontFamily = FontFamily.Monospace, fontSize = 12.sp)
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Pill("拒绝", Ink.canvas, Ink.ink2, Ink.line)
+            Pill("批准", Ink.brand, Color.White)
+            Spacer(Modifier.weight(1f))
+            Text("查看影响", color = Ink.muted, fontSize = 11.sp)
+        }
+    }
+}
+
+@Composable
+private fun FullQuestionCard() {
+    Column(
+        Modifier.fillMaxWidth().padding(horizontal = 20.dp)
+            .background(Ink.surface, RoundedCornerShape(18.dp))
+            .padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.width(4.dp).height(28.dp).background(Ink.brand, RoundedCornerShape(4.dp)))
+            Spacer(Modifier.width(10.dp))
+            Text("需要你的回答", color = Ink.ink, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+        }
+        Text("是否继续生成 diff？", color = Ink.ink2, fontSize = 13.sp)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Pill("继续", Ink.brand, Color.White)
+            Pill("暂不", Ink.canvas, Ink.ink2, Ink.line)
+        }
+    }
+}
+
+@Composable
+private fun FullFailureCard() {
+    Row(
+        Modifier.fillMaxWidth().padding(horizontal = 20.dp)
+            .background(Ink.surface, RoundedCornerShape(18.dp))
+            .padding(14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(Icons.Filled.ErrorOutline, contentDescription = null, tint = Ink.danger, modifier = Modifier.size(18.dp))
+        Spacer(Modifier.width(10.dp))
+        Column(Modifier.weight(1f)) {
+            Text("构建失败", color = Ink.ink, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+            Text("assembleRelease 退出码 1 · 12:06", color = Ink.muted, fontSize = 11.sp)
+        }
+        Text("查看日志", color = Ink.brand, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+    }
+}
+
+@Composable
+private fun RunningTaskRow(title: String, progress: Float, meta: String) {
+    Column(
+        Modifier.fillMaxWidth().padding(horizontal = 20.dp)
+            .background(Ink.surface, RoundedCornerShape(18.dp))
+            .padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(26.dp).background(Ink.brandSoft, CircleShape), contentAlignment = Alignment.Center) {
+                Icon(Icons.Filled.PlayArrow, contentDescription = null, tint = Ink.brand, modifier = Modifier.size(14.dp))
+            }
+            Spacer(Modifier.width(10.dp))
+            Column(Modifier.weight(1f)) {
+                Text(title, color = Ink.ink, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                Text(meta, color = Ink.muted, fontSize = 11.sp)
+            }
+            Text("${(progress * 100).toInt()}%", color = Ink.brand, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+        }
+        Box(Modifier.fillMaxWidth().height(4.dp).background(Ink.line, CircleShape)) {
+            Box(Modifier.fillMaxWidth(progress).height(4.dp).background(Ink.brand, CircleShape))
+        }
+    }
+}
+
+@Composable
+internal fun ProductInboxFirstPreview() {
+    ProductCanvas {
+        ProductTopBar("收件箱", "3 项需要你处理 · 2 个任务运行中") {
+            Box(Modifier.size(34.dp).background(Ink.surface, CircleShape), contentAlignment = Alignment.Center) {
+                Text("D", color = Ink.brand, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+            }
+        }
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 20.dp)
+                .background(Ink.surface, RoundedCornerShape(14.dp)).padding(4.dp),
+        ) {
+            listOf("待处理 · 3", "运行中 · 2", "已完成").forEachIndexed { index, label ->
+                Box(
+                    Modifier.weight(1f)
+                        .background(if (index == 0) Ink.ink else Color.Transparent, RoundedCornerShape(11.dp))
+                        .padding(vertical = 9.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        label,
+                        color = if (index == 0) Color.White else Ink.muted,
+                        fontSize = 13.sp,
+                        fontWeight = if (index == 0) FontWeight.SemiBold else FontWeight.Normal,
+                    )
+                }
+            }
+        }
+        Spacer(Modifier.height(12.dp))
+        FullApprovalCard()
+        Spacer(Modifier.height(10.dp))
+        FullQuestionCard()
+        Spacer(Modifier.height(10.dp))
+        FullFailureCard()
+        SectionCaption("运行中")
+        RunningTaskRow("修复构建失败", 0.45f, "bash · 已运行 12 分钟")
+        Spacer(Modifier.height(8.dp))
+        RunningTaskRow("给插件补审批接口", 0.2f, "edit · 已运行 4 分钟")
+        Spacer(Modifier.weight(1f))
+        FullBottomNav(0)
+    }
+}
+
+@Composable
+private fun FullGoalCard(goal: String) {
+    Column(
+        Modifier.fillMaxWidth().padding(horizontal = 20.dp)
+            .background(Ink.surface, RoundedCornerShape(18.dp))
+            .padding(14.dp),
+    ) {
+        Text("目标", color = Ink.brand, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
+        Text(goal, color = Ink.ink, fontSize = 14.sp, lineHeight = 20.sp, modifier = Modifier.padding(top = 4.dp))
+    }
+}
+
+@Composable
+private fun TodoLine(text: String, status: String) {
+    val icon = when (status) {
+        "done" -> Icons.Filled.CheckCircle
+        "doing" -> Icons.Filled.PlayArrow
+        else -> Icons.Filled.RadioButtonUnchecked
+    }
+    val tint = when (status) {
+        "done" -> Ink.success
+        "doing" -> Ink.brand
+        else -> Ink.faint
+    }
+    Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+        Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(17.dp))
+        Spacer(Modifier.width(10.dp))
+        Text(
+            text,
+            color = if (status == "done") Ink.muted else Ink.ink2,
+            fontSize = 13.sp,
+            textDecoration = if (status == "done") androidx.compose.ui.text.style.TextDecoration.LineThrough else null,
+        )
+    }
+}
+
+@Composable
+private fun FullTodoCard() {
+    Column(
+        Modifier.fillMaxWidth().padding(horizontal = 20.dp)
+            .background(Ink.surface, RoundedCornerShape(18.dp))
+            .padding(14.dp),
+    ) {
+        Text("待办", color = Ink.muted, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
+        TodoLine("定位 assembleRelease 失败原因", "done")
+        TodoLine("修改 signingConfig 并验证", "done")
+        TodoLine("生成 diff 并等待批准", "doing")
+        TodoLine("发布 0.19.10 并推送", "todo")
+    }
+}
+
+@Composable
+private fun FullApprovalBanner() {
+    Row(
+        Modifier.fillMaxWidth().padding(horizontal = 20.dp)
+            .background(Color(0xFFFFFBEB), RoundedCornerShape(16.dp))
+            .border(1.dp, Color(0xFFFDE68A), RoundedCornerShape(16.dp))
+            .padding(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(Icons.Filled.ErrorOutline, contentDescription = null, tint = Ink.warn, modifier = Modifier.size(18.dp))
+        Spacer(Modifier.width(10.dp))
+        Column(Modifier.weight(1f)) {
+            Text("等待你批准", color = Ink.ink, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+            Text("修改 gradle 签名配置", color = Ink.muted, fontSize = 11.sp)
+        }
+        Text("批准", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.background(Ink.brand, RoundedCornerShape(9.dp)).padding(horizontal = 12.dp, vertical = 6.dp))
+    }
+}
+
+@Composable
+private fun TimelineRow(time: String, title: String, meta: String, state: String) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
+        Text(time, color = Ink.faint, fontSize = 10.sp, modifier = Modifier.width(42.dp))
+        Box(Modifier.padding(top = 4.dp).size(7.dp).background(
+            if (state == "done") Ink.success else if (state == "doing") Ink.brand else Ink.warn,
+            CircleShape,
+        ))
+        Spacer(Modifier.width(10.dp))
+        Column(Modifier.weight(1f).padding(bottom = 10.dp)) {
+            Text(title, color = Ink.ink2, fontSize = 13.sp)
+            Text(meta, color = Ink.muted, fontSize = 10.5.sp, modifier = Modifier.padding(top = 1.dp))
+        }
+    }
+}
+
+@Composable
+internal fun ProductTaskDetailPreview() {
+    ProductCanvas {
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回", tint = Ink.ink, modifier = Modifier.size(22.dp))
+            Spacer(Modifier.width(8.dp))
+            Column(Modifier.weight(1f)) {
+                Text("修复构建失败", color = Ink.ink, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
+                Text("deepseek-flash · 12 分钟", color = Ink.faint, fontSize = 10.5.sp)
+            }
+            Pill("运行中", Ink.brandSoft, Ink.brand)
+        }
+        FullGoalCard("让 assembleRelease 通过，并发布 0.19.10")
+        Spacer(Modifier.height(10.dp))
+        FullTodoCard()
+        Spacer(Modifier.height(10.dp))
+        FullApprovalBanner()
+        SectionCaption("时间线")
+        Column(Modifier.padding(horizontal = 20.dp)) {
+            TimelineRow("12:01", "生成计划 · 4 个步骤", "Plan", "done")
+            TimelineRow("12:02", "bash · ./gradlew assembleRelease", "3m 12s", "done")
+            TimelineRow("12:05", "请求批准：修改 gradle 签名配置", "等待中", "doing")
+            TimelineRow("12:06", "生成 diff.patch", "12 KB", "done")
+        }
+        SectionCaption("产物")
+        Row(Modifier.padding(horizontal = 20.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf("report.md", "diff.patch", "build.log").forEach { name ->
+                Row(
+                    Modifier.background(Ink.surface, RoundedCornerShape(12.dp)).padding(horizontal = 10.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(Icons.Filled.Description, contentDescription = null, tint = Ink.brand, modifier = Modifier.size(14.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text(name, color = Ink.ink2, fontSize = 11.sp)
+                }
+            }
+        }
+        Spacer(Modifier.weight(1f))
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Row(
+                Modifier.background(Ink.canvas, RoundedCornerShape(14.dp)).padding(horizontal = 16.dp, vertical = 11.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(Icons.Filled.Stop, contentDescription = null, tint = Ink.danger, modifier = Modifier.size(16.dp))
+                Spacer(Modifier.width(6.dp))
+                Text("停止", color = Ink.danger, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+            }
+            Row(
+                Modifier.weight(1f).background(Ink.brand, RoundedCornerShape(14.dp)).padding(vertical = 11.dp),
+                horizontalArrangement = Arrangement.Center,
+            ) {
+                Text("输入引导", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+            }
+        }
+    }
+}
+
+@Composable
+private fun DirRow(name: String, meta: String) {
+    Row(
+        Modifier.fillMaxWidth().padding(horizontal = 20.dp)
+            .background(Ink.surface, RoundedCornerShape(16.dp))
+            .padding(horizontal = 14.dp, vertical = 13.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(Modifier.size(36.dp).background(Ink.line, RoundedCornerShape(10.dp)), contentAlignment = Alignment.Center) {
+            Icon(Icons.Filled.FolderOpen, contentDescription = null, tint = Ink.brand, modifier = Modifier.size(18.dp))
+        }
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Text(name, color = Ink.ink, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+            Text(meta, color = Ink.muted, fontSize = 11.sp)
+        }
+        Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = Ink.faint, modifier = Modifier.size(16.dp))
+    }
+}
+
+@Composable
+private fun ArtifactRow(name: String, meta: String, time: String) {
+    Row(
+        Modifier.fillMaxWidth().padding(horizontal = 20.dp)
+            .background(Ink.surface, RoundedCornerShape(14.dp))
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(Icons.Filled.Description, contentDescription = null, tint = Ink.brand, modifier = Modifier.size(16.dp))
+        Spacer(Modifier.width(10.dp))
+        Text(name, color = Ink.ink2, fontSize = 13.sp, modifier = Modifier.weight(1f))
+        Text(meta, color = Ink.muted, fontSize = 10.5.sp)
+        Spacer(Modifier.width(10.dp))
+        Text(time, color = Ink.faint, fontSize = 10.sp)
+    }
+}
+
+@Composable
+internal fun ProductWorkspacePreview() {
+    ProductCanvas {
+        ProductTopBar("工作区", "dsh-phone-remote · 2 个任务") {
+            Box(Modifier.size(34.dp).background(Ink.surface, CircleShape), contentAlignment = Alignment.Center) {
+                Icon(Icons.Filled.Search, contentDescription = null, tint = Ink.ink2, modifier = Modifier.size(17.dp))
+            }
+        }
+        Row(Modifier.padding(horizontal = 20.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text("dsh-phone-remote", color = Ink.faint, fontSize = 11.sp)
+            Text("  /  ", color = Ink.faint, fontSize = 11.sp)
+            Text("android", color = Ink.ink2, fontSize = 11.sp, fontWeight = FontWeight.Medium)
+        }
+        Spacer(Modifier.height(10.dp))
+        DirRow("android/", "42 个文件 · 最近修改 12:06")
+        Spacer(Modifier.height(8.dp))
+        DirRow("design/", "3 个文件 · 12 分钟前")
+        Spacer(Modifier.height(8.dp))
+        DirRow("updates/", "8 个文件 · 昨天")
+        SectionCaption("最近产物")
+        ArtifactRow("report.md", "12 KB", "12:06")
+        Spacer(Modifier.height(8.dp))
+        ArtifactRow("diff.patch", "4 KB", "12:06")
+        Spacer(Modifier.height(8.dp))
+        ArtifactRow("screenshot.png", "220 KB", "12:07")
+        Spacer(Modifier.weight(1f))
+        FullBottomNav(2)
     }
 }
