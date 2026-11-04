@@ -152,22 +152,49 @@ private fun NowTab(vm: NativeViewModel) {
 
 @Composable
 private fun TasksTab(vm: NativeViewModel) {
+    var filter by remember { mutableStateOf(0) }
+    val running = vm.sessions.count { it.running }
     val ordered = vm.sessions.sortedByDescending { it.running }
-    LazyColumn(
-        Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(bottom = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        item { HomeHeader("任务", "${vm.sessions.size} 个 · ${vm.sessions.count { it.running }} 个运行中") }
-        when {
-            vm.busy && vm.sessions.isEmpty() -> item {
-                Box(Modifier.fillMaxWidth().padding(40.dp), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(color = DshTeal)
-                }
+    val shown = when (filter) {
+        1 -> ordered.filter { it.running }
+        2 -> ordered.filter { !it.running }
+        else -> ordered
+    }
+    Column(Modifier.fillMaxSize()) {
+        HomeHeader("任务", "${vm.sessions.size} 个 · $running 个运行中")
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 2.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            listOf("全部" to vm.sessions.size, "运行中" to running, "已完成" to (vm.sessions.size - running)).forEachIndexed { index, pair ->
+                Text(
+                    "${pair.first} ${pair.second}",
+                    color = if (filter == index) DshOnAccent else DshMuted,
+                    fontSize = 12.sp,
+                    fontWeight = if (filter == index) FontWeight.SemiBold else FontWeight.Normal,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(if (filter == index) DshTeal else DshSurface)
+                        .clickable { filter = index }
+                        .padding(horizontal = 12.dp, vertical = 7.dp),
+                )
             }
-            ordered.isEmpty() -> item { HintRow("还没有任务。新建会话后，任务会出现在这里。") }
-            else -> items(ordered, key = { it.id }) { session ->
-                HomeSessionRow(session, active = session.id == vm.activeSessionId) { vm.openTask(session) }
+        }
+        LazyColumn(
+            Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(top = 8.dp, bottom = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            when {
+                vm.busy && vm.sessions.isEmpty() -> item {
+                    Box(Modifier.fillMaxWidth().padding(40.dp), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(color = DshTeal)
+                    }
+                }
+                shown.isEmpty() -> item { HintRow(if (filter == 1) "没有运行中的任务。" else "没有已完成的任务。") }
+                else -> items(shown, key = { it.id }) { session ->
+                    HomeSessionRow(session, active = session.id == vm.activeSessionId) { vm.openTask(session) }
+                }
             }
         }
     }
