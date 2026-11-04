@@ -61,6 +61,7 @@ import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.AddPhotoAlternate
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.StopCircle
@@ -112,6 +113,7 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -141,6 +143,7 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Checklist
 import androidx.compose.material.icons.filled.Lightbulb
@@ -705,7 +708,9 @@ private fun ChatScreen(vm: NativeViewModel) {
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             if (vm.messages.isEmpty()) {
-                item(key = "empty-chat") { EmptyChatState() }
+                item(key = "empty-chat") {
+                    if (vm.connection == "连接中") ChatSkeleton() else EmptyChatState()
+                }
             }
             item(key = "history-loader") {
                 when {
@@ -1365,6 +1370,31 @@ private fun EmptyChatState() {
         ) { Icon(Icons.Filled.Terminal, contentDescription = null, tint = DshTeal, modifier = Modifier.size(24.dp)) }
         Text("开始新的对话", color = DshText, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
         Text("输入消息，或用 + 添加图片 / 文件 / 拍照", color = DshMuted, fontSize = 11.sp)
+    }
+}
+
+@Composable
+private fun ChatSkeleton() {
+    Column(Modifier.fillMaxWidth().padding(top = 14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        repeat(3) { index ->
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = if (index % 2 == 0) Arrangement.Start else Arrangement.End,
+            ) {
+                Box(
+                    Modifier.height(if (index == 1) 96.dp else 60.dp)
+                        .fillMaxWidth(if (index == 1) 0.9f else 0.62f)
+                        .clip(RoundedCornerShape(18.dp))
+                        .background(DshSurface2),
+                )
+            }
+        }
+        Text(
+            "正在加载会话…",
+            color = DshMuted,
+            fontSize = 11.sp,
+            modifier = Modifier.align(Alignment.CenterHorizontally).padding(top = 6.dp),
+        )
     }
 }
 
@@ -2209,130 +2239,152 @@ private fun SettingsContent(
 ) {
     Column(Modifier.fillMaxSize()) {
         if (showTopBar) TopBar("设置", profileName, onBack, Icons.AutoMirrored.Filled.ArrowBack)
-        Column(
-            Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            SectionLabel("连接")
-            Column(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp)).background(DshSurface)
-                    .border(1.dp, DshBorder, RoundedCornerShape(22.dp)).padding(16.dp),
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.size(42.dp).clip(RoundedCornerShape(14.dp)).background(DshSelected), contentAlignment = Alignment.Center) {
-                        Text("DSH", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                    }
-                    Spacer(Modifier.width(12.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text(profileName, color = DshText, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
-                        Text(connected, color = DshTeal, fontSize = 11.sp)
-                    }
-                    Text("当前", color = DshTeal, fontSize = 10.sp)
-                }
-                Text(profileUrl, color = DshMuted, fontSize = 10.sp, modifier = Modifier.padding(top = 10.dp))
-                Button(
-                    onClick = onServers,
-                    colors = ButtonDefaults.buttonColors(containerColor = DshSurface2, contentColor = DshTeal),
-                    shape = RoundedCornerShape(14.dp),
-                    modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
-                ) { Text("切换 / 添加 DSH") }
+        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            SettingsGroup("连接") {
+                SettingsActionRow(Icons.Filled.Chat, profileName, profileUrl, onClick = onServers)
+                SettingsDivider()
+                SettingsActionRow(Icons.Filled.Add, "切换 / 添加 DSH", connected, onClick = onServers)
             }
-            SectionLabel("外观")
-            Column(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp)).background(DshSurface)
-                    .border(1.dp, DshBorder, RoundedCornerShape(22.dp)),
-            ) {
-                ThemeOption("云白", "清爽蓝紫", DshThemeMode.PAPER, mode, onMode)
-                HorizontalDivider(color = DshBorder, modifier = Modifier.padding(horizontal = 16.dp))
-                ThemeOption("深海", "暗色青绿", DshThemeMode.AURORA, mode, onMode)
+            SettingsGroup("外观") {
+                SettingsActionRow(
+                    Icons.Filled.LightMode,
+                    "云白",
+                    "清爽蓝紫",
+                    selected = mode == DshThemeMode.PAPER,
+                    onClick = { onMode(DshThemeMode.PAPER) },
+                )
+                SettingsDivider()
+                SettingsActionRow(
+                    Icons.Filled.DarkMode,
+                    "深海",
+                    "暗色青绿",
+                    selected = mode == DshThemeMode.AURORA,
+                    onClick = { onMode(DshThemeMode.AURORA) },
+                )
             }
-            SectionLabel("阅读")
-            Column(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp)).background(DshSurface)
-                    .border(1.dp, DshBorder, RoundedCornerShape(22.dp)),
-            ) {
-                Row(
-                    Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Column(Modifier.weight(1f)) {
-                        Text("思考默认展开", color = DshText, fontSize = 14.sp, fontWeight = FontWeight.Medium)
-                        Text(
-                            "打开后思考块直接展开并自动翻译；关闭则保持一行「思考 · 展开」",
-                            color = DshMuted,
-                            fontSize = 11.sp,
-                        )
-                    }
-                    Spacer(Modifier.width(12.dp))
-                    Switch(
-                        checked = thinkExpanded,
-                        onCheckedChange = onThinkExpanded,
-                        colors = SwitchDefaults.colors(
-                            checkedThumbColor = Color.White,
-                            checkedTrackColor = DshTeal,
-                        ),
-                    )
-                }
+            SettingsGroup("阅读") {
+                SettingsSwitchRow(
+                    Icons.Filled.Translate,
+                    "思考默认展开",
+                    "打开后思考块直接展开并自动翻译",
+                    thinkExpanded,
+                    onThinkExpanded,
+                )
             }
-            SectionLabel("通知与后台")
-            Column(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp)).background(DshSurface)
-                    .border(1.dp, DshBorder, RoundedCornerShape(22.dp)),
-            ) {
-                Row(
-                    Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Column(Modifier.weight(1f)) {
-                        Text("通知提醒", color = DshText, fontSize = 14.sp, fontWeight = FontWeight.Medium)
-                        Text("需要回答、任务完成或出错时推送通知", color = DshMuted, fontSize = 11.sp)
-                    }
-                    Spacer(Modifier.width(12.dp))
-                    Switch(
-                        checked = notifyEnabled,
-                        onCheckedChange = onNotify,
-                        colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = DshTeal),
-                    )
-                }
-                HorizontalDivider(color = DshBorder, modifier = Modifier.padding(horizontal = 16.dp))
-                Row(
-                    Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Column(Modifier.weight(1f)) {
-                        Text("后台保持连接", color = DshText, fontSize = 14.sp, fontWeight = FontWeight.Medium)
-                        Text("退出 App 后保留连接（显示常驻通知，略耗电）", color = DshMuted, fontSize = 11.sp)
-                    }
-                    Spacer(Modifier.width(12.dp))
-                    Switch(
-                        checked = keepAlive,
-                        onCheckedChange = onKeepAlive,
-                        colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = DshTeal),
-                    )
-                }
+            SettingsGroup("通知与后台") {
+                SettingsSwitchRow(
+                    Icons.Filled.Notifications,
+                    "通知提醒",
+                    "需要回答、任务完成或出错时推送",
+                    notifyEnabled,
+                    onNotify,
+                )
+                SettingsDivider()
+                SettingsSwitchRow(
+                    Icons.Filled.Refresh,
+                    "后台保持连接",
+                    "退出 App 后保留连接（常驻通知，略耗电）",
+                    keepAlive,
+                    onKeepAlive,
+                )
             }
-            SectionLabel("设备")
-            Column(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp)).background(DshSurface)
-                    .border(1.dp, DshBorder, RoundedCornerShape(22.dp)),
-            ) {
-                SettingRow("当前 DSH", profileName)
-                HorizontalDivider(color = DshBorder, modifier = Modifier.padding(horizontal = 16.dp))
-                SettingRow("添加电脑", "扫码或输入配对码", onClick = onServers)
+            SettingsGroup("设备") {
+                SettingsActionRow(Icons.Filled.Add, "添加电脑", "扫码或输入配对码", onClick = onServers)
             }
-            SectionLabel("关于")
-            Column(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp)).background(DshSurface)
-                    .border(1.dp, DshBorder, RoundedCornerShape(22.dp)),
-            ) {
-                SettingRow("版本", version)
-                HorizontalDivider(color = DshBorder, modifier = Modifier.padding(horizontal = 16.dp))
-                SettingRow("检查更新", updateLabel, onClick = onCheckUpdate)
-                HorizontalDivider(color = DshBorder, modifier = Modifier.padding(horizontal = 16.dp))
-                SettingRow("协议", "DSH Remote / Typert")
+            SettingsGroup("关于") {
+                SettingsActionRow(Icons.Filled.Settings, "版本", version)
+                SettingsDivider()
+                SettingsActionRow(Icons.Filled.Refresh, "检查更新", updateLabel, onClick = onCheckUpdate)
             }
-            Spacer(Modifier.height(30.dp))
+            Spacer(Modifier.height(28.dp))
         }
+    }
+}
+
+@Composable
+private fun SettingsGroup(title: String, content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit) {
+    Text(
+        title,
+        color = DshMuted,
+        fontSize = 11.sp,
+        fontWeight = FontWeight.Medium,
+        letterSpacing = 0.4.sp,
+        modifier = Modifier.padding(start = 20.dp, top = 14.dp, bottom = 6.dp),
+    )
+    Column(
+        Modifier.padding(horizontal = 20.dp).fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .background(DshSurface),
+        content = content,
+    )
+}
+
+@Composable
+private fun SettingsDivider() {
+    HorizontalDivider(color = DshBorder, modifier = Modifier.padding(horizontal = 14.dp))
+}
+
+@Composable
+private fun SettingsActionRow(
+    icon: ImageVector,
+    title: String,
+    subtitle: String? = null,
+    value: String? = null,
+    selected: Boolean? = null,
+    onClick: (() -> Unit)? = null,
+) {
+    Row(
+        Modifier.fillMaxWidth()
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
+            .padding(horizontal = 14.dp, vertical = 13.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(icon, contentDescription = null, tint = DshMuted, modifier = Modifier.size(18.dp))
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Text(title, color = DshText, fontSize = 14.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            subtitle?.let {
+                Text(it, color = DshMuted, fontSize = 10.5.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 1.dp))
+            }
+        }
+        when {
+            selected == true -> Icon(Icons.Filled.Check, contentDescription = "已选", tint = DshTeal, modifier = Modifier.size(16.dp))
+            selected == false -> Box(Modifier.size(16.dp).clip(CircleShape).border(1.5.dp, DshBorder, CircleShape))
+            value != null -> Text(value, color = DshMuted, fontSize = 11.sp)
+            onClick != null -> Icon(
+                Icons.Filled.KeyboardArrowRight,
+                contentDescription = null,
+                tint = DshMuted,
+                modifier = Modifier.size(16.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun SettingsSwitchRow(
+    icon: ImageVector,
+    title: String,
+    subtitle: String,
+    checked: Boolean,
+    onChange: (Boolean) -> Unit,
+) {
+    Row(
+        Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(icon, contentDescription = null, tint = DshMuted, modifier = Modifier.size(18.dp))
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Text(title, color = DshText, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+            Text(subtitle, color = DshMuted, fontSize = 10.5.sp, maxLines = 2)
+        }
+        Spacer(Modifier.width(10.dp))
+        Switch(
+            checked = checked,
+            onCheckedChange = onChange,
+            colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = DshTeal),
+        )
     }
 }
 

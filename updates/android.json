@@ -1,8 +1,8 @@
 {
-  "versionCode": 26,
-  "versionName": "0.19.7",
-  "apkUrl": "https://raw.githubusercontent.com/ctomall/dsh-phone-remote/main/updates/DSHNative-0.19.7.apk",
-  "sha256": "cc4a38de4963ff88b09830c647ba0c9961893d1f43cb9dff46b4cd606d9f198e",
-  "notes": "Ink 设计系统完整落地：聊天页（气泡/工具行/胶囊输入）、设置页底部 Tab、统一头部与配色",
-  "signature": "MEUCIF+SPrWnny13M6lD+1qXTud351MY2THR8Z33OKoNQtM2AiEAggte0pCu32r78YnxGULmQOzJtJxyyPhrdKjmFjEEUSQ="
+  "versionCode": 27,
+  "versionName": "0.19.8",
+  "apkUrl": "https://raw.githubusercontent.com/ctomall/dsh-phone-remote/main/updates/DSHNative-0.19.8.apk",
+  "sha256": "873d0c8ecd671acbe342b079366747e6e9377b9d5dfc4c0edf1dfa9380b6f2e5",
+  "notes": "设置页改为紧凑图标行分组；聊天加载骨架屏",
+  "signature": "MEYCIQCbuqCqQiSPzUhuvZRAEDdF/a+orNWWkPzTrOjIskY8lwIhAIF1bto05/7erJyhq5Uk32eVH7TnxCZ4RucN8hIb5E6p"
 }
