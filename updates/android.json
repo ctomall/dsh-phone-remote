@@ -1,7 +1,7 @@
 {
   "versionCode": 15,
   "versionName": "0.12.0",
-  "apkUrl": "DSHNative-0.12.0.apk",
+  "apkUrl": "updates/DSHNative-0.12.0.apk",
   "sha256": "02b2966edc88a7678a29a33ebd56a54a2e14a1e7914eef28e3859b7d7af2c4a1",
-  "notes": "支持 Git 仓库更新清单；修复打开长会话需要手动滑到底部的问题；云白控制台界面。"
+  "notes": "支持 Git 仓库更新；修复打开长会话需要手动滑到底部；云白控制台界面。"
 }
