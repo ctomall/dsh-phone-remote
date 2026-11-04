@@ -225,6 +225,8 @@ private fun PlaceholderTab(title: String, hint: String) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun FilesTab(vm: NativeViewModel) {
+    var sortBySize by remember { mutableStateOf(false) }
+    var showHidden by remember { mutableStateOf(false) }
     if (vm.activeSessionId.isEmpty()) {
         WorkspaceTab(vm)
     } else {
@@ -251,6 +253,23 @@ private fun FilesTab(vm: NativeViewModel) {
                     Spacer(Modifier.width(10.dp))
                 }
                 Text(vm.filePath.ifEmpty { "." }, color = DshMuted, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Spacer(Modifier.weight(1f))
+                Text(
+                    "大小",
+                    color = if (sortBySize) DshTeal else DshMuted,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Medium,
+                    modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { sortBySize = !sortBySize }
+                        .padding(horizontal = 6.dp, vertical = 3.dp),
+                )
+                Text(
+                    "隐藏",
+                    color = if (showHidden) DshTeal else DshMuted,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Medium,
+                    modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { showHidden = !showHidden }
+                        .padding(horizontal = 6.dp, vertical = 3.dp),
+                )
             }
             if (vm.busy && vm.files.isEmpty()) {
                 Box(Modifier.fillMaxWidth().padding(30.dp), contentAlignment = Alignment.Center) {
@@ -262,10 +281,17 @@ private fun FilesTab(vm: NativeViewModel) {
                 contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
-                if (vm.files.isEmpty() && !vm.busy) {
+                val displayed = vm.files
+                    .filter { showHidden || !it.name.startsWith(".") }
+                    .sortedWith(
+                        compareBy<com.ila3.dshnative.protocol.DshClient.FileEntry> { it.type != "directory" }.thenBy {
+                            if (sortBySize) -(it.size ?: 0L) else 0L
+                        }.thenBy { if (sortBySize) "" else it.name.lowercase() },
+                    )
+                if (displayed.isEmpty() && !vm.busy) {
                     item { HintRow("目录为空，或还没有加载文件。") }
                 }
-                items(vm.files, key = { it.name }) { entry ->
+                items(displayed, key = { it.name }) { entry ->
                     Row(
                         Modifier.fillMaxWidth().background(DshSurface, RoundedCornerShape(14.dp))
                             .clickable { vm.openFile(entry) }
