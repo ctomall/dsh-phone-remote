@@ -26,6 +26,7 @@ import com.ila3.dshnative.protocol.DshException
 import com.ila3.dshnative.protocol.NativeStore
 import com.ila3.dshnative.protocol.ServerProfile
 import com.ila3.dshnative.protocol.SessionSummary
+import com.ila3.dshnative.protocol.TranslationStore
 import com.ila3.dshnative.protocol.Translator
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -139,8 +140,23 @@ class NativeViewModel(app: Application) : AndroidViewModel(app) {
 
     data class Translation(val loading: Boolean = false, val text: String? = null, val error: String? = null)
 
-    /** Machine translations keyed by "<message>:reason" / "<message>:body". */
+    private val translationStore = TranslationStore(app)
+
+    /** Machine translations keyed by "<session>:<message>:reason|body", persisted on disk. */
     val translations = mutableStateMapOf<String, Translation>()
+
+    var thinkExpanded by mutableStateOf(store.thinkExpanded())
+        private set
+
+    init {
+        runCatching { translationStore.load() }.getOrElse { emptyMap() }
+            .forEach { (key, text) -> translations[key] = Translation(text = text) }
+    }
+
+    fun updateThinkExpanded(value: Boolean) {
+        thinkExpanded = value
+        store.setThinkExpanded(value)
+    }
 
     private var client: DshClient? = null
     private var socket: WebSocket? = null
@@ -285,7 +301,6 @@ class NativeViewModel(app: Application) : AndroidViewModel(app) {
             ?: if (session.blank) "新会话" else "会话 ${session.id.take(8)}"
         activeCwd = session.cwd
         messages.clear()
-        translations.clear()
         queue.clear()
         pendingQuestions = emptyList()
         hasMoreHistory = false
@@ -1118,7 +1133,9 @@ class NativeViewModel(app: Application) : AndroidViewModel(app) {
         translations[key] = Translation(loading = true)
         viewModelScope.launch {
             try {
-                translations[key] = Translation(text = Translator.translate(text))
+                val result = Translator.translate(text)
+                translations[key] = Translation(text = result)
+                withContext(Dispatchers.IO) { translationStore.put(key, result) }
             } catch (e: Exception) {
                 translations[key] = Translation(error = e.message ?: "翻译失败")
             }
@@ -1127,11 +1144,13 @@ class NativeViewModel(app: Application) : AndroidViewModel(app) {
 
     fun retryTranslation(key: String, text: String) {
         translations.remove(key)
+        viewModelScope.launch(Dispatchers.IO) { translationStore.remove(key) }
         translate(key, text)
     }
 
     fun clearTranslation(key: String) {
         translations.remove(key)
+        viewModelScope.launch(Dispatchers.IO) { translationStore.remove(key) }
     }
 
     fun newSession() {

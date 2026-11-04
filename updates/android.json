@@ -1,8 +1,8 @@
 {
-  "versionCode": 21,
-  "versionName": "0.19.2",
-  "apkUrl": "https://raw.githubusercontent.com/ctomall/dsh-phone-remote/main/updates/DSHNative-0.19.2.apk",
-  "sha256": "57561156d26f60967c1f9464fc7a55ea01bd33a0e2649b27eded4d31e2bacc29",
-  "notes": "思考内容默认折叠并支持一键翻译（Bing/Google）；超长消息折叠；助手消息可整条翻译",
-  "signature": "MEUCIQCp7s8uVgzGOMAsbcAjwSlOzQM18MhQhBlN0sA8i5miAAIgaaU95Mt2KSfJyVAzdqOFNdlI+NGFcniNtU4HEVgl4sg="
+  "versionCode": 22,
+  "versionName": "0.19.3",
+  "apkUrl": "https://raw.githubusercontent.com/ctomall/dsh-phone-remote/main/updates/DSHNative-0.19.3.apk",
+  "sha256": "e13cc10360e0c499208a554219b29a0fa92b33fd74a8f8f8cf92eed353de4296",
+  "notes": "译文持久化到本地；设置新增「思考默认展开」（展开自动翻译）",
+  "signature": "MEUCIQCDRcOwHvNGv62pup1KYlJ9D+QkcHel2FGsFa45VLPXMAIgca2qLs/kICnKvcbXNkSr+SaxA6hbCNRhvNkniN1o52M="
 }

@@ -86,6 +86,8 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -991,7 +993,8 @@ private fun formatBytes(bytes: Long): String = when {
 private fun AssistantMessageRow(item: ChatItem.Assistant, vm: NativeViewModel?) {
     val clipboard = LocalClipboardManager.current
     var copied by remember { mutableStateOf(false) }
-    val bodyKey = "${item.key}:body"
+    val baseKey = if (vm != null) "${vm.activeSessionId}:${item.key}" else item.key
+    val bodyKey = "$baseKey:body"
     val bodyTranslation = vm?.translations?.get(bodyKey)
     val bodyText = bodyTranslation?.text ?: item.text
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -1049,7 +1052,7 @@ private fun AssistantMessageRow(item: ChatItem.Assistant, vm: NativeViewModel?) 
                     )
                 }
             }
-            item.reasoning?.let { reasoning -> ThinkSection(item.key, reasoning, vm) }
+            item.reasoning?.let { reasoning -> ThinkSection(baseKey, reasoning, vm) }
             if (bodyTranslation?.loading == true) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     CircularProgressIndicator(Modifier.size(12.dp), color = DshTeal, strokeWidth = 1.5.dp)
@@ -1074,9 +1077,12 @@ private fun AssistantMessageRow(item: ChatItem.Assistant, vm: NativeViewModel?) 
  */
 @Composable
 private fun ThinkSection(key: String, reasoning: String, vm: NativeViewModel?) {
-    var expanded by remember(key) { mutableStateOf(false) }
+    var expanded by remember(key) { mutableStateOf(vm?.thinkExpanded ?: false) }
     var showOriginal by remember(key) { mutableStateOf(false) }
-    val translationKey = "${key}:reason"
+    LaunchedEffect(vm?.thinkExpanded) {
+        vm?.let { expanded = it.thinkExpanded }
+    }
+    val translationKey = "$key:reason"
     val state = vm?.translations?.get(translationKey)
     LaunchedEffect(expanded) {
         if (expanded && vm != null) vm.translate(translationKey, reasoning)
@@ -1886,6 +1892,8 @@ private fun SettingsScreen(vm: NativeViewModel) {
         version = com.ila3.dshnative.BuildConfig.VERSION_NAME,
         updateLabel = if (vm.updateChecking) "检查中…" else "当前 ${com.ila3.dshnative.BuildConfig.VERSION_NAME}",
         onCheckUpdate = { vm.checkUpdate() },
+        thinkExpanded = vm.thinkExpanded,
+        onThinkExpanded = { vm.updateThinkExpanded(it) },
     )
     vm.updateInfo?.let { UpdateDialog(vm, context) }
 }
@@ -1934,9 +1942,11 @@ internal fun SettingsPreviewContent() {
         onMode = {},
         onServers = {},
         onBack = {},
-        version = "0.18.0",
-        updateLabel = "当前 0.18.0",
+        version = "0.19.2",
+        updateLabel = "当前 0.19.2",
         onCheckUpdate = {},
+        thinkExpanded = true,
+        onThinkExpanded = {},
     )
 }
 
@@ -1952,6 +1962,8 @@ private fun SettingsContent(
     version: String,
     updateLabel: String,
     onCheckUpdate: () -> Unit,
+    thinkExpanded: Boolean,
+    onThinkExpanded: (Boolean) -> Unit,
 ) {
     Column(Modifier.fillMaxSize()) {
         TopBar("设置", profileName, onBack, Icons.AutoMirrored.Filled.ArrowBack)
@@ -1991,6 +2003,34 @@ private fun SettingsContent(
                 ThemeOption("云白", "清爽蓝紫", DshThemeMode.PAPER, mode, onMode)
                 HorizontalDivider(color = DshBorder, modifier = Modifier.padding(horizontal = 16.dp))
                 ThemeOption("深海", "暗色青绿", DshThemeMode.AURORA, mode, onMode)
+            }
+            SectionLabel("阅读")
+            Column(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp)).background(DshSurface)
+                    .border(1.dp, DshBorder, RoundedCornerShape(22.dp)),
+            ) {
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text("思考默认展开", color = DshText, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                        Text(
+                            "打开后思考块直接展开并自动翻译；关闭则保持一行「思考 · 展开」",
+                            color = DshMuted,
+                            fontSize = 11.sp,
+                        )
+                    }
+                    Spacer(Modifier.width(12.dp))
+                    Switch(
+                        checked = thinkExpanded,
+                        onCheckedChange = onThinkExpanded,
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = Color.White,
+                            checkedTrackColor = DshTeal,
+                        ),
+                    )
+                }
             }
             SectionLabel("设备")
             Column(

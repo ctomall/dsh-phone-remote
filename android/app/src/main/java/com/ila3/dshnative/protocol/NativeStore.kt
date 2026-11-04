@@ -71,6 +71,12 @@ class NativeStore(context: Context) {
         if (currentId() == id) setCurrent(all.firstOrNull()?.id ?: "")
     }
 
+    fun thinkExpanded(): Boolean = prefs.getBoolean("think_expanded", false)
+
+    fun setThinkExpanded(value: Boolean) {
+        prefs.edit().putBoolean("think_expanded", value).apply()
+    }
+
     fun clear() {
         prefs.edit().clear().apply()
     }
