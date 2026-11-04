@@ -183,6 +183,7 @@ fun NativeApp(vm: NativeViewModel = viewModel()) {
             Screen.Terminal -> TerminalScreen(vm)
             Screen.Settings -> SettingsScreen(vm)
             Screen.Tasks -> TasksScreen(vm)
+            Screen.NavSettings -> NavSettingsScreen(vm)
         }
         if (vm.error.isNotEmpty()) {
             ErrorBar(vm.error, vm::dismissError, Modifier.align(Alignment.BottomCenter).padding(16.dp))
@@ -2159,6 +2160,7 @@ private fun SettingsScreen(vm: NativeViewModel) {
         onNotify = { vm.updateNotifyEnabled(it) },
         keepAlive = vm.keepAliveEnabled,
         onKeepAlive = { vm.updateKeepAlive(it) },
+        onNavSettings = { vm.openNavSettings() },
     )
     vm.updateInfo?.let { UpdateDialog(vm, context) }
 }
@@ -2205,6 +2207,7 @@ internal fun SettingsTab(vm: NativeViewModel) {
             onNotify = { vm.updateNotifyEnabled(it) },
             keepAlive = vm.keepAliveEnabled,
             onKeepAlive = { vm.updateKeepAlive(it) },
+            onNavSettings = { vm.openNavSettings() },
             showTopBar = false,
         )
     }
@@ -2264,6 +2267,7 @@ internal fun SettingsPreviewContent() {
         onNotify = {},
         keepAlive = false,
         onKeepAlive = {},
+        onNavSettings = {},
     )
 }
 
@@ -2285,6 +2289,7 @@ private fun SettingsContent(
     onNotify: (Boolean) -> Unit,
     keepAlive: Boolean,
     onKeepAlive: (Boolean) -> Unit,
+    onNavSettings: () -> Unit = {},
     showTopBar: Boolean = true,
 ) {
     Column(Modifier.fillMaxSize()) {
@@ -2311,6 +2316,9 @@ private fun SettingsContent(
                     selected = mode == DshThemeMode.AURORA,
                     onClick = { onMode(DshThemeMode.AURORA) },
                 )
+            }
+            SettingsGroup("导航") {
+                SettingsActionRow(Icons.Filled.Checklist, "底部导航", "排序与显示", onClick = onNavSettings)
             }
             SettingsGroup("阅读") {
                 SettingsSwitchRow(
