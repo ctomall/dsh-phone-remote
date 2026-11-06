@@ -1,8 +1,8 @@
 {
-  "versionCode": 49,
-  "versionName": "0.20.6",
-  "apkUrl": "https://raw.githubusercontent.com/ctomall/dsh-phone-remote/main/updates/DSHNative-0.20.6.apk",
-  "sha256": "8bd6be03b94495a89dbf4b6940d61647ad2ccb475cfaef1957a3a713905d1d45",
-  "notes": "参考图细节：会话相对时间/行菜单、卡片折叠、文件 diff 统计、轮次统计胶囊、上传图片/文件入口",
-  "signature": "MEUCIQD70G8IaEU1gmVOxunuFk4xosVa60L/wgFFvTKCNTrvFAIgWXxGOVDj1brTvVCP0lHbuZ8bGica/8P3QkGkUxgp080="
+  "versionCode": 50,
+  "versionName": "0.20.7",
+  "apkUrl": "https://raw.githubusercontent.com/ctomall/dsh-phone-remote/main/updates/DSHNative-0.20.7.apk",
+  "sha256": "052780c1cf00fc3db7d6cd8c700a67c73c606510f74f252e6a8ac9f9a65d719b",
+  "notes": "会话切换面板（搜索/活动行/运行点）、卡片轮次耗时",
+  "signature": "MEQCIGURr7ItNdI4i8lKTn8jMMVTfEARFv6R66+jTRxS10waAiA6oxRTuFyXTQlAI8p3N54Tl7wlD57ziseYIg/IkjwY8w=="
 }

@@ -70,6 +70,7 @@ import androidx.compose.material.icons.filled.VerticalAlignBottom
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.PlayArrow
@@ -639,6 +640,20 @@ private fun SessionRow(session: SessionSummary, active: Boolean = false, onClick
 private fun ChatScreen(vm: NativeViewModel) {
     val listState = rememberLazyListState()
     val rows = remember(vm.messages.size, vm.activeSessionId) { chatRows(vm.messages) }
+    var showSessionPicker by remember { mutableStateOf(false) }
+    var sessionQuery by remember { mutableStateOf("") }
+    val durations = remember(rows) {
+        rows.mapIndexed { index, row ->
+            if (row is ChatRow.Msg && row.item is ChatItem.Assistant && row.at > 0L) {
+                var end = row.at
+                for (next in rows.drop(index + 1)) {
+                    if (next is ChatRow.Msg && next.item is ChatItem.User) break
+                    if (next.at > end) end = next.at
+                }
+                ((end - row.at) / 1000L).coerceAtLeast(0L)
+            } else 0L
+        }
+    }
     val rounds = remember(rows) {
         var count = 0
         rows.map { row ->
@@ -712,6 +727,9 @@ private fun ChatScreen(vm: NativeViewModel) {
             onBack = { vm.closeSession() },
             backIcon = Icons.AutoMirrored.Filled.ArrowBack,
             actions = {
+                IconButton(onClick = { showSessionPicker = true }) {
+                    Icon(Icons.Filled.GridView, contentDescription = "切换会话", tint = DshMuted)
+                }
                 IconButton(onClick = { vm.showChatMenu() }) {
                     Icon(Icons.Filled.MoreVert, contentDescription = "会话操作", tint = DshMuted)
                 }
@@ -768,7 +786,7 @@ private fun ChatScreen(vm: NativeViewModel) {
                         is ChatRow.Msg -> if (row.item is ChatItem.Tool) {
                             ToolCallCard(row.item, showTime = vm.showTime, defaultExpanded = vm.toolExpanded)
                         } else {
-                            MessageRow(row.item, vm, speaker) { imagePreview = it }
+                            MessageRow(row.item, vm, speaker, durations[index]) { imagePreview = it }
                         }
                     }
                 }
@@ -935,6 +953,106 @@ private fun ChatScreen(vm: NativeViewModel) {
         }
     }
     if (vm.showRenameDialog) RenameDialog(vm)
+    if (showSessionPicker) {
+        ModalBottomSheet(
+            onDismissRequest = { showSessionPicker = false },
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+            containerColor = DshSurface,
+        ) {
+            SessionPickerSheet(
+                vm = vm,
+                query = sessionQuery,
+                onQuery = { sessionQuery = it },
+                onClose = { showSessionPicker = false },
+            )
+        }
+    }
+}
+
+@Composable
+private fun SessionPickerSheet(vm: NativeViewModel, query: String, onQuery: (String) -> Unit, onClose: () -> Unit) {
+    val filtered = remember(vm.sessions, query) {
+        val q = query.trim()
+        if (q.isEmpty()) vm.sessions else vm.sessions.filter {
+            (it.title ?: "").contains(q, true) || (it.cwd ?: "").contains(q, true) || it.id.contains(q, true)
+        }
+    }
+    Column(Modifier.fillMaxWidth().heightIn(max = 560.dp).navigationBarsPadding().padding(horizontal = 16.dp)) {
+        Row(Modifier.fillMaxWidth().padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text("会话", color = DshText, fontSize = 15.sp, fontWeight = FontWeight.Medium)
+            Spacer(Modifier.weight(1f))
+            Text(
+                "新建",
+                color = DshTeal,
+                fontSize = 11.sp,
+                fontFamily = DshMono,
+                modifier = Modifier.clickable { vm.newSession(); onClose() },
+            )
+        }
+        Row(
+            Modifier.fillMaxWidth().border(1.dp, DshBorder, RoundedCornerShape(8.dp))
+                .padding(horizontal = 10.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(Icons.Filled.Search, contentDescription = null, tint = DshMuted, modifier = Modifier.size(15.dp))
+            Spacer(Modifier.width(8.dp))
+            BasicTextField(
+                value = query,
+                onValueChange = onQuery,
+                singleLine = true,
+                textStyle = androidx.compose.ui.text.TextStyle(color = DshText, fontSize = 13.sp),
+                decorationBox = { inner ->
+                    if (query.isEmpty()) Text("搜索会话", color = DshMuted, fontSize = 13.sp)
+                    inner()
+                },
+                modifier = Modifier.weight(1f),
+            )
+        }
+        Spacer(Modifier.height(8.dp))
+        HorizontalDivider(color = DshBorder, thickness = 1.dp)
+        LazyColumn(Modifier.fillMaxWidth().weight(1f, fill = false)) {
+            items(filtered.size) { index ->
+                val session = filtered[index]
+                val active = session.id == vm.activeSessionId
+                Column {
+                    Row(
+                        Modifier.fillMaxWidth().background(if (active) DshSelected else Color.Transparent)
+                            .clickable { vm.openSession(session); onClose() }
+                            .padding(horizontal = 6.dp, vertical = 11.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        if (session.running) {
+                            Box(Modifier.size(6.dp).background(DshTeal, CircleShape))
+                            Spacer(Modifier.width(8.dp))
+                        }
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                session.title?.takeIf { it.isNotBlank() } ?: session.id.take(18),
+                                color = DshText,
+                                fontSize = 13.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            Text(
+                                session.cwd?.takeIf { it.isNotBlank() } ?: "默认工作区",
+                                color = DshMuted,
+                                fontSize = 9.sp,
+                                fontFamily = DshMono,
+                                maxLines = 1,
+                            )
+                        }
+                        Text(
+                            relativeTime(session.updatedAt),
+                            color = DshMuted,
+                            fontSize = 9.sp,
+                            fontFamily = DshMono,
+                        )
+                    }
+                    HorizontalDivider(color = DshBorder, thickness = 1.dp)
+                }
+            }
+        }
+    }
 }
 
 @Composable
@@ -1130,10 +1248,10 @@ private fun ModelPickerDialog(vm: NativeViewModel) {
 }
 
 @Composable
-private fun MessageRow(item: ChatItem, vm: NativeViewModel? = null, speaker: Speaker? = null, onImage: (Bitmap) -> Unit = {}) {
+private fun MessageRow(item: ChatItem, vm: NativeViewModel? = null, speaker: Speaker? = null, durationSec: Long = 0L, onImage: (Bitmap) -> Unit = {}) {
     when (item) {
         is ChatItem.User -> UserMessageRow(item, vm, onImage)
-        is ChatItem.Assistant -> AssistantMessageRow(item, vm, speaker)
+        is ChatItem.Assistant -> AssistantMessageRow(item, vm, speaker, durationSec)
         is ChatItem.Tool -> ToolCard(item)
         is ChatItem.ToolResult -> Unit
         is ChatItem.Notice -> Text(item.text, color = DshMuted, fontSize = 11.sp, modifier = Modifier.padding(horizontal = 4.dp))
@@ -1547,7 +1665,7 @@ private fun ToolLogLine(tool: ChatItem.Tool) {
 }
 
 @Composable
-private fun AssistantMessageRow(item: ChatItem.Assistant, vm: NativeViewModel?, speaker: Speaker?) {
+private fun AssistantMessageRow(item: ChatItem.Assistant, vm: NativeViewModel?, speaker: Speaker?, durationSec: Long = 0L) {
     val clipboard = LocalClipboardManager.current
     var copied by remember { mutableStateOf(false) }
     var collapsed by remember(item.key) { mutableStateOf(false) }
@@ -1585,7 +1703,7 @@ private fun AssistantMessageRow(item: ChatItem.Assistant, vm: NativeViewModel?, 
             )
             Spacer(Modifier.width(6.dp))
             Text(
-                if (item.streaming) "生成中 ${elapsed / 1000}s" else "已完成本轮",
+                if (item.streaming) "生成中 ${elapsed / 1000}s" else if (durationSec > 0) "已完成本轮 · 用时 ${durationSec}s" else "已完成本轮",
                 color = if (item.streaming) DshTeal else DshMuted,
                 fontSize = 10.sp,
                 fontFamily = DshMono,
@@ -3279,6 +3397,7 @@ internal fun ChatCardsPreviewContent() {
             ),
             null,
             null,
+            durationSec = 41,
         )
         FileEditCard(
             listOf(
