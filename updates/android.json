@@ -1,8 +1,8 @@
 {
-  "versionCode": 58,
-  "versionName": "0.23.2",
-  "apkUrl": "https://raw.githubusercontent.com/ctomall/dsh-phone-remote/main/updates/DSHNative-0.23.2.apk",
-  "sha256": "665c4ba33fbcacd7242d2cd210996c3aace28213d850e88912654796fbb060f7",
-  "notes": "SSH 主机持久化、终端会话回退、附件标签页、工具耗时与用量条",
-  "signature": "MEUCIQD7eDYaApJzmwIDTlykHQdZd68nruSHYABSMPGsNTKp8gIgGBvjZV93WdlQnmdiH2InkOm4AOIgebS9eGUq60c15EA="
+  "versionCode": 59,
+  "versionName": "0.23.3",
+  "apkUrl": "https://raw.githubusercontent.com/ctomall/dsh-phone-remote/main/updates/DSHNative-0.23.3.apk",
+  "sha256": "d2d2ea3b9e665ce0b37c358eec4c5a0f7ec6f0c1261247b54b3036ca8df10185",
+  "notes": "附件页工作区图片、消息链接胶囊跳浏览器、图片缩放预览",
+  "signature": "MEQCIDh+6jPGrwpxSIlGaFA3pchEyEludepGVAEkFbqxlLpzAiAtcL58Yb9dyJiMYD1lje3Z9Gu+mhhW0aDLWLLmo1UC0g=="
 }
