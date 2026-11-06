@@ -29,6 +29,11 @@ class TranslationStore(context: Context) {
     }
 
     @Synchronized
+    fun clear() {
+        runCatching { file.delete() }
+    }
+
+    @Synchronized
     fun put(key: String, text: String) {
         update { entries ->
             entries.put(key, JSONObject().put("t", text).put("at", System.currentTimeMillis()))

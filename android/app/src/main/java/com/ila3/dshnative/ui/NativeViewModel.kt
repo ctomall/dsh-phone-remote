@@ -170,10 +170,36 @@ class NativeViewModel(app: Application) : AndroidViewModel(app) {
 
     var thinkExpanded by mutableStateOf(store.thinkExpanded())
         private set
+    var showTime by mutableStateOf(store.showTime())
+        private set
+    var toolExpanded by mutableStateOf(store.toolExpanded())
+        private set
+    var autoScroll by mutableStateOf(store.autoScroll())
+        private set
 
     init {
         runCatching { translationStore.load() }.getOrElse { emptyMap() }
             .forEach { (key, text) -> translations[key] = Translation(text = text) }
+    }
+
+    fun updateShowTime(value: Boolean) {
+        showTime = value
+        store.setShowTime(value)
+    }
+
+    fun updateToolExpanded(value: Boolean) {
+        toolExpanded = value
+        store.setToolExpanded(value)
+    }
+
+    fun updateAutoScroll(value: Boolean) {
+        autoScroll = value
+        store.setAutoScroll(value)
+    }
+
+    fun clearTranslations() {
+        translations.clear()
+        translationStore.clear()
     }
 
     fun updateThinkExpanded(value: Boolean) {
