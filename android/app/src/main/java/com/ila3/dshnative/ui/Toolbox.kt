@@ -526,7 +526,7 @@ private fun AttachmentsSection(vm: NativeViewModel) {
                     val thumb = vm.thumbnails[item.path]
                     LaunchedEffect(item.path) { vm.loadThumbnail(item) }
                     Row(
-                        Modifier.fillMaxWidth().clickable { vm.openGalleryAt(index, vm.gallery.take(shown)) }
+                        Modifier.fillMaxWidth().clickable { vm.openGalleryAt(index, vm.gallery) }
                             .padding(horizontal = 20.dp, vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
