@@ -48,6 +48,7 @@ sealed interface Screen {
     data object Tasks : Screen
     data object NavSettings : Screen
     data object TaskDetail : Screen
+    data object Toolbox : Screen
 }
 
 class NativeViewModel(app: Application) : AndroidViewModel(app) {
@@ -187,6 +188,14 @@ class NativeViewModel(app: Application) : AndroidViewModel(app) {
 
     var deviceStates by mutableStateOf<List<DeviceState>>(emptyList())
     var feedback by mutableStateOf<Map<String, String>>(emptyMap())
+    var toolboxSection by mutableStateOf("search")
+    var searchQuery by mutableStateOf("")
+    var searchResults by mutableStateOf<List<DshClient.SearchHit>>(emptyList())
+    var searchBusy by mutableStateOf(false)
+    var searchFallback by mutableStateOf(false)
+    var skills by mutableStateOf<List<DshClient.SkillItem>>(emptyList())
+    var skillsBusy by mutableStateOf(false)
+    var fileKindFilter by mutableStateOf("all")
     var pairPrefillUrl by mutableStateOf("")
     var multiDevice by mutableStateOf(store.multiDevice())
         private set
@@ -212,6 +221,57 @@ class NativeViewModel(app: Application) : AndroidViewModel(app) {
     fun updateToolExpanded(value: Boolean) {
         toolExpanded = value
         store.setToolExpanded(value)
+    }
+
+    fun closeToolbox() {
+        screen = Screen.Sessions
+    }
+
+    fun openToolbox(section: String = "search") {
+        toolboxSection = section
+        screen = Screen.Toolbox
+        if (section == "skills") loadSkills()
+    }
+
+    fun searchSessions(query: String) {
+        searchQuery = query
+        val active = client ?: return
+        if (query.isBlank()) {
+            searchResults = emptyList()
+            return
+        }
+        viewModelScope.launch {
+            searchBusy = true
+            runCatching { withContext(Dispatchers.IO) { active.searchSessions(query.trim()) } }
+                .onSuccess {
+                    searchFallback = false
+                    searchResults = it
+                }
+                .onFailure { failure ->
+                    searchFallback = true
+                    val q = query.trim()
+                    searchResults = sessions
+                        .filter {
+                            (it.title ?: "").contains(q, true) || (it.cwd ?: "").contains(q, true) || it.id.contains(q, true)
+                        }
+                        .map { DshClient.SearchHit(it.id, listOfNotNull(it.title, it.cwd).joinToString(" · ")) }
+                    error = failure.message ?: "搜索失败"
+                }
+            searchBusy = false
+        }
+    }
+
+    fun loadSkills() {
+        val active = client ?: return
+        val sid = activeSessionId.ifBlank { sessions.firstOrNull()?.id.orEmpty() }
+        if (sid.isEmpty()) return
+        viewModelScope.launch {
+            skillsBusy = true
+            runCatching { withContext(Dispatchers.IO) { active.skills(sid) } }
+                .onSuccess { skills = it }
+                .onFailure { error = it.message ?: "加载技能失败" }
+            skillsBusy = false
+        }
     }
 
     fun openServersFor(profile: ServerProfile) {

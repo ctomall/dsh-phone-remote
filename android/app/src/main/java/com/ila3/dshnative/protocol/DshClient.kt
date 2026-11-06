@@ -603,6 +603,41 @@ class DshClient private constructor(
         )
     }
 
+    data class SearchHit(val sessionId: String, val snippet: String)
+    data class SkillItem(val name: String, val description: String, val whenToUse: String?, val modelInvocable: Boolean, val path: String?)
+
+    suspend fun searchSessions(query: String): List<SearchHit> {
+        val value = call("session/search", JSONObject().put("request", JSONObject().put("query", query)))
+        val items = value.optJSONArray("items") ?: return emptyList()
+        return buildList {
+            for (i in 0 until items.length()) {
+                val item = items.optJSONObject(i) ?: continue
+                val id = item.optString("sessionId")
+                if (id.isNotEmpty()) add(SearchHit(id, item.optString("snippet")))
+            }
+        }
+    }
+
+    suspend fun skills(sessionId: String): List<SkillItem> {
+        val value = call("skills/list", JSONObject().put("request", JSONObject().put("sessionId", sessionId)))
+        val items = value.optJSONArray("skills") ?: return emptyList()
+        return buildList {
+            for (i in 0 until items.length()) {
+                val item = items.optJSONObject(i) ?: continue
+                val name = item.optString("name")
+                if (name.isNotEmpty()) add(
+                    SkillItem(
+                        name = name,
+                        description = item.optString("description"),
+                        whenToUse = item.optString("whenToUse").takeIf { it.isNotEmpty() },
+                        modelInvocable = item.optBoolean("modelInvocable", false),
+                        path = item.optString("path").takeIf { it.isNotEmpty() },
+                    ),
+                )
+            }
+        }
+    }
+
     suspend fun putFeedback(sessionId: String, messageId: String, rating: String) {
         call(
             "messageFeedback/put",
