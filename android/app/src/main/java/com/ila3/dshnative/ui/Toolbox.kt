@@ -4,9 +4,12 @@ import android.content.Intent
 import android.net.Uri
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -45,7 +48,10 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
@@ -54,15 +60,18 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.util.Base64
 import androidx.compose.ui.viewinterop.AndroidView
 import com.ila3.dshnative.protocol.ChatItem
+import com.ila3.dshnative.protocol.SshHost
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.net.InetSocketAddress
 import java.net.Socket
-
-data class SshHost(val id: String, val name: String, val host: String, val user: String, val port: Int)
 
 private val ToolboxTabs = listOf(
     "search" to "搜索",
@@ -70,6 +79,7 @@ private val ToolboxTabs = listOf(
     "tools" to "工具",
     "browser" to "浏览器",
     "ssh" to "SSH",
+    "attachments" to "附件",
     "files" to "文件",
 )
 
@@ -89,7 +99,8 @@ internal fun ToolboxScreen(vm: NativeViewModel) {
             }
         }
         Row(
-            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 2.dp),
+            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp, vertical = 2.dp),
             horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             ToolboxTabs.forEach { (id, label) ->
@@ -117,6 +128,7 @@ internal fun ToolboxScreen(vm: NativeViewModel) {
             "tools" -> ToolsSection(vm)
             "browser" -> BrowserSection()
             "ssh" -> SshSection(vm)
+            "attachments" -> AttachmentsSection(vm)
             else -> FilesSection(vm)
         }
     }
@@ -277,6 +289,7 @@ private fun ToolsSection(vm: NativeViewModel) {
         if (tools.isEmpty()) {
             Text("还没有工具调用", color = DshMuted, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 20.dp))
         }
+        val maxCount = (tools.maxOfOrNull { it.second } ?: 1).coerceAtLeast(1)
         LazyColumn(Modifier.fillMaxSize()) {
             items(tools, key = { it.first }) { (name, count, lastAt) ->
                 Row(
@@ -284,6 +297,10 @@ private fun ToolsSection(vm: NativeViewModel) {
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(name, color = DshText, fontSize = 13.sp, fontFamily = DshMono, modifier = Modifier.weight(1f))
+                    Box(
+                        Modifier.width((60 * count / maxCount).dp).height(4.dp).background(DshTeal),
+                    )
+                    Spacer(Modifier.width(8.dp))
                     Text("$count 次", color = DshMuted, fontSize = 10.sp, fontFamily = DshMono)
                     Spacer(Modifier.width(12.dp))
                     Text(relativeTime(lastAt), color = DshMuted, fontSize = 9.sp, fontFamily = DshMono)
@@ -347,7 +364,6 @@ private fun BrowserSection() {
 
 @Composable
 private fun SshSection(vm: NativeViewModel) {
-    val hosts = remember { mutableStateListOf<SshHost>() }
     var showAdd by remember { mutableStateOf(false) }
     var status by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
     var name by remember { mutableStateOf("本机") }
@@ -369,11 +385,11 @@ private fun SshSection(vm: NativeViewModel) {
             fontSize = 10.sp,
             modifier = Modifier.padding(horizontal = 20.dp),
         )
-        if (hosts.isEmpty()) {
+        if (vm.sshHosts.isEmpty()) {
             Text("还没有服务器", color = DshMuted, fontSize = 12.sp, modifier = Modifier.padding(20.dp))
         }
         LazyColumn(Modifier.fillMaxSize()) {
-            items(hosts, key = { it.id }) { item ->
+            items(vm.sshHosts, key = { it.id }) { item ->
                 Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 10.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
@@ -407,7 +423,7 @@ private fun SshSection(vm: NativeViewModel) {
                             Icons.Filled.Delete,
                             "删除",
                             tint = DshMuted,
-                            modifier = Modifier.size(15.dp).clickable { hosts.remove(item) }.padding(4.dp),
+                            modifier = Modifier.size(15.dp).clickable { vm.removeSshHost(item.id) }.padding(4.dp),
                         )
                     }
                 }
@@ -431,7 +447,7 @@ private fun SshSection(vm: NativeViewModel) {
                 TextButton(onClick = {
                     val p = port.toIntOrNull() ?: 22
                     if (host.isNotBlank()) {
-                        hosts.add(SshHost(System.currentTimeMillis().toString(), name.ifBlank { host }, host.trim(), user.ifBlank { "root" }, p))
+                        vm.addSshHost(name.trim(), host.trim(), user.ifBlank { "root" }, p)
                     }
                     showAdd = false
                     name = "本机"; host = "127.0.0.1"; user = "root"; port = "22"
@@ -458,6 +474,69 @@ private fun field(label: String, value: String, onChange: (String) -> Unit) {
             }
         },
     )
+}
+
+/* --------------------------------- 附件 --------------------------------- */
+
+private fun attachmentPreview(data: String?): Bitmap? {
+    data ?: return null
+    return runCatching {
+        val bytes = Base64.decode(data, Base64.NO_WRAP)
+        BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+    }.getOrNull()
+}
+
+@Composable
+private fun AttachmentsSection(vm: NativeViewModel) {
+    val attachments = remember(vm.messages.size) {
+        vm.messages.filterIsInstance<ChatItem.User>().flatMap { it.attachments }
+    }
+    var preview by remember { mutableStateOf<Bitmap?>(null) }
+    Column(Modifier.fillMaxSize()) {
+        Text("当前会话附件", color = DshMuted, fontSize = 9.sp, fontFamily = DshMono, modifier = Modifier.padding(20.dp))
+        if (attachments.isEmpty()) {
+            Text("还没有附件", color = DshMuted, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 20.dp))
+        }
+        LazyColumn(Modifier.fillMaxSize()) {
+            items(attachments, key = { it.name + it.bytes }) { item ->
+                val bitmap = remember(item) { item.preview ?: attachmentPreview(item.data) }
+                Row(
+                    Modifier.fillMaxWidth().clickable { bitmap?.let { preview = it } }
+                        .padding(horizontal = 20.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    if (bitmap != null) {
+                        Image(
+                            bitmap.asImageBitmap(),
+                            contentDescription = item.name,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.size(44.dp).clip(RoundedCornerShape(6.dp)),
+                        )
+                        Spacer(Modifier.width(10.dp))
+                    }
+                    Column(Modifier.weight(1f)) {
+                        Text(item.name, color = DshText, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(
+                            item.bytes?.let { toolboxBytes(it) } ?: (item.mime ?: "附件"),
+                            color = DshMuted,
+                            fontSize = 9.sp,
+                            fontFamily = DshMono,
+                        )
+                    }
+                    if (bitmap != null) Text("查看", color = DshTeal, fontSize = 10.sp, fontFamily = DshMono)
+                }
+                HorizontalDivider(color = DshBorder, thickness = 1.dp, modifier = Modifier.padding(start = 20.dp))
+            }
+        }
+    }
+    preview?.let { bitmap ->
+        Dialog(onDismissRequest = { preview = null }) {
+            Column(Modifier.fillMaxWidth().background(DshSurface).padding(12.dp)) {
+                Image(bitmap.asImageBitmap(), contentDescription = "附件", contentScale = ContentScale.Fit, modifier = Modifier.fillMaxWidth())
+                Text("点击外部关闭", color = DshMuted, fontSize = 9.sp, fontFamily = DshMono, modifier = Modifier.padding(top = 8.dp))
+            }
+        }
+    }
 }
 
 /* -------------------------------- 文件入口 -------------------------------- */
@@ -495,4 +574,11 @@ private fun FilesSection(vm: NativeViewModel) {
             HorizontalDivider(color = DshBorder, thickness = 1.dp, modifier = Modifier.padding(start = 20.dp))
         }
     }
+}
+
+
+private fun toolboxBytes(bytes: Long): String = when {
+    bytes >= 1024 * 1024 -> String.format(java.util.Locale.US, "%.1f MB", bytes / 1024.0 / 1024.0)
+    bytes >= 1024 -> "${bytes / 1024} KB"
+    else -> "$bytes B"
 }

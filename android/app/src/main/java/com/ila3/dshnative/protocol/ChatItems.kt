@@ -42,6 +42,7 @@ sealed class ChatItem {
         val result: String? = null,
         val isError: Boolean = false,
         override val at: Long = 0L,
+        val endedAt: Long = 0L,
     ) : ChatItem()
 
     data class ToolResult(
@@ -115,6 +116,7 @@ object ChatParser {
                     callId = callId,
                     text = messageText(message),
                     isError = message?.optBoolean("isError", false) == true,
+                    at = event.optLong("time", 0L),
                 )
             }
             "turn/start", "turn/end", "step/start", "step/end", "request/header",
@@ -242,6 +244,14 @@ object ChatParser {
             val item = parseRecord(record) ?: continue
             out.add(if (item is ChatItem.Assistant && turn > 0) item.copy(turn = turn) else item)
         }
-        return ParsedPage(out, durations)
+        val resultTimes = out.filterIsInstance<ChatItem.ToolResult>()
+            .filter { it.at > 0L }
+            .associate { it.callId to it.at }
+        val paired = out.map { item ->
+            if (item is ChatItem.Tool && resultTimes[item.callId] != null) {
+                item.copy(endedAt = resultTimes[item.callId] ?: 0L)
+            } else item
+        }
+        return ParsedPage(paired, durations)
     }
 }
