@@ -1,8 +1,8 @@
 {
-  "versionCode": 51,
-  "versionName": "0.21.0",
-  "apkUrl": "https://raw.githubusercontent.com/ctomall/dsh-phone-remote/main/updates/DSHNative-0.21.0.apk",
-  "sha256": "ad35de64816024e1c520b67968d04a73f7cf80c335d53c4bf6b24bb39f3222c5",
-  "notes": "多设备聚合菜单、权限/Agent 预设切换、真实 usage 胶囊、服务端轮次耗时",
-  "signature": "MEQCIF7qG6IJe1OoJyPfEydlI8A4GPTAM8499uc+vz7NJ17HAiBx6LjSoU3Bty0byiOWh9iER1HUSxqFhPHjqmbZxVCTsg=="
+  "versionCode": 52,
+  "versionName": "0.21.1",
+  "apkUrl": "https://raw.githubusercontent.com/ctomall/dsh-phone-remote/main/updates/DSHNative-0.21.1.apk",
+  "sha256": "2786c52d3f074a7a8605f8a6b01b728a2b02e4679a6c74c16c6c0ba23bbdee53",
+  "notes": "聚合设备状态可见、预设二次确认、初始快照轮次耗时",
+  "signature": "MEUCIQDj/eXFVW+2PBz30Zx+VixEKhS6K4HGnwfJ4aJQznn7cAIgSoRbdkSLSzBdGYnbZhb2FgpPYEKhOhxnyfRZf6tThlU="
 }
