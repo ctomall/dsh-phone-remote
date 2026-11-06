@@ -64,6 +64,10 @@ import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.outlined.InsertDriveFile
+import androidx.compose.material.icons.filled.ChatBubbleOutline
+import androidx.compose.material.icons.filled.Build
+import androidx.compose.material.icons.filled.VerticalAlignBottom
+import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.PlayArrow
@@ -669,7 +673,7 @@ private fun ChatScreen(vm: NativeViewModel) {
             // Follow live output only while the reader is already near the
             // bottom; scrolling up to read history must not be interrupted.
             val lastVisible = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1
-            if (lastVisible >= rows.size - 3) {
+            if (vm.autoScroll && lastVisible >= rows.size - 3) {
                 runCatching { listState.animateScrollToItem(lastIndex + 1) }
             }
         }
@@ -749,7 +753,7 @@ private fun ChatScreen(vm: NativeViewModel) {
                     when (row) {
                         is ChatRow.Trace -> ToolTrace(row.tools)
                         is ChatRow.Msg -> if (row.item is ChatItem.Tool) {
-                            ToolLogLine(row.item)
+                            ToolCallCard(row.item, showTime = vm.showTime, defaultExpanded = vm.toolExpanded)
                         } else {
                             MessageRow(row.item, vm, speaker) { imagePreview = it }
                         }
@@ -1083,7 +1087,7 @@ private fun ModelPickerDialog(vm: NativeViewModel) {
 @Composable
 private fun MessageRow(item: ChatItem, vm: NativeViewModel? = null, speaker: Speaker? = null, onImage: (Bitmap) -> Unit = {}) {
     when (item) {
-        is ChatItem.User -> UserMessageRow(item, onImage)
+        is ChatItem.User -> UserMessageRow(item, vm, onImage)
         is ChatItem.Assistant -> AssistantMessageRow(item, vm, speaker)
         is ChatItem.Tool -> ToolCard(item)
         is ChatItem.ToolResult -> Unit
@@ -1092,13 +1096,13 @@ private fun MessageRow(item: ChatItem, vm: NativeViewModel? = null, speaker: Spe
 }
 
 @Composable
-private fun UserMessageRow(item: ChatItem.User, onImage: (Bitmap) -> Unit) {
+private fun UserMessageRow(item: ChatItem.User, vm: NativeViewModel?, onImage: (Bitmap) -> Unit) {
     Column(
         Modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.End,
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        if (item.at > 0L) {
+        if (item.at > 0L && vm?.showTime != false) {
             Text(
                 SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(item.at)),
                 color = DshMuted,
@@ -1219,22 +1223,10 @@ internal sealed interface ChatRow {
 /** Collapse consecutive tool calls into one trace entry, like a logbook. */
 internal fun chatRows(messages: List<ChatItem>): List<ChatRow> {
     val rows = mutableListOf<ChatRow>()
-    var pending = mutableListOf<ChatItem.Tool>()
-    fun flush() {
-        if (pending.isEmpty()) return
-        rows.add(if (pending.size == 1) ChatRow.Msg(pending.first()) else ChatRow.Trace(pending.toList()))
-        pending = mutableListOf()
-    }
     messages.forEach { item ->
-        if (item is ChatItem.Tool) {
-            pending.add(item)
-        } else {
-            flush()
-            if (item is ChatItem.ToolResult) return@forEach
-            rows.add(ChatRow.Msg(item))
-        }
+        if (item is ChatItem.ToolResult) return@forEach
+        rows.add(ChatRow.Msg(item))
     }
-    flush()
     return rows
 }
 
@@ -1276,37 +1268,118 @@ private fun ToolTrace(tools: List<ChatItem.Tool>) {
             )
         }
         if (expanded) {
-            tools.forEach { tool -> ToolLogLine(tool) }
+            tools.forEach { tool ->
+                ToolCallCard(tool, showTime = false)
+                Spacer(Modifier.height(4.dp))
+            }
         }
         HorizontalDivider(color = DshBorder, thickness = 1.dp)
     }
 }
 
 @Composable
-private fun ToolLogLine(tool: ChatItem.Tool) {
-    Row(
-        Modifier.fillMaxWidth().padding(start = 42.dp, top = 5.dp, bottom = 5.dp),
-        verticalAlignment = Alignment.CenterVertically,
+private fun ToolCallCard(tool: ChatItem.Tool, showTime: Boolean = true, defaultExpanded: Boolean = false) {
+    var expanded by remember(tool.key, defaultExpanded) { mutableStateOf(defaultExpanded) }
+    Column(
+        Modifier.fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .background(DshSurface)
+            .border(1.dp, DshBorder, RoundedCornerShape(8.dp)),
     ) {
-        Box(Modifier.size(5.dp).background(if (tool.isError) DshDanger else DshMuted))
-        Spacer(Modifier.width(8.dp))
-        Text(tool.name, color = DshText, fontSize = 11.5.sp, fontFamily = DshMono)
-        Text(
-            toolSummary(tool.arguments),
-            color = DshMuted,
-            fontSize = 10.sp,
-            fontFamily = DshMono,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f).padding(start = 8.dp),
-        )
-        Text(
-            if (tool.result == null) "RUN" else if (tool.isError) "ERR" else "OK",
-            color = if (tool.isError) DshDanger else DshMuted,
-            fontSize = 9.sp,
-            fontFamily = DshMono,
-        )
+        Row(
+            Modifier.fillMaxWidth().clickable { expanded = !expanded }.padding(horizontal = 10.dp, vertical = 9.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            if (showTime) {
+                Text(
+                    if (tool.at > 0L) SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(tool.at)) else "--:--",
+                    color = DshMuted,
+                    fontSize = 9.sp,
+                    fontFamily = DshMono,
+                    modifier = Modifier.width(38.dp),
+                )
+            }
+            Box(
+                Modifier.size(20.dp).clip(RoundedCornerShape(4.dp)).background(DshSurface2),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    ">_",
+                    color = if (tool.isError) DshDanger else DshTeal,
+                    fontSize = 8.sp,
+                    fontFamily = DshMono,
+                )
+            }
+            Spacer(Modifier.width(8.dp))
+            Text(tool.name, color = DshText, fontSize = 12.5.sp, fontWeight = FontWeight.Medium)
+            Spacer(Modifier.width(6.dp))
+            Text(
+                toolSummary(tool.arguments),
+                color = DshMuted,
+                fontSize = 9.5.sp,
+                fontFamily = DshMono,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+            Spacer(Modifier.width(6.dp))
+            Text(
+                if (tool.result == null) "RUN" else if (tool.isError) "ERR" else "OK",
+                color = if (tool.isError) DshDanger else DshMuted,
+                fontSize = 9.sp,
+                fontFamily = DshMono,
+            )
+            Icon(
+                if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+                contentDescription = if (expanded) "收起" else "展开",
+                tint = DshMuted,
+                modifier = Modifier.size(15.dp),
+            )
+        }
+        if (expanded) {
+            HorizontalDivider(color = DshBorder, thickness = 1.dp)
+            if (tool.arguments.isNotBlank()) {
+                Text(
+                    "参数",
+                    color = DshMuted,
+                    fontSize = 9.sp,
+                    fontFamily = DshMono,
+                    modifier = Modifier.padding(start = 10.dp, top = 8.dp),
+                )
+                Text(
+                    tool.arguments,
+                    color = DshText,
+                    fontSize = 10.sp,
+                    fontFamily = DshMono,
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                )
+            }
+            tool.result?.let { result ->
+                Text(
+                    "结果",
+                    color = DshMuted,
+                    fontSize = 9.sp,
+                    fontFamily = DshMono,
+                    modifier = Modifier.padding(start = 10.dp, top = 6.dp),
+                )
+                Text(
+                    result,
+                    color = DshText,
+                    fontSize = 10.sp,
+                    fontFamily = DshMono,
+                    maxLines = 24,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                )
+            }
+            Spacer(Modifier.height(6.dp))
+        }
     }
+}
+
+@Composable
+private fun ToolLogLine(tool: ChatItem.Tool) {
+    ToolCallCard(tool)
 }
 
 @Composable
@@ -1329,14 +1402,14 @@ private fun AssistantMessageRow(item: ChatItem.Assistant, vm: NativeViewModel?, 
         }
     }
     Row(Modifier.fillMaxWidth()) {
-        Column(Modifier.width(42.dp)) {
-            Text(
+        Column(Modifier.width(if (vm?.showTime != false) 42.dp else 0.dp)) {
+            if (vm?.showTime != false) Text(
                 if (item.at > 0L) SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(item.at)) else "--:--",
                 color = DshMuted,
                 fontSize = 10.sp,
                 fontFamily = DshMono,
             )
-            Text(
+            if (vm?.showTime != false) Text(
                 if (item.streaming) "RUN" else "OK",
                 color = if (item.streaming) DshTeal else DshMuted,
                 fontSize = 9.sp,
@@ -1684,40 +1757,9 @@ private fun TaskDetailScreen(vm: NativeViewModel) {
                 Text("暂无工具调用", color = DshMuted, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 20.dp))
             } else {
                 tools.forEach { tool ->
-                    Row(
-                        Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 10.dp),
-                        verticalAlignment = Alignment.Top,
-                    ) {
-                        Column(Modifier.width(44.dp)) {
-                            Text(
-                                if (tool.at > 0L) SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(tool.at)) else "--:--",
-                                color = DshMuted,
-                                fontSize = 10.sp,
-                                fontFamily = DshMono,
-                            )
-                            Text(
-                                if (tool.result != null) "OK" else "RUN",
-                                color = if (tool.result != null) DshMuted else DshTeal,
-                                fontSize = 9.sp,
-                                fontFamily = DshMono,
-                                modifier = Modifier.padding(top = 3.dp),
-                            )
-                        }
-                        Spacer(Modifier.width(10.dp))
-                        Column(Modifier.weight(1f)) {
-                            Text(tool.name, color = DshText, fontSize = 13.sp, fontWeight = FontWeight.Medium)
-                            Text(
-                                toolSummary(tool.arguments),
-                                color = DshMuted,
-                                fontSize = 10.sp,
-                                fontFamily = DshMono,
-                                maxLines = 2,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.padding(top = 2.dp),
-                            )
-                        }
+                    Box(Modifier.padding(horizontal = 20.dp, vertical = 4.dp)) {
+                        ToolCallCard(tool, showTime = true, defaultExpanded = vm.toolExpanded)
                     }
-                    HorizontalDivider(color = DshBorder, thickness = 1.dp, modifier = Modifier.padding(start = 20.dp))
                 }
             }
             Text(
@@ -2583,6 +2625,14 @@ private fun SettingsScreen(vm: NativeViewModel) {
         keepAlive = vm.keepAliveEnabled,
         onKeepAlive = { vm.updateKeepAlive(it) },
         onNavSettings = { vm.openNavSettings() },
+        showTime = vm.showTime,
+        onShowTime = { vm.updateShowTime(it) },
+        toolExpanded = vm.toolExpanded,
+        onToolExpanded = { vm.updateToolExpanded(it) },
+        autoScroll = vm.autoScroll,
+        onAutoScroll = { vm.updateAutoScroll(it) },
+        translationCount = vm.translations.size,
+        onClearTranslations = { vm.clearTranslations() },
     )
     vm.updateInfo?.let { UpdateDialog(vm, context) }
 }
@@ -2630,6 +2680,14 @@ internal fun SettingsTab(vm: NativeViewModel) {
             keepAlive = vm.keepAliveEnabled,
             onKeepAlive = { vm.updateKeepAlive(it) },
             onNavSettings = { vm.openNavSettings() },
+            showTime = vm.showTime,
+            onShowTime = { vm.updateShowTime(it) },
+            toolExpanded = vm.toolExpanded,
+            onToolExpanded = { vm.updateToolExpanded(it) },
+            autoScroll = vm.autoScroll,
+            onAutoScroll = { vm.updateAutoScroll(it) },
+            translationCount = vm.translations.size,
+            onClearTranslations = { vm.clearTranslations() },
             showTopBar = false,
         )
     }
@@ -2690,6 +2748,14 @@ internal fun SettingsPreviewContent() {
         keepAlive = false,
         onKeepAlive = {},
         onNavSettings = {},
+        showTime = true,
+        onShowTime = {},
+        toolExpanded = false,
+        onToolExpanded = {},
+        autoScroll = true,
+        onAutoScroll = {},
+        translationCount = 3,
+        onClearTranslations = {},
     )
 }
 
@@ -2712,6 +2778,14 @@ private fun SettingsContent(
     keepAlive: Boolean,
     onKeepAlive: (Boolean) -> Unit,
     onNavSettings: () -> Unit = {},
+    showTime: Boolean = true,
+    onShowTime: (Boolean) -> Unit = {},
+    toolExpanded: Boolean = false,
+    onToolExpanded: (Boolean) -> Unit = {},
+    autoScroll: Boolean = true,
+    onAutoScroll: (Boolean) -> Unit = {},
+    translationCount: Int = 0,
+    onClearTranslations: () -> Unit = {},
     showTopBar: Boolean = true,
 ) {
     Column(Modifier.fillMaxSize()) {
@@ -2749,6 +2823,21 @@ private fun SettingsContent(
                     "打开后思考块直接展开并自动翻译",
                     thinkExpanded,
                     onThinkExpanded,
+                )
+            }
+            SettingsGroup("消息") {
+                SettingsSwitchRow(Icons.Filled.ChatBubbleOutline, "显示时间", "每条消息显示 HH:mm", showTime, onShowTime)
+                SettingsDivider()
+                SettingsSwitchRow(Icons.Filled.Build, "工具卡默认展开", "打开后工具卡直接展示参数与结果", toolExpanded, onToolExpanded)
+                SettingsDivider()
+                SettingsSwitchRow(Icons.Filled.VerticalAlignBottom, "流式自动滚动", "靠近底部时跟随新输出", autoScroll, onAutoScroll)
+            }
+            SettingsGroup("存储") {
+                SettingsActionRow(
+                    Icons.Filled.DeleteSweep,
+                    "清理翻译缓存",
+                    if (translationCount > 0) "$translationCount 条" else "无缓存",
+                    onClick = onClearTranslations,
                 )
             }
             SettingsGroup("通知与后台") {
@@ -2950,6 +3039,7 @@ internal fun ChatStreamingPreviewContent() {
     ) {
         UserMessageRow(
             ChatItem.User("p-u", "检查一下发布脚本，再跑一次构建", at = now - 60_000),
+            null,
             {},
         )
         AssistantMessageRow(

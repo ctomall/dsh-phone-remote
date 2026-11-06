@@ -108,6 +108,24 @@ class NativeStore(context: Context) {
         prefs.edit().putBoolean("think_expanded", value).apply()
     }
 
+    fun showTime(): Boolean = prefs.getBoolean("show_time", true)
+
+    fun setShowTime(value: Boolean) {
+        prefs.edit().putBoolean("show_time", value).apply()
+    }
+
+    fun toolExpanded(): Boolean = prefs.getBoolean("tool_expanded", false)
+
+    fun setToolExpanded(value: Boolean) {
+        prefs.edit().putBoolean("tool_expanded", value).apply()
+    }
+
+    fun autoScroll(): Boolean = prefs.getBoolean("auto_scroll", true)
+
+    fun setAutoScroll(value: Boolean) {
+        prefs.edit().putBoolean("auto_scroll", value).apply()
+    }
+
     fun clear() {
         prefs.edit().clear().apply()
     }
