@@ -17,7 +17,8 @@ import com.ila3.dshnative.R
 class KeepAliveService : Service() {
     override fun onCreate() {
         super.onCreate()
-        startForeground(NOTIFICATION_ID, buildNotification())
+        runCatching { startForeground(NOTIFICATION_ID, buildNotification()) }
+            .onFailure { stopSelf() }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int = START_STICKY

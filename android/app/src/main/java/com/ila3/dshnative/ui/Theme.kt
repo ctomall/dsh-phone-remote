@@ -22,8 +22,8 @@ import androidx.compose.ui.unit.sp
 import androidx.core.view.WindowCompat
 
 enum class DshThemeMode(val label: String) {
-    PAPER("云白"),
-    AURORA("深海"),
+    PAPER("纸白"),
+    AURORA("夜墨"),
 }
 
 data class DshPalette(
@@ -45,38 +45,38 @@ data class DshPalette(
 )
 
 private val paper = DshPalette(
-    bg = Color(0xFFF6F7FB),
-    surface = Color(0xFFFFFFFF),
-    surface2 = Color(0xFFF1F4FB),
-    text = Color(0xFF0B1220),
-    muted = Color(0xFF64748B),
-    accent = Color(0xFF4D6BFE),
-    accentSoft = Color(0xFF6B8AFD),
-    onAccent = Color(0xFFFFFFFF),
-    border = Color(0xFFE9EEF8),
-    danger = Color(0xFFEF4444),
-    userBubble = Color(0xFFEEF2FF),
-    selected = Color(0xFFDCE4FF),
-    errorBg = Color(0xFFFEF2F2),
-    errorBorder = Color(0xFFFECACA),
+    bg = Color(0xFFF7F4EE),
+    surface = Color(0xFFFFFDF8),
+    surface2 = Color(0xFFEFE9DE),
+    text = Color(0xFF1F1B16),
+    muted = Color(0xFF6E6458),
+    accent = Color(0xFF1F4E79),
+    accentSoft = Color(0xFF4A7BA6),
+    onAccent = Color(0xFFFFFDF8),
+    border = Color(0xFFE4DDCF),
+    danger = Color(0xFFA63D2C),
+    userBubble = Color(0xFFEFEAE0),
+    selected = Color(0xFFE3E9EF),
+    errorBg = Color(0xFFF7E9E4),
+    errorBorder = Color(0xFFE5C3B8),
     light = true,
 )
 
 private val aurora = DshPalette(
-    bg = Color(0xFF070D18),
-    surface = Color(0xFF0F1C2E),
-    surface2 = Color(0xFF0A1626),
-    text = Color(0xFFE8F1FF),
-    muted = Color(0xFF8EA6C4),
-    accent = Color(0xFF2DD4BF),
-    accentSoft = Color(0xFF5EEAD4),
-    onAccent = Color(0xFF04212A),
-    border = Color(0xFF1E3A52),
-    danger = Color(0xFFFCA5A5),
-    userBubble = Color(0xFF143A4A),
-    selected = Color(0xFF143A4A),
-    errorBg = Color(0xFF2A1518),
-    errorBorder = Color(0xFF7F1D1D),
+    bg = Color(0xFF12110F),
+    surface = Color(0xFF1B1916),
+    surface2 = Color(0xFF262320),
+    text = Color(0xFFEFE9DE),
+    muted = Color(0xFF938B7E),
+    accent = Color(0xFF8FB4D9),
+    accentSoft = Color(0xFFB3CDE6),
+    onAccent = Color(0xFF12110F),
+    border = Color(0xFF3A342C),
+    danger = Color(0xFFE08B7D),
+    userBubble = Color(0xFF262320),
+    selected = Color(0xFF2E3A46),
+    errorBg = Color(0xFF2A1714),
+    errorBorder = Color(0xFF5C2E26),
     light = false,
 )
 
@@ -102,16 +102,19 @@ val DshSelected: Color get() = DshTheme.colors.selected
 val DshErrorBg: Color get() = DshTheme.colors.errorBg
 val DshErrorBorder: Color get() = DshTheme.colors.errorBorder
 val DshBackgroundBrush: Brush get() = if (DshTheme.colors.light) {
-    Brush.verticalGradient(listOf(Color(0xFFF8FAFF), Color(0xFFEEF2FF)))
+    Brush.verticalGradient(listOf(Color(0xFFF9F6F0), Color(0xFFF2EDE3)))
 } else {
-    Brush.verticalGradient(listOf(Color(0xFF070D18), Color(0xFF050A14)))
+    Brush.verticalGradient(listOf(Color(0xFF14120F), Color(0xFF0E0D0B)))
 }
+
+/** Monospace for timestamps, commands and counts. */
+val DshMono: FontFamily get() = FontFamily.Monospace
 
 private val typography = Typography(
     bodyLarge = TextStyle(fontSize = 15.sp, lineHeight = 22.sp, fontFamily = FontFamily.SansSerif),
     bodyMedium = TextStyle(fontSize = 13.sp, lineHeight = 20.sp, fontFamily = FontFamily.SansSerif),
-    titleLarge = TextStyle(fontSize = 22.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Serif),
-    labelSmall = TextStyle(fontSize = 10.sp, letterSpacing = 1.sp),
+    titleLarge = TextStyle(fontSize = 24.sp, fontWeight = FontWeight.Medium, fontFamily = FontFamily.SansSerif),
+    labelSmall = TextStyle(fontSize = 10.sp, letterSpacing = 0.sp, fontFamily = FontFamily.Monospace),
 )
 
 @Composable
