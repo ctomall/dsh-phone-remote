@@ -258,12 +258,18 @@ class NativeViewModel(app: Application) : AndroidViewModel(app) {
                         }
                     }
                     walk("", 1)
-                    images.take(80)
+                    images.take(300)
                 }
             }.onSuccess { gallery = it }
                 .onFailure { error = it.message ?: "加载图片失败" }
             galleryBusy = false
         }
+    }
+
+    fun refreshGallery() {
+        thumbnails = emptyMap()
+        gallery = emptyList()
+        loadGallery()
     }
 
     fun loadThumbnail(item: GalleryItem) {
