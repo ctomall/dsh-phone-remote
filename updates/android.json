@@ -1,8 +1,8 @@
 {
-  "versionCode": 55,
-  "versionName": "0.22.1",
-  "apkUrl": "https://raw.githubusercontent.com/ctomall/dsh-phone-remote/main/updates/DSHNative-0.22.1.apk",
-  "sha256": "ce596f062ab8593df66c4657a556ee4e1d440b64542500aa1c1406c1a2d077be",
-  "notes": "修复打开会话不追踪最新位置：批量快照追加期间保持贴底，底部留白避免最后一张卡片被裁切",
-  "signature": "MEUCIDi8zAg2JK8I+gNCJU/UEIL6nm6kTYzEEOsGMxsvLi8EAiEA7r17fKYzKV8zlpGztoEOTsk/yud7BTC1TrRrgqLR1nI="
+  "versionCode": 56,
+  "versionName": "0.23.0",
+  "apkUrl": "https://raw.githubusercontent.com/ctomall/dsh-phone-remote/main/updates/DSHNative-0.23.0.apk",
+  "sha256": "284081caf6c4018e0f9417d50632275469f125649fe4a41984701074ee2e3aca",
+  "notes": "工具箱：会话搜索、技能目录、工具统计、内置浏览器、SSH 主机、文件筛选入口",
+  "signature": "MEQCIGQKj/gQ9ogKEHGcFFCd3zjox9dBTMbEqUGBLnF6E5+cAiA8PUUlmgvHEoKHqmpOU6wVDdg+4Y50DTsOICmV2vW10Q=="
 }

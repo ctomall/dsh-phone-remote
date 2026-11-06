@@ -40,6 +40,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Checklist
 import androidx.compose.material.icons.outlined.Home
@@ -278,6 +279,19 @@ private fun MoreTab(vm: NativeViewModel) {
     Column(Modifier.fillMaxSize()) {
         HomeHeader("更多", "隐藏的入口 · ${hidden.size} 个")
         Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(
+                Modifier.fillMaxWidth().clickable { vm.openToolbox("search") }.padding(horizontal = 20.dp, vertical = 14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(Icons.Filled.Build, contentDescription = null, tint = DshTeal, modifier = Modifier.size(16.dp))
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f)) {
+                    Text("工具箱", color = DshText, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                    Text("搜索 · 技能 · 工具 · 浏览器 · SSH · 文件", color = DshMuted, fontSize = 10.sp, fontFamily = DshMono)
+                }
+                Icon(Icons.Outlined.ChevronRight, contentDescription = null, tint = DshMuted, modifier = Modifier.size(16.dp))
+            }
+            HorizontalDivider(color = DshBorder, thickness = 1.dp)
             hidden.forEach { id ->
                 val item = NavById[id] ?: return@forEach
                 Row(
@@ -387,6 +401,25 @@ private fun FilesTab(vm: NativeViewModel) {
                     Text("×", color = DshMuted, fontSize = 14.sp, modifier = Modifier.clickable { query = "" }.padding(horizontal = 4.dp))
                 }
             }
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 6.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                listOf("all" to "全部", "docs" to "文档", "code" to "代码", "image" to "图片").forEach { (id, label) ->
+                    val active = vm.fileKindFilter == id
+                    Text(
+                        label,
+                        color = if (active) DshText else DshMuted,
+                        fontSize = 10.sp,
+                        fontFamily = DshMono,
+                        modifier = Modifier
+                            .background(if (active) DshSurface else Color.Transparent, RoundedCornerShape(6.dp))
+                            .border(1.dp, if (active) DshBorder else Color.Transparent, RoundedCornerShape(6.dp))
+                            .clickable { vm.fileKindFilter = id }
+                            .padding(horizontal = 9.dp, vertical = 5.dp),
+                    )
+                }
+            }
             if (vm.busy && vm.files.isEmpty()) {
                 Box(Modifier.fillMaxWidth().padding(30.dp), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator(color = DshTeal)
@@ -399,6 +432,7 @@ private fun FilesTab(vm: NativeViewModel) {
             ) {
                 val displayed = vm.files
                     .filter { showHidden || !it.name.startsWith(".") }
+                    .filter { entry -> entry.type == "directory" || matchesKind(entry.name, vm.fileKindFilter) }
                     .filter { query.isBlank() || it.name.contains(query, ignoreCase = true) }
                     .sortedWith(
                         compareBy<com.ila3.dshnative.protocol.DshClient.FileEntry> { it.type != "directory" }.thenBy {
@@ -1107,5 +1141,19 @@ internal fun relativeTime(time: Long): String {
         sameYear && dayDiff == 0 -> SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(time))
         sameYear && dayDiff == 1 -> "昨天"
         else -> SimpleDateFormat("M/d", Locale.getDefault()).format(Date(time))
+    }
+}
+
+
+private fun matchesKind(name: String, kind: String): Boolean {
+    val ext = name.substringAfterLast('.', "").lowercase()
+    return when (kind) {
+        "docs" -> ext in setOf("md", "markdown", "txt", "pdf", "doc", "docx", "rst")
+        "code" -> ext in setOf(
+            "kt", "java", "ts", "tsx", "js", "jsx", "py", "go", "rs", "c", "cc", "cpp", "h", "hpp",
+            "json", "yml", "yaml", "toml", "sh", "css", "html", "xml", "sql",
+        )
+        "image" -> ext in setOf("png", "jpg", "jpeg", "webp", "gif", "svg", "bmp")
+        else -> true
     }
 }

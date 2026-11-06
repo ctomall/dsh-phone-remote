@@ -208,6 +208,7 @@ fun NativeApp(vm: NativeViewModel = viewModel()) {
             Screen.Tasks -> TasksScreen(vm)
             Screen.NavSettings -> NavSettingsScreen(vm)
             Screen.TaskDetail -> TaskDetailScreen(vm)
+            Screen.Toolbox -> ToolboxScreen(vm)
         }
         if (vm.error.isNotEmpty()) {
             ErrorBar(vm.error, vm::dismissError, Modifier.align(Alignment.BottomCenter).padding(16.dp))
