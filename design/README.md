@@ -1,10 +1,11 @@
-# DSH 移动端设计系统 · Ink
+# DSH 移动端设计系统 · Logbook（工程日志）
 
 Android 与 HarmonyOS 共用同一套设计语言，色值/字号/圆角/间距的唯一来源是 `design-tokens.json`。
 
 ## 视觉规则
 
-- 画布用 `canvas` 分层，卡片纯 `surface`，**不要给每张卡片描边**；分隔线只在列表内使用。
+- 画布用纸面中性色；列表用细线分隔，不做浮空卡片；强调色只用于行动与选中。
+- 所有任务/步骤行的左缘保留等宽时间栏 + 状态钉（RUN/OK/DONE），这是本产品唯一的签名细节。
 - 品牌色只用于：主按钮、运行中渐变卡、选中的 Tab、关键链接。其余层级用 ink/muted/faint。
 - 字号阶梯固定 5 档，禁止随手写 13sp/15sp 等中间值（除非确有需要）。
 - 圆角三档：chip 12 / card 18 / field 26；底部导航与输入区不要出现直角。
@@ -27,3 +28,8 @@ Android 与 HarmonyOS 共用同一套设计语言，色值/字号/圆角/间距�
 | 助手卡片 | surface，20dp 圆角，含 DSH 标识、思考折叠、工具单行 |
 | 工具行 | 6dp 状态点 + 工具名 + 参数摘要 + 状态 |
 | 底部导航 | 4 Tab，icon 22dp + 10sp label，激活用 brand |
+
+
+---
+
+设计方向由 unslop（Damir Sokolovsky，CC BY 4.0）方法指导；本文件与 `design-tokens.json` 是其适配。
