@@ -176,12 +176,24 @@ class NativeViewModel(app: Application) : AndroidViewModel(app) {
         private set
     var autoScroll by mutableStateOf(store.autoScroll())
         private set
+    data class DeviceState(
+        val id: String?,
+        val name: String,
+        val ok: Boolean,
+        val sessions: Int = 0,
+        val running: Int = 0,
+        val error: String? = null,
+    )
+
+    var deviceStates by mutableStateOf<List<DeviceState>>(emptyList())
     var multiDevice by mutableStateOf(store.multiDevice())
         private set
     var showDeviceRunning by mutableStateOf(store.showDeviceRunning())
         private set
     var usage by mutableStateOf<DshClient.SessionMeta?>(null)
     var turnDurations by mutableStateOf<Map<Int, Long>>(emptyMap())
+    private var liveTurn = 0
+    private var liveTurnStart = 0L
     var permissionOptions by mutableStateOf<List<DshClient.PermissionOption>>(emptyList())
     var presetOptions by mutableStateOf<List<DshClient.PresetOption>>(emptyList())
 
@@ -346,28 +358,46 @@ class NativeViewModel(app: Application) : AndroidViewModel(app) {
             connection = "连接中"
             try {
                 val localName = currentProfile?.name
-                val list = withContext(Dispatchers.IO) {
+                val loaded = withContext(Dispatchers.IO) {
                     val local = active.sessions().map { it.copy(device = localName) }
+                    val states = mutableListOf(
+                        DeviceState(currentProfile?.id, localName ?: "本机", true, local.size, local.count { it.running }),
+                    )
                     if (!multiDevice) {
-                        local
+                        local to states
                     } else {
                         val remote = profiles
                             .filter { it.id != currentProfile?.id }
                             .flatMap { profile ->
-                                runCatching {
+                                try {
                                     val extra = DshClient(getApplication(), profile.url, profile.id)
                                     try {
-                                        extra.sessions().map { it.copy(device = profile.name) }
+                                        val list = extra.sessions()
+                                        states.add(
+                                            DeviceState(profile.id, profile.name, true, list.size, list.count { it.running }),
+                                        )
+                                        list.map { it.copy(device = profile.name) }
                                     } finally {
                                         extra.close()
                                     }
-                                }.getOrDefault(emptyList())
+                                } catch (e: Exception) {
+                                    states.add(
+                                        DeviceState(
+                                            profile.id,
+                                            profile.name,
+                                            false,
+                                            error = e.message ?: "连接失败",
+                                        ),
+                                    )
+                                    emptyList()
+                                }
                             }
                         val filteredRemote = if (showDeviceRunning) remote else remote.filterNot { it.running }
-                        local + filteredRemote
+                        (local + filteredRemote) to states
                     }
                 }
-                sessions = list.sortedByDescending { it.updatedAt }
+                sessions = loaded.first.sortedByDescending { it.updatedAt }
+                deviceStates = loaded.second
                 connection = "已连接"
                 refreshInbox()
                 if (pendingOpenSessionId.isNotEmpty()) {
@@ -1072,7 +1102,18 @@ class NativeViewModel(app: Application) : AndroidViewModel(app) {
                 val records = value.optJSONArray("records")
                 messages.clear()
                 queue.clear()
-                ChatParser.parseRecords(records).forEach { appendItem(it) }
+                val parsed = ChatParser.parsePage(records)
+                turnDurations = parsed.turnDurations
+                liveTurn = parsed.items.filterIsInstance<ChatItem.Assistant>().maxOfOrNull { it.turn } ?: 0
+                liveTurnStart = 0L
+                for (i in 0 until (records?.length() ?: 0)) {
+                    val ev = records?.optJSONObject(i)?.optJSONObject("event") ?: continue
+                    if (ev.optString("type") == "turn/start") {
+                        liveTurnStart = ev.optLong("time", 0L)
+                        liveTurn = ev.optJSONObject("data")?.optInt("turn", liveTurn)?.takeIf { it > 0 } ?: liveTurn
+                    }
+                }
+                parsed.items.forEach { appendItem(it) }
                 for (i in 0 until (records?.length() ?: 0)) {
                     records?.optJSONObject(i)?.optJSONObject("event")?.let {
                         applyInbox(it)
@@ -1095,8 +1136,23 @@ class NativeViewModel(app: Application) : AndroidViewModel(app) {
                 if (event.optString("type") == "tool/call" && event.optJSONObject("data")?.optString("name") == "ask_user_question") {
                     loadQuestions()
                 }
-                if (event.optString("type") == "turn/end") maybeNotifyTurnDone()
-                ChatParser.parseEvent(event)?.let { appendItem(it) }
+                when (event.optString("type")) {
+                    "turn/start" -> {
+                        val data = event.optJSONObject("data")
+                        liveTurn = data?.optInt("turn", liveTurn + 1)?.takeIf { it > 0 } ?: (liveTurn + 1)
+                        liveTurnStart = event.optLong("time", 0L)
+                    }
+                    "turn/end" -> {
+                        val end = event.optLong("time", 0L)
+                        if (liveTurn > 0 && liveTurnStart > 0L && end >= liveTurnStart) {
+                            turnDurations = turnDurations + (liveTurn to (end - liveTurnStart))
+                        }
+                        maybeNotifyTurnDone()
+                    }
+                }
+                val parsedEvent = ChatParser.parseEvent(event)
+                if (parsedEvent is ChatItem.Assistant && liveTurn > 0) appendItem(parsedEvent.copy(turn = liveTurn))
+                else parsedEvent?.let { appendItem(it) }
             }
             "assistant-stream" -> {
                 val frame = value.optJSONObject("frame") ?: return

@@ -648,6 +648,7 @@ private fun ChatScreen(vm: NativeViewModel) {
     var sessionQuery by remember { mutableStateOf("") }
     var showPermissionDialog by remember { mutableStateOf(false) }
     var showPresetDialog by remember { mutableStateOf(false) }
+    var pendingPreset by remember { mutableStateOf<Pair<String, String>?>(null) }
     var deviceMenu by remember { mutableStateOf(false) }
     val durations = remember(rows) {
         rows.mapIndexed { index, row ->
@@ -741,13 +742,41 @@ private fun ChatScreen(vm: NativeViewModel) {
                         Icon(Icons.Filled.Devices, contentDescription = "多设备", tint = DshMuted)
                     }
                     DropdownMenu(expanded = deviceMenu, onDismissRequest = { deviceMenu = false }) {
-                        Text(
-                            vm.currentProfile?.name ?: "本机",
-                            color = DshMuted,
-                            fontSize = 9.sp,
-                            fontFamily = DshMono,
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                        )
+                        Column(Modifier.padding(horizontal = 12.dp, vertical = 6.dp)) {
+                            val states = vm.deviceStates.ifEmpty {
+                                listOf(NativeViewModel.DeviceState(vm.currentProfile?.id, vm.currentProfile?.name ?: "本机", true))
+                            }
+                            states.forEach { state ->
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Box(
+                                        Modifier.size(5.dp).background(if (state.ok) DshTeal else DshDanger, CircleShape),
+                                    )
+                                    Spacer(Modifier.width(6.dp))
+                                    Text(
+                                        state.name,
+                                        color = if (state.ok) DshText else DshDanger,
+                                        fontSize = 10.sp,
+                                        fontFamily = DshMono,
+                                        modifier = Modifier.weight(1f),
+                                    )
+                                    Text(
+                                        if (state.ok) "${state.sessions} 会话" else "不可用",
+                                        color = if (state.ok) DshMuted else DshDanger,
+                                        fontSize = 9.sp,
+                                        fontFamily = DshMono,
+                                    )
+                                }
+                            }
+                            if (states.any { !it.ok }) {
+                                Text(
+                                    "重试连接",
+                                    color = DshTeal,
+                                    fontSize = 10.sp,
+                                    fontFamily = DshMono,
+                                    modifier = Modifier.clickable { vm.refreshSessions() }.padding(top = 4.dp),
+                                )
+                            }
+                        }
                         DropdownMenuItem(
                             text = { Text("多设备会话聚合", fontSize = 12.sp) },
                             trailingIcon = {
@@ -1035,8 +1064,34 @@ private fun ChatScreen(vm: NativeViewModel) {
             note = "预设创建后不可切换；这里设置的是新会话默认",
             options = vm.presetOptions.map { it.id to presetName(it.id, it.name) },
             current = vm.usage?.agentPreset,
-            onPick = { vm.setDefaultPreset(it); showPresetDialog = false },
+            onPick = { id ->
+                showPresetDialog = false
+                pendingPreset = id to (vm.presetOptions.firstOrNull { it.id == id }?.let { presetName(it.id, it.name) } ?: id)
+            },
             onClose = { showPresetDialog = false },
+        )
+    }
+    pendingPreset?.let { (id, name) ->
+        AlertDialog(
+            onDismissRequest = { pendingPreset = null },
+            title = { Text("设为新会话默认", color = DshText, fontSize = 15.sp, fontWeight = FontWeight.Medium) },
+            text = {
+                Text(
+                    "将把「$name」用于之后新建的会话；当前会话的预设不变。",
+                    color = DshText,
+                    fontSize = 13.sp,
+                    lineHeight = 19.sp,
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    pendingPreset = null
+                    vm.setDefaultPreset(id)
+                }) { Text("确认", color = DshTeal) }
+            },
+            dismissButton = { TextButton(onClick = { pendingPreset = null }) { Text("取消", color = DshMuted) } },
+            containerColor = DshSurface,
+            shape = RoundedCornerShape(10.dp),
         )
     }
     if (showSessionPicker) {
