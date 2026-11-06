@@ -1,4 +1,4 @@
-# DSH 原生 Android 客户端（0.23.7 · 工程日志）
+# DSH 原生 Android 客户端（0.23.8 · 工程日志）
 
 这不是 WebView 壳。它直接对接 DSH 的 Remote API：
 

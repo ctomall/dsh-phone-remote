@@ -8,6 +8,7 @@ import android.provider.MediaStore
 import android.content.Context
 import android.content.Intent
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.graphics.graphicsLayer
@@ -521,6 +522,7 @@ internal fun FilePreviewSheet(vm: NativeViewModel) {
                 preview.bitmap != null -> {
                     var scale by remember(preview.name) { mutableStateOf(1f) }
                     var offset by remember(preview.name) { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
+                    var dragX by remember(preview.name) { mutableStateOf(0f) }
                     Column {
                         Image(
                             preview.bitmap.asImageBitmap(),
@@ -539,7 +541,23 @@ internal fun FilePreviewSheet(vm: NativeViewModel) {
                                         scale = (scale * zoom).coerceIn(1f, 5f)
                                         offset = if (scale > 1f) offset + pan else androidx.compose.ui.geometry.Offset.Zero
                                     }
-                                },
+                                }
+                                .then(
+                                    if (scale <= 1.01f) Modifier.pointerInput(preview.name, vm.galleryPreviewIndex) {
+                                        detectHorizontalDragGestures(
+                                            onDragStart = { dragX = 0f },
+                                            onDragEnd = {
+                                                if (dragX > 90f) vm.galleryStep(-1)
+                                                else if (dragX < -90f) vm.galleryStep(1)
+                                                dragX = 0f
+                                            },
+                                            onDragCancel = { dragX = 0f },
+                                        ) { change, amount ->
+                                            dragX += amount
+                                            change.consume()
+                                        }
+                                    } else Modifier
+                                ),
                         )
                         Text(
                             if (scale > 1f) "双指缩放 · 已放大 ${"%.1f".format(scale)}×" else "双指缩放查看细节",
