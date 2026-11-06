@@ -1,8 +1,8 @@
 {
-  "versionCode": 45,
-  "versionName": "0.20.2",
-  "apkUrl": "https://raw.githubusercontent.com/ctomall/dsh-phone-remote/main/updates/DSHNative-0.20.2.apk",
-  "sha256": "5e3bcabef640d6da4ffc4bb96a25e90df25caba456c9f8ad93ed70fe1d919c48",
-  "notes": "弹层收尾：会话操作/模型选择/附件面板统一细线日志样式；更多页扁平化",
-  "signature": "MEYCIQDenptPMIdgRt8roRvFt77Hp7knQbZPof6otLlaVQShEQIhAMRg1ClzaFnTN24Q5caJ98pGsa/hxLpHi58wgqTwNtU5"
+  "versionCode": 46,
+  "versionName": "0.20.3",
+  "apkUrl": "https://raw.githubusercontent.com/ctomall/dsh-phone-remote/main/updates/DSHNative-0.20.3.apk",
+  "sha256": "084a9948921aaaebc46ffe4d68aefd154eb28d5d2215ed66ff92732595d18ffa",
+  "notes": "消息列表重设计：日志条目、左侧时间栏、工具调用折叠 trace、流式状态与光标",
+  "signature": "MEQCIAgM8msO+ZuGq/DALY13jyXsj/p+rrmmhdK9h+oIbms/AiAgQMo7TBhwOHtRRdCj8dV4WlIxrg0hK4SxoZ9kNAhY5Q=="
 }
