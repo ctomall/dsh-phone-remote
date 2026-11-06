@@ -68,6 +68,7 @@ import androidx.compose.material.icons.filled.ChatBubbleOutline
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.VerticalAlignBottom
 import androidx.compose.material.icons.filled.DeleteSweep
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.PlayArrow
@@ -637,6 +638,13 @@ private fun SessionRow(session: SessionSummary, active: Boolean = false, onClick
 private fun ChatScreen(vm: NativeViewModel) {
     val listState = rememberLazyListState()
     val rows = remember(vm.messages.size, vm.activeSessionId) { chatRows(vm.messages) }
+    val rounds = remember(rows) {
+        var count = 0
+        rows.map { row ->
+            if (row is ChatRow.Msg && row.item is ChatItem.User) count += 1
+            count
+        }
+    }
     var initialScrollDone by remember(vm.activeSessionId) { mutableStateOf(false) }
     var historyAnchorIndex by remember { mutableStateOf(-1) }
     var historyAnchorOffset by remember { mutableStateOf(0) }
@@ -750,8 +758,12 @@ private fun ChatScreen(vm: NativeViewModel) {
                 val freshDay = row.at > 0L && (previous == null || previous.at <= 0L || !sameDay(previous.at, row.at))
                 Column {
                     if (freshDay) DayDivider(dayLabel(row.at))
+                    if (row is ChatRow.Msg && row.item is ChatItem.User && rounds[index] > 0) {
+                        TurnDivider(rounds[index])
+                    }
                     when (row) {
                         is ChatRow.Trace -> ToolTrace(row.tools)
+                        is ChatRow.FileEdits -> FileEditCard(row.tools)
                         is ChatRow.Msg -> if (row.item is ChatItem.Tool) {
                             ToolCallCard(row.item, showTime = vm.showTime, defaultExpanded = vm.toolExpanded)
                         } else {
@@ -1102,30 +1114,32 @@ private fun UserMessageRow(item: ChatItem.User, vm: NativeViewModel?, onImage: (
         horizontalAlignment = Alignment.End,
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        if (item.at > 0L && vm?.showTime != false) {
-            Text(
-                SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(item.at)),
-                color = DshMuted,
-                fontSize = 9.sp,
-                fontFamily = DshMono,
-                modifier = Modifier.padding(end = 2.dp),
-            )
-        }
         if (item.text.isNotBlank()) {
             Text(
                 item.text,
-                color = DshText,
+                color = DshOnAccent,
                 fontSize = 14.sp,
                 lineHeight = 21.sp,
                 modifier = Modifier
                     .widthIn(max = 300.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(DshSurface)
-                    .border(1.dp, DshBorder, RoundedCornerShape(8.dp))
-                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(DshTeal)
+                    .padding(horizontal = 13.dp, vertical = 10.dp),
             )
         }
         if (item.attachments.isNotEmpty()) MessageAttachments(item.attachments, onImage)
+        if (item.at > 0L && vm?.showTime != false) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(item.at)),
+                    color = DshMuted,
+                    fontSize = 9.sp,
+                    fontFamily = DshMono,
+                )
+                Spacer(Modifier.width(6.dp))
+                Icon(Icons.Filled.ContentCopy, contentDescription = "复制", tint = DshMuted, modifier = Modifier.size(11.dp))
+            }
+        }
     }
 }
 
@@ -1218,16 +1232,88 @@ internal sealed interface ChatRow {
     data class Trace(val tools: List<ChatItem.Tool>) : ChatRow {
         override val at: Long get() = tools.firstOrNull()?.at ?: 0L
     }
+    data class FileEdits(val tools: List<ChatItem.Tool>) : ChatRow {
+        override val at: Long get() = tools.firstOrNull()?.at ?: 0L
+    }
 }
+
+private val FileEditTools = setOf("edit", "write", "apply_patch", "write_file")
 
 /** Collapse consecutive tool calls into one trace entry, like a logbook. */
 internal fun chatRows(messages: List<ChatItem>): List<ChatRow> {
     val rows = mutableListOf<ChatRow>()
+    var files = mutableListOf<ChatItem.Tool>()
+    fun flushFiles() {
+        if (files.isEmpty()) return
+        if (files.size == 1) rows.add(ChatRow.Msg(files.first())) else rows.add(ChatRow.FileEdits(files.toList()))
+        files = mutableListOf()
+    }
     messages.forEach { item ->
         if (item is ChatItem.ToolResult) return@forEach
-        rows.add(ChatRow.Msg(item))
+        if (item is ChatItem.Tool && item.name in FileEditTools) {
+            files.add(item)
+        } else {
+            flushFiles()
+            rows.add(ChatRow.Msg(item))
+        }
     }
+    flushFiles()
     return rows
+}
+
+private fun fileEditPath(tool: ChatItem.Tool): String = runCatching {
+    val args = org.json.JSONObject(tool.arguments)
+    args.optString("path").ifBlank { args.optString("file_path") }
+}.getOrNull()?.takeIf { it.isNotBlank() } ?: toolSummary(tool.arguments)
+
+@Composable
+private fun FileEditCard(tools: List<ChatItem.Tool>) {
+    Column(
+        Modifier.fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(DshSurface)
+            .border(1.dp, DshBorder, RoundedCornerShape(14.dp)),
+    ) {
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(Icons.Filled.Edit, contentDescription = null, tint = DshMuted, modifier = Modifier.size(14.dp))
+            Spacer(Modifier.width(8.dp))
+            Text("已编辑 ${tools.size} 个文件", color = DshText, fontSize = 12.5.sp, fontWeight = FontWeight.Medium)
+            Spacer(Modifier.weight(1f))
+            Text(
+                tools.first().at.takeIf { it > 0L }?.let { SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(it)) } ?: "--:--",
+                color = DshMuted,
+                fontSize = 9.sp,
+                fontFamily = DshMono,
+            )
+        }
+        HorizontalDivider(color = DshBorder, thickness = 1.dp)
+        tools.forEach { tool ->
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 7.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    fileEditPath(tool),
+                    color = DshText,
+                    fontSize = 11.sp,
+                    fontFamily = DshMono,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
+                )
+                Text(
+                    if (tool.isError) "ERR" else "OK",
+                    color = if (tool.isError) DshDanger else DshMuted,
+                    fontSize = 9.sp,
+                    fontFamily = DshMono,
+                )
+            }
+            if (tool != tools.last()) HorizontalDivider(color = DshBorder, thickness = 1.dp, modifier = Modifier.padding(start = 12.dp))
+        }
+    }
 }
 
 @Composable
@@ -1401,91 +1487,50 @@ private fun AssistantMessageRow(item: ChatItem.Assistant, vm: NativeViewModel?, 
             kotlinx.coroutines.delay(250)
         }
     }
-    Row(Modifier.fillMaxWidth()) {
-        Column(Modifier.width(if (vm?.showTime != false) 42.dp else 0.dp)) {
-            if (vm?.showTime != false) Text(
-                if (item.at > 0L) SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(item.at)) else "--:--",
-                color = DshMuted,
+    Column(
+        Modifier.fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(DshSurface)
+            .border(1.dp, DshBorder, RoundedCornerShape(14.dp)),
+    ) {
+        Row(
+            Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, top = 10.dp, bottom = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                if (item.streaming) Icons.Filled.Schedule else Icons.Filled.Check,
+                contentDescription = null,
+                tint = if (item.streaming) DshTeal else DshMuted,
+                modifier = Modifier.size(13.dp),
+            )
+            Spacer(Modifier.width(6.dp))
+            Text(
+                if (item.streaming) "生成中 ${elapsed / 1000}s" else "已完成本轮",
+                color = if (item.streaming) DshTeal else DshMuted,
                 fontSize = 10.sp,
                 fontFamily = DshMono,
             )
-            if (vm?.showTime != false) Text(
-                if (item.streaming) "RUN" else "OK",
-                color = if (item.streaming) DshTeal else DshMuted,
-                fontSize = 9.sp,
-                fontFamily = DshMono,
-                modifier = Modifier.padding(top = 3.dp),
-            )
-        }
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("DSH", color = DshText, fontSize = 10.sp, fontFamily = DshMono)
+            Spacer(Modifier.weight(1f))
+            if (vm?.showTime != false) {
                 Text(
-                    " · ${vm?.currentModel?.name ?: "默认模型"}",
+                    if (item.at > 0L) SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(item.at)) else "--:--",
                     color = DshMuted,
+                    fontSize = 9.sp,
+                    fontFamily = DshMono,
+                )
+            }
+            if (item.streaming && vm != null) {
+                Spacer(Modifier.width(10.dp))
+                Text(
+                    "停止",
+                    color = DshDanger,
                     fontSize = 10.sp,
                     fontFamily = DshMono,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.clickable { vm.stopGeneration() },
                 )
-                if (item.streaming) {
-                    Text(
-                        " · 生成中 ${elapsed / 1000}s",
-                        color = DshTeal,
-                        fontSize = 10.sp,
-                        fontFamily = DshMono,
-                    )
-                }
-                Spacer(Modifier.weight(1f))
-                if (item.streaming && vm != null) {
-                    Text(
-                        "停止",
-                        color = DshDanger,
-                        fontSize = 10.sp,
-                        fontFamily = DshMono,
-                        modifier = Modifier.clickable { vm.stopGeneration() }.padding(horizontal = 6.dp),
-                    )
-                }
-                if (speaker != null && item.text.isNotBlank()) {
-                    IconButton(onClick = { speaker.toggle(baseKey, bodyText) }, modifier = Modifier.size(26.dp)) {
-                        Icon(
-                            if (speaker.speakingKey == baseKey) Icons.Filled.VolumeOff else Icons.Filled.VolumeUp,
-                            contentDescription = if (speaker.speakingKey == baseKey) "停止朗读" else "朗读",
-                            tint = if (speaker.speakingKey == baseKey) DshTeal else DshMuted,
-                            modifier = Modifier.size(14.dp),
-                        )
-                    }
-                }
-                if (vm != null && item.text.isNotBlank()) {
-                    IconButton(
-                        onClick = {
-                            if (bodyTranslation?.text != null) vm.clearTranslation(bodyKey) else vm.translate(bodyKey, item.text)
-                        },
-                        modifier = Modifier.size(26.dp),
-                    ) {
-                        Icon(
-                            Icons.Filled.Translate,
-                            contentDescription = if (bodyTranslation?.text != null) "查看原文" else "翻译",
-                            tint = if (bodyTranslation?.text != null) DshTeal else DshMuted,
-                            modifier = Modifier.size(14.dp),
-                        )
-                    }
-                }
-                IconButton(
-                    onClick = {
-                        clipboard.setText(AnnotatedString(bodyText))
-                        copied = true
-                    },
-                    modifier = Modifier.size(26.dp),
-                ) {
-                    Icon(
-                        if (copied) Icons.Filled.Check else Icons.Filled.ContentCopy,
-                        contentDescription = "复制",
-                        tint = DshMuted,
-                        modifier = Modifier.size(14.dp),
-                    )
-                }
             }
+        }
+        Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             item.reasoning?.let { reasoning -> ThinkSection(baseKey, reasoning, vm) }
             if (bodyTranslation?.loading == true) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1504,6 +1549,46 @@ private fun AssistantMessageRow(item: ChatItem.Assistant, vm: NativeViewModel?, 
             if (item.streaming) {
                 Box(Modifier.width(7.dp).height(14.dp).background(DshTeal))
             }
+        }
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 9.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            Text(
+                if (copied) "已复制" else "复制回复",
+                color = DshTeal,
+                fontSize = 11.sp,
+                modifier = Modifier.clickable {
+                    clipboard.setText(AnnotatedString(bodyText))
+                    copied = true
+                },
+            )
+            if (vm != null && item.text.isNotBlank()) {
+                Text(
+                    if (bodyTranslation?.text != null) "查看原文" else "翻译",
+                    color = DshTeal,
+                    fontSize = 11.sp,
+                    modifier = Modifier.clickable {
+                        if (bodyTranslation?.text != null) vm.clearTranslation(bodyKey) else vm.translate(bodyKey, item.text)
+                    },
+                )
+            }
+            if (speaker != null && item.text.isNotBlank()) {
+                Text(
+                    if (speaker.speakingKey == baseKey) "停止朗读" else "朗读",
+                    color = DshTeal,
+                    fontSize = 11.sp,
+                    modifier = Modifier.clickable { speaker.toggle(baseKey, bodyText) },
+                )
+            }
+            Spacer(Modifier.weight(1f))
+            Text(
+                vm?.currentModel?.name ?: "默认模型",
+                color = DshMuted,
+                fontSize = 9.sp,
+                fontFamily = DshMono,
+            )
         }
     }
 }
@@ -1824,6 +1909,13 @@ private fun TaskDetailScreen(vm: NativeViewModel) {
         }
     }
     FilePreviewSheet(vm)
+}
+
+@Composable
+private fun TurnDivider(round: Int) {
+    Box(Modifier.fillMaxWidth().padding(vertical = 2.dp), contentAlignment = Alignment.Center) {
+        Text("第 $round 轮", color = DshMuted, fontSize = 9.sp, fontFamily = DshMono)
+    }
 }
 
 @Composable
@@ -3053,10 +3145,46 @@ internal fun ChatStreamingPreviewContent() {
             null,
             null,
         )
-        ToolTrace(
+        ToolCallCard(
+            ChatItem.Tool("p-t1", "c1", "bash", "{\"command\":\"./gradlew assembleRelease\"}", "BUILD SUCCESSFUL", false, at = now - 12_000),
+            defaultExpanded = true,
+        )
+        ToolCallCard(
+            ChatItem.Tool("p-t2", "c2", "read_image", "{\"path\":\"design-previews/logbook-chat.png\"}", "ok", false, at = now - 6_000),
+        )
+    }
+}
+
+/** Design preview: reference-style message cards, round divider and file edit card. */
+@Composable
+internal fun ChatCardsPreviewContent() {
+    val now = System.currentTimeMillis()
+    Column(
+        Modifier.fillMaxSize().background(DshBg).padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        TurnDivider(12)
+        UserMessageRow(
+            ChatItem.User("p-u2", "agent 列表在哪里呢？", at = now - 120_000),
+            null,
+            {},
+        )
+        AssistantMessageRow(
+            ChatItem.Assistant(
+                "p-a2",
+                "Agent 列表在设置里，入口是：\n设置 → 模块配置 → AI 智能体\nURL: /backend/config/ai-assistant/agents",
+                reasoning = null,
+                streaming = false,
+                at = now - 60_000,
+            ),
+            null,
+            null,
+        )
+        FileEditCard(
             listOf(
-                ChatItem.Tool("p-t1", "c1", "bash", "{\"command\":\"./gradlew assembleRelease\"}", "BUILD SUCCESSFUL", false, at = now - 12_000),
-                ChatItem.Tool("p-t2", "c2", "read_image", "{\"path\":\"design-previews/logbook-chat.png\"}", "ok", false, at = now - 6_000),
+                ChatItem.Tool("p-t1", "c1", "edit", "{\"path\":\"module-detail.zh.json\"}", "ok", false, at = now - 50_000),
+                ChatItem.Tool("p-t2", "c2", "edit", "{\"path\":\"ModuleDirectoryClient.tsx\"}", "ok", false, at = now - 49_000),
+                ChatItem.Tool("p-t3", "c3", "edit", "{\"path\":\"page.tsx\"}", "ok", false, at = now - 48_000),
             ),
         )
     }

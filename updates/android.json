@@ -1,8 +1,8 @@
 {
-  "versionCode": 47,
-  "versionName": "0.20.4",
-  "apkUrl": "https://raw.githubusercontent.com/ctomall/dsh-phone-remote/main/updates/DSHNative-0.20.4.apk",
-  "sha256": "5e5ba11a45715614774b062aa58f97c1fc6f273b17a5fc848fd0b14cecfa687b",
-  "notes": "工具调用改为工具卡；设置新增消息（时间/工具卡展开/自动滚动）与存储（清理翻译缓存）",
-  "signature": "MEUCIQC5Gzlf2r1TANmZj1BAE4QpUESKQiKPGejnZGOACnp8OAIgQeVHNKSRC4NYYTUVV4WevqErGqxn1O25dl/WojAluDQ="
+  "versionCode": 48,
+  "versionName": "0.20.5",
+  "apkUrl": "https://raw.githubusercontent.com/ctomall/dsh-phone-remote/main/updates/DSHNative-0.20.5.apk",
+  "sha256": "67ceef995df919609b6b790c041f8b92f8a2a25ecbd113d2f6a4faacdce0a681",
+  "notes": "消息卡片参考版：轮次分隔、已完成本轮卡头、已编辑文件卡、复制/翻译/朗读文本动作",
+  "signature": "MEQCICzNrAePyi8tHRdWmOp2hzBFN8kvWITmlyJl/pTxTsxTAiAuDZ7tQVJhCx/Px6KHycQeYERokyXjdcgCSG+3INt4Bg=="
 }
