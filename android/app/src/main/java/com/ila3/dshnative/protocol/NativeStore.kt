@@ -108,6 +108,18 @@ class NativeStore(context: Context) {
         prefs.edit().putBoolean("think_expanded", value).apply()
     }
 
+    fun multiDevice(): Boolean = prefs.getBoolean("multi_device", false)
+
+    fun setMultiDevice(value: Boolean) {
+        prefs.edit().putBoolean("multi_device", value).apply()
+    }
+
+    fun showDeviceRunning(): Boolean = prefs.getBoolean("show_device_running", true)
+
+    fun setShowDeviceRunning(value: Boolean) {
+        prefs.edit().putBoolean("show_device_running", value).apply()
+    }
+
     fun showTime(): Boolean = prefs.getBoolean("show_time", true)
 
     fun setShowTime(value: Boolean) {

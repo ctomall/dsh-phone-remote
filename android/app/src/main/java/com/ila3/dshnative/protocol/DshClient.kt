@@ -36,6 +36,7 @@ data class SessionSummary(
     val cwd: String?,
     val title: String? = null,
     val lastPromptAt: Long = 0L,
+    val device: String? = null,
 )
 
 /**
@@ -430,7 +431,7 @@ class DshClient private constructor(
         return -1
     }
 
-    data class HistoryPage(val items: List<ChatItem>, val hasMore: Boolean, val oldestSeq: Long)
+    data class HistoryPage(val items: List<ChatItem>, val hasMore: Boolean, val oldestSeq: Long, val turnDurations: Map<Int, Long> = emptyMap())
 
     suspend fun historyPage(sessionId: String, throughSeq: Long, beforeSeq: Long, maxMessages: Int = 200): HistoryPage {
         val request = JSONObject()
@@ -446,10 +447,12 @@ class DshClient private constructor(
             val seq = records.optJSONObject(i)?.optJSONObject("event")?.optLong("seq", 0L) ?: 0L
             if (seq in 1 until oldest) oldest = seq
         }
+        val page = ChatParser.parsePage(records)
         return HistoryPage(
-            items = ChatParser.parseRecords(records),
+            items = page.items,
             hasMore = value.optBoolean("hasMore", false),
             oldestSeq = oldest,
+            turnDurations = page.turnDurations,
         )
     }
 
@@ -515,6 +518,88 @@ class DshClient private constructor(
                 .put("agentId", sessionId)
                 .put("callId", callId)
                 .put("answer", JSONObject().put("answers", answers)),
+        )
+    }
+
+    data class SessionMeta(
+        val inputTokens: Long = 0L,
+        val outputTokens: Long = 0L,
+        val cacheReadTokens: Long = 0L,
+        val cacheWriteTokens: Long = 0L,
+        val contextUsed: Long? = null,
+        val contextWindow: Long? = null,
+        val turns: Int = 0,
+        val steps: Int = 0,
+        val permission: String? = null,
+        val agentPreset: String? = null,
+    )
+
+    data class PermissionOption(val value: String, val name: String, val description: String?)
+    data class PresetOption(val id: String, val name: String, val description: String?)
+
+    suspend fun sessionMeta(sessionId: String): SessionMeta {
+        val value = call("session/projections", JSONObject().put("request", JSONObject().put("sessionId", sessionId)))
+        val values = value.optJSONObject("values") ?: JSONObject()
+        val usage = values.optJSONObject("tokenUsage")
+        val pressure = values.optJSONObject("contextPressure")
+        val stats = values.optJSONObject("sessionStats")
+        val permission = values.optJSONObject("permissions")?.optString("currentValue")?.takeIf { it.isNotEmpty() }
+        return SessionMeta(
+            inputTokens = usage?.optLong("uncachedInputTokens", 0L) ?: 0L,
+            outputTokens = usage?.optLong("outputTokens", 0L) ?: 0L,
+            cacheReadTokens = usage?.optLong("cacheReadTokens", 0L) ?: 0L,
+            cacheWriteTokens = usage?.optLong("cacheWriteTokens", 0L) ?: 0L,
+            contextUsed = pressure?.optLong("pressureTokens", 0L)?.takeIf { it > 0L },
+            contextWindow = pressure?.optLong("contextWindow", 0L)?.takeIf { it > 0L },
+            turns = stats?.optInt("turns", 0) ?: 0,
+            steps = stats?.optInt("steps", 0) ?: 0,
+            permission = permission,
+            agentPreset = values.optString("agentPreset").takeIf { it.isNotEmpty() },
+        )
+    }
+
+    suspend fun permissionCatalog(): List<PermissionOption> {
+        val value = call("permissionPresets/catalog", JSONObject())
+        val options = value.optJSONArray("options") ?: return emptyList()
+        return buildList {
+            for (i in 0 until options.length()) {
+                val option = options.optJSONObject(i) ?: continue
+                val key = option.optString("value")
+                if (key.isNotEmpty()) add(
+                    PermissionOption(key, option.optString("name", key), option.optString("description").takeIf { it.isNotEmpty() }),
+                )
+            }
+        }
+    }
+
+    suspend fun presets(): List<PresetOption> {
+        val value = call("agentPresets/list", JSONObject())
+        val presets = value.optJSONArray("presets") ?: return emptyList()
+        return buildList {
+            for (i in 0 until presets.length()) {
+                val preset = presets.optJSONObject(i) ?: continue
+                val id = preset.optString("id")
+                if (id.isNotEmpty()) add(PresetOption(id, preset.optString("name", id), preset.optString("description").takeIf { it.isNotEmpty() }))
+            }
+        }
+    }
+
+    suspend fun setPermission(sessionId: String, value: String) {
+        call(
+            "commands/execute",
+            JSONObject()
+                .put("agentId", sessionId)
+                .put("line", "/permission $value")
+                .put("submittedAttachments", JSONArray()),
+        )
+    }
+
+    suspend fun setDefaultPreset(id: String) {
+        call(
+            "settings/update",
+            JSONObject()
+                .put("ns", "agent-preset-registry")
+                .put("patch", JSONObject().put("selectedDefault", id)),
         )
     }
 

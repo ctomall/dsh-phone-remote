@@ -1037,7 +1037,7 @@ private fun HomeSessionRow(session: SessionSummary, active: Boolean, onClick: ()
                     )
                 }
                 Text(
-                    session.cwd?.takeIf { it.isNotBlank() } ?: "默认工作区",
+                    listOfNotNull(session.device, session.cwd?.takeIf { it.isNotBlank() } ?: "默认工作区").joinToString(" · "),
                     color = DshMuted,
                     fontSize = 10.sp,
                     fontFamily = DshMono,

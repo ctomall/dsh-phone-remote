@@ -29,6 +29,7 @@ sealed class ChatItem {
         val reasoning: String? = null,
         val streaming: Boolean = false,
         override val at: Long = 0L,
+        val turn: Int = 0,
     ) : ChatItem()
 
     data class Tool(
@@ -205,13 +206,32 @@ object ChatParser {
         return runCatching { JSONObject(raw).toString(2) }.getOrElse { raw }
     }
 
-    fun parseRecords(records: JSONArray?): List<ChatItem> {
-        records ?: return emptyList()
+    data class ParsedPage(val items: List<ChatItem>, val turnDurations: Map<Int, Long>)
+
+    fun parseRecords(records: JSONArray?): List<ChatItem> = parsePage(records).items
+
+    fun parsePage(records: JSONArray?): ParsedPage {
+        records ?: return ParsedPage(emptyList(), emptyMap())
         val out = ArrayList<ChatItem>()
+        val durations = LinkedHashMap<Int, Long>()
+        var turn = 0
+        var turnStart = 0L
         for (i in 0 until records.length()) {
             val record = records.optJSONObject(i) ?: continue
-            parseRecord(record)?.let { out.add(it) }
+            val event = record.optJSONObject("event") ?: continue
+            when (event.optString("type")) {
+                "turn/start" -> {
+                    turn += 1
+                    turnStart = event.optLong("time", 0L)
+                }
+                "turn/end" -> {
+                    val end = event.optLong("time", 0L)
+                    if (turn > 0 && turnStart > 0L && end >= turnStart) durations[turn] = end - turnStart
+                }
+            }
+            val item = parseRecord(record) ?: continue
+            out.add(if (item is ChatItem.Assistant && turn > 0) item.copy(turn = turn) else item)
         }
-        return out
+        return ParsedPage(out, durations)
     }
 }
