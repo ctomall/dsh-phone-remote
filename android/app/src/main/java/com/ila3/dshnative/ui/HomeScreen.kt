@@ -36,6 +36,23 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Checklist
+import androidx.compose.material.icons.outlined.Home
+import androidx.compose.material.icons.outlined.Checklist
+import androidx.compose.material.icons.outlined.Folder
+import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.outlined.Refresh
+import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.ChevronRight
+import androidx.compose.material.icons.outlined.MoreHoriz
+import androidx.compose.material.icons.outlined.Inbox
+import androidx.compose.material.icons.outlined.Description
+import androidx.compose.material.icons.outlined.Edit
+import androidx.compose.material.icons.outlined.PlayArrow
+import androidx.compose.material.icons.outlined.People
+import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.material.icons.outlined.Visibility
+import androidx.compose.material.icons.outlined.VisibilityOff
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Folder
@@ -119,7 +136,7 @@ private fun NowTab(vm: NativeViewModel) {
         item(key = "header") {
             HomeHeader(
                 title = "现在",
-                subtitle = "${vm.pendingQuestions.size} 项需要你 · ${running.size} 个任务运行中",
+                subtitle = "${vm.inbox.size} 待处理 · ${running.size} 运行中",
                 actions = {
                     IconButtonBubble(Icons.Filled.Refresh, "刷新") { vm.refreshSessions() }
                 },
@@ -127,7 +144,7 @@ private fun NowTab(vm: NativeViewModel) {
         }
         item(key = "need-title") { SectionCaption("需要你") }
         if (vm.inbox.isEmpty()) {
-            item(key = "need-empty") { HintRow("目前没有待处理事项；Agent 需要你时会出现在这里并推送通知。") }
+            item(key = "need-empty") { HintRow("没有待处理事项。需要你时会在这里提醒。") }
         } else {
             items(vm.inbox, key = { "q-${it.sessionId}-${it.pending.callId}" }) { question ->
                 InboxQuestionCard(vm, question)
@@ -174,27 +191,40 @@ private fun TasksTab(vm: NativeViewModel) {
     Column(Modifier.fillMaxSize()) {
         HomeHeader("任务", "${vm.sessions.size} 个 · $running 个运行中")
         Row(
-            Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 2.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            Modifier.fillMaxWidth().padding(horizontal = 20.dp),
+            horizontalArrangement = Arrangement.spacedBy(24.dp),
         ) {
             listOf("全部" to vm.sessions.size, "运行中" to running, "已完成" to (vm.sessions.size - running)).forEachIndexed { index, pair ->
-                Text(
-                    "${pair.first} ${pair.second}",
-                    color = if (filter == index) DshOnAccent else DshMuted,
-                    fontSize = 12.sp,
-                    fontWeight = if (filter == index) FontWeight.SemiBold else FontWeight.Normal,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(if (filter == index) DshTeal else DshSurface)
-                        .clickable { filter = index }
-                        .padding(horizontal = 12.dp, vertical = 7.dp),
-                )
+                Column(
+                    Modifier.clickable { filter = index }.padding(vertical = 8.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    Text(
+                        pair.first,
+                        color = if (filter == index) DshText else DshMuted,
+                        fontSize = 13.sp,
+                        fontWeight = if (filter == index) FontWeight.Medium else FontWeight.Normal,
+                    )
+                    Text(
+                        pair.second.toString().padStart(2, '0'),
+                        color = if (filter == index) DshText else DshMuted,
+                        fontSize = 9.sp,
+                        fontFamily = DshMono,
+                        modifier = Modifier.padding(top = 1.dp),
+                    )
+                    Box(
+                        Modifier.padding(top = 6.dp).width(18.dp).height(2.dp)
+                            .background(if (filter == index) DshTeal else Color.Transparent),
+                    )
+                }
             }
         }
+        HorizontalDivider(color = DshBorder, thickness = 1.dp)
         Row(
-            Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 4.dp)
-                .background(DshSurface, RoundedCornerShape(12.dp))
-                .padding(horizontal = 12.dp, vertical = 8.dp),
+            Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 10.dp)
+                .background(DshSurface, RoundedCornerShape(8.dp))
+                .border(1.dp, DshBorder, RoundedCornerShape(8.dp))
+                .padding(horizontal = 12.dp, vertical = 9.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(Icons.Filled.Search, contentDescription = null, tint = DshMuted, modifier = Modifier.size(16.dp))
@@ -245,10 +275,9 @@ private fun MoreTab(vm: NativeViewModel) {
             hidden.forEach { id ->
                 val item = NavById[id] ?: return@forEach
                 Row(
-                    Modifier.fillMaxWidth().padding(horizontal = 20.dp)
-                        .background(DshSurface, CardShape)
+                    Modifier.fillMaxWidth()
                         .clickable { vm.selectNav(id) }
-                        .padding(horizontal = 14.dp, vertical = 14.dp),
+                        .padding(horizontal = 20.dp, vertical = 14.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Icon(navIcon(id), contentDescription = item.label, tint = DshMuted, modifier = Modifier.size(18.dp))
@@ -267,7 +296,7 @@ private fun MoreTab(vm: NativeViewModel) {
                 Icon(Icons.Filled.Settings, contentDescription = null, tint = DshTeal, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(12.dp))
                 Text("编辑底部导航", color = DshText, fontSize = 14.sp, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
-                Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = DshMuted, modifier = Modifier.size(17.dp))
+                Icon(Icons.Outlined.ChevronRight, contentDescription = null, tint = DshMuted, modifier = Modifier.size(16.dp))
             }
         }
     }
@@ -375,17 +404,16 @@ private fun FilesTab(vm: NativeViewModel) {
                         }.thenBy { if (sortBySize) "" else it.name.lowercase() },
                     )
                 if (displayed.isEmpty() && !vm.busy) {
-                    item { HintRow("目录为空，或还没有加载文件。") }
+                    item { HintRow("目录为空。") }
                 }
                 items(displayed, key = { it.name }) { entry ->
+                    Column(Modifier.fillMaxWidth().clickable { vm.openFile(entry) }) {
                     Row(
-                        Modifier.fillMaxWidth().background(DshSurface, RoundedCornerShape(14.dp))
-                            .clickable { vm.openFile(entry) }
-                            .padding(horizontal = 14.dp, vertical = 12.dp),
+                        Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 12.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Icon(
-                            if (entry.type == "directory") Icons.Filled.Folder else Icons.Filled.Description,
+                            if (entry.type == "directory") Icons.Outlined.Folder else Icons.Outlined.Description,
                             contentDescription = null,
                             tint = if (entry.type == "directory") DshTeal else DshMuted,
                             modifier = Modifier.size(17.dp),
@@ -393,16 +421,23 @@ private fun FilesTab(vm: NativeViewModel) {
                         Spacer(Modifier.width(10.dp))
                         Text(entry.name, color = DshText, fontSize = 13.5.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
                         if (entry.type != "directory") {
-                            Text(entry.size?.let { sizeLabel(it) } ?: "", color = DshMuted, fontSize = 10.5.sp)
+                            Text(
+                                entry.size?.let { sizeLabel(it) } ?: "",
+                                color = DshMuted,
+                                fontSize = 10.sp,
+                                fontFamily = DshMono,
+                            )
                         }
-                        Spacer(Modifier.width(6.dp))
-                        Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = DshMuted, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Icon(Icons.Outlined.ChevronRight, contentDescription = null, tint = DshMuted, modifier = Modifier.size(16.dp))
+                    }
+                    HorizontalDivider(color = DshBorder, thickness = 1.dp)
                     }
                 }
             }
         }
+        FilePreviewSheet(vm)
     }
-    FilePreviewSheet(vm)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -561,7 +596,10 @@ private fun WorkspaceTab(vm: NativeViewModel) {
         .groupBy { it.cwd?.takeIf { path -> path.isNotBlank() } ?: "默认工作区" }
         .toList()
         .sortedByDescending { (_, list) -> list.maxOf { it.updatedAt } }
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    LazyColumn(
+        Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(bottom = 16.dp),
+    ) {
         item { HomeHeader("文件", "${groups.size} 个目录 · ${vm.sessions.size} 个任务") }
         if (groups.isEmpty()) {
             item { HintRow("还没有工作区。会话建立后会按目录出现在这里。") }
@@ -569,22 +607,43 @@ private fun WorkspaceTab(vm: NativeViewModel) {
         items(groups, key = { "ws-${it.first}" }) { (cwd, list) ->
             val latest = list.maxByOrNull { it.updatedAt }
             val name = cwd.substringAfterLast('/').ifBlank { cwd }
-            Row(
-                Modifier.fillMaxWidth().padding(horizontal = 20.dp)
-                    .background(DshSurface, CardShape)
-                    .clickable { latest?.let { vm.openWorkspace(it) } }
-                    .padding(horizontal = 14.dp, vertical = 14.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Box(Modifier.size(40.dp).background(DshSurface2, RoundedCornerShape(12.dp)), contentAlignment = Alignment.Center) {
-                    Icon(Icons.Filled.Folder, contentDescription = null, tint = DshTeal, modifier = Modifier.size(19.dp))
+            Column(Modifier.fillMaxWidth().clickable { latest?.let { vm.openWorkspace(it) } }) {
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        Icons.Outlined.Folder,
+                        contentDescription = null,
+                        tint = DshMuted,
+                        modifier = Modifier.size(16.dp),
+                    )
+                    Spacer(Modifier.width(10.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            name,
+                            color = DshText,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        Text(
+                            "${list.size} 个会话 · 最近 ${formatTime(latest?.updatedAt ?: 0L)}",
+                            color = DshMuted,
+                            fontSize = 10.sp,
+                            fontFamily = DshMono,
+                            modifier = Modifier.padding(top = 3.dp),
+                        )
+                    }
+                    Icon(
+                        Icons.Outlined.ChevronRight,
+                        contentDescription = null,
+                        tint = DshMuted,
+                        modifier = Modifier.size(16.dp),
+                    )
                 }
-                Spacer(Modifier.width(12.dp))
-                Column(Modifier.weight(1f)) {
-                    Text(name, color = DshText, fontSize = 14.5.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text("${list.size} 个会话 · 最近 ${formatTime(latest?.updatedAt ?: 0L)}", color = DshMuted, fontSize = 11.5.sp, modifier = Modifier.padding(top = 2.dp))
-                }
-                Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = DshMuted, modifier = Modifier.size(17.dp))
+                HorizontalDivider(color = DshBorder, thickness = 1.dp)
             }
         }
     }
@@ -690,30 +749,30 @@ private fun BottomNavigation(vm: NativeViewModel) {
     val hidden = vm.hiddenNavIds()
     val shown = visible + if (hidden.isNotEmpty()) listOf("more") else emptyList()
     Column(Modifier.navigationBarsPadding()) {
-        Box(Modifier.fillMaxWidth().height(1.dp).background(DshBorder))
+        HorizontalDivider(color = DshBorder, thickness = 1.dp)
         Row(
-            Modifier.fillMaxWidth().background(DshSurface).padding(horizontal = 12.dp, vertical = 7.dp),
+            Modifier.fillMaxWidth().background(DshBg).padding(horizontal = 8.dp, vertical = 6.dp),
             horizontalArrangement = Arrangement.SpaceAround,
         ) {
             shown.forEach { id ->
                 val label = NavById[id]?.label ?: "更多"
                 val active = vm.navSelection == id
                 Column(
-                    Modifier.widthIn(min = 64.dp).clickable { vm.selectNav(id) }.padding(vertical = 4.dp),
+                    Modifier.weight(1f).clickable { vm.selectNav(id) }.padding(vertical = 4.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     Icon(
                         navIcon(id),
                         contentDescription = label,
-                        tint = if (active) DshTeal else DshMuted.copy(alpha = 0.55f),
-                        modifier = Modifier.size(22.dp),
+                        tint = if (active) DshTeal else DshMuted,
+                        modifier = Modifier.size(20.dp),
                     )
                     Text(
                         label,
-                        color = if (active) DshTeal else DshMuted.copy(alpha = 0.75f),
+                        color = if (active) DshTeal else DshMuted,
                         fontSize = 10.sp,
-                        fontWeight = if (active) FontWeight.SemiBold else FontWeight.Normal,
-                        modifier = Modifier.padding(top = 2.dp),
+                        fontWeight = if (active) FontWeight.Medium else FontWeight.Normal,
+                        modifier = Modifier.padding(top = 3.dp),
                     )
                 }
             }
@@ -722,13 +781,13 @@ private fun BottomNavigation(vm: NativeViewModel) {
 }
 
 private fun navIcon(id: String): ImageVector = when (id) {
-    "now" -> Icons.Filled.Home
-    "tasks" -> Icons.Filled.Checklist
-    "files" -> Icons.Filled.Folder
-    "settings" -> Icons.Filled.Settings
-    "automation" -> Icons.Filled.Inbox
-    "team" -> Icons.Filled.MoreHoriz
-    else -> Icons.Filled.MoreHoriz
+    "now" -> Icons.Outlined.Home
+    "tasks" -> Icons.Outlined.Checklist
+    "files" -> Icons.Outlined.Folder
+    "settings" -> Icons.Outlined.Settings
+    "automation" -> Icons.Outlined.Inbox
+    "team" -> Icons.Outlined.MoreHoriz
+    else -> Icons.Outlined.MoreHoriz
 }
 
 /* ------------------------------- 通用 ------------------------------- */
@@ -736,13 +795,19 @@ private fun navIcon(id: String): ImageVector = when (id) {
 @Composable
 private fun HomeHeader(title: String, subtitle: String, actions: @Composable () -> Unit = {}) {
     Row(
-        Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 14.dp),
+        Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 18.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(Modifier.weight(1f)) {
-            Text(title, color = DshText, fontSize = 26.sp, fontWeight = FontWeight.Bold, letterSpacing = (-0.6).sp)
+            Text(title, color = DshText, fontSize = 24.sp, fontWeight = FontWeight.Medium)
             if (subtitle.isNotBlank()) {
-                Text(subtitle, color = DshMuted, fontSize = 12.sp, modifier = Modifier.padding(top = 2.dp))
+                Text(
+                    subtitle,
+                    color = DshMuted,
+                    fontSize = 10.sp,
+                    fontFamily = DshMono,
+                    modifier = Modifier.padding(top = 4.dp),
+                )
             }
         }
         actions()
@@ -759,14 +824,14 @@ private fun IconButtonBubble(icon: ImageVector, description: String, onClick: ()
 
 @Composable
 private fun SectionCaption(text: String) {
-    Text(
-        text,
-        color = DshMuted.copy(alpha = 0.85f),
-        fontSize = 11.sp,
-        fontWeight = FontWeight.Medium,
-        letterSpacing = 0.4.sp,
-        modifier = Modifier.padding(start = 22.dp, top = 12.dp, bottom = 2.dp),
-    )
+    Row(
+        Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 24.dp, bottom = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(text, color = DshMuted, fontSize = 11.sp, fontFamily = DshMono)
+        Spacer(Modifier.width(10.dp))
+        Box(Modifier.weight(1f).height(1.dp).background(DshBorder))
+    }
 }
 
 @Composable
@@ -819,35 +884,38 @@ internal fun InboxQuestionContent(
 
     Column(
         Modifier.fillMaxWidth().padding(horizontal = 20.dp)
-            .background(DshSurface, CardShape)
+            .background(DshSurface)
+            .border(1.dp, DshBorder)
             .padding(14.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.width(4.dp).height(34.dp).background(Color(0xFFF59E0B), RoundedCornerShape(4.dp)))
-            Spacer(Modifier.width(10.dp))
-            Column(Modifier.weight(1f)) {
-                Text("需要你处理", color = DshText, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-                Text(
-                    listOf(sessionTitle, question.header ?: "Agent 正在等待你的回答").filter { it.isNotBlank() }.joinToString(" · "),
-                    color = DshMuted,
-                    fontSize = 11.sp,
-                )
-            }
+            Box(Modifier.size(6.dp).background(DshTeal))
+            Spacer(Modifier.width(8.dp))
+            Text("需要你", color = DshTeal, fontSize = 10.sp, fontFamily = DshMono)
+            Spacer(Modifier.width(8.dp))
+            Text(
+                listOf(sessionTitle, question.header.orEmpty()).filter { it.isNotBlank() }.joinToString(" · "),
+                color = DshMuted,
+                fontSize = 10.sp,
+                fontFamily = DshMono,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
         }
-        Text(question.question, color = DshText, fontSize = 13.sp, lineHeight = 19.sp)
+        Text(question.question, color = DshText, fontSize = 14.sp, lineHeight = 21.sp)
         when {
             single -> {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    question.options.take(3).forEach { option ->
+                    question.options.take(3).forEachIndexed { index, option ->
                         Text(
                             option.label,
-                            color = DshOnAccent,
+                            color = if (index == 0) DshOnAccent else DshText,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Medium,
                             modifier = Modifier
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(DshTeal)
+                                .background(if (index == 0) DshTeal else Color.Transparent)
+                                .border(1.dp, if (index == 0) DshTeal else DshBorder)
                                 .clickable {
                                     onAnswer(
                                         JSONArray().put(
@@ -855,7 +923,7 @@ internal fun InboxQuestionContent(
                                         ),
                                     )
                                 }
-                                .padding(horizontal = 12.dp, vertical = 7.dp),
+                                .padding(horizontal = 14.dp, vertical = 8.dp),
                         )
                     }
                 }
@@ -869,10 +937,10 @@ internal fun InboxQuestionContent(
                             color = if (checked) DshOnAccent else DshText,
                             fontSize = 12.sp,
                             modifier = Modifier
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(if (checked) DshTeal else DshSurface2)
+                                .background(if (checked) DshTeal else Color.Transparent)
+                                .border(1.dp, if (checked) DshTeal else DshBorder)
                                 .clickable { selected[option.label] = !checked }
-                                .padding(horizontal = 12.dp, vertical = 7.dp),
+                                .padding(horizontal = 14.dp, vertical = 8.dp),
                         )
                     }
                 }
@@ -880,10 +948,9 @@ internal fun InboxQuestionContent(
                     "提交",
                     color = DshOnAccent,
                     fontSize = 12.sp,
-                    fontWeight = FontWeight.SemiBold,
+                    fontWeight = FontWeight.Medium,
                     modifier = Modifier
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(if (selected.any { it.value }) DshTeal else DshMuted.copy(alpha = 0.35f))
+                        .background(if (selected.any { it.value }) DshTeal else DshMuted.copy(alpha = 0.4f))
                         .clickable(enabled = selected.any { it.value }) { submit() }
                         .padding(horizontal = 16.dp, vertical = 8.dp),
                 )
@@ -895,17 +962,19 @@ internal fun InboxQuestionContent(
                         onValueChange = { custom = it },
                         textStyle = androidx.compose.ui.text.TextStyle(color = DshText, fontSize = 13.sp),
                         cursorBrush = androidx.compose.ui.graphics.SolidColor(DshTeal),
-                        modifier = Modifier.weight(1f).background(DshSurface2, RoundedCornerShape(10.dp)).padding(horizontal = 10.dp, vertical = 9.dp),
+                        modifier = Modifier.weight(1f)
+                            .background(DshBg)
+                            .border(1.dp, DshBorder)
+                            .padding(horizontal = 10.dp, vertical = 9.dp),
                     )
                     Spacer(Modifier.width(8.dp))
                     Text(
                         "提交",
                         color = DshOnAccent,
                         fontSize = 12.sp,
-                        fontWeight = FontWeight.SemiBold,
+                        fontWeight = FontWeight.Medium,
                         modifier = Modifier
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(if (custom.isNotBlank()) DshTeal else DshMuted.copy(alpha = 0.35f))
+                            .background(if (custom.isNotBlank()) DshTeal else DshMuted.copy(alpha = 0.4f))
                             .clickable(enabled = custom.isNotBlank()) { submit() }
                             .padding(horizontal = 14.dp, vertical = 8.dp),
                     )
@@ -913,7 +982,7 @@ internal fun InboxQuestionContent(
             }
             else -> {
                 Text(
-                    "打开会话处理",
+                    "打开会话",
                     color = DshTeal,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Medium,
@@ -927,50 +996,61 @@ internal fun InboxQuestionContent(
 @Composable
 private fun HomeSessionRow(session: SessionSummary, active: Boolean, onClick: () -> Unit) {
     val title = session.title?.takeIf { it.isNotBlank() } ?: session.id.take(18)
-    val initial = title.firstOrNull()?.toString()?.uppercase() ?: "D"
-    val tint = when ((title.hashCode() % 4 + 4) % 4) {
-        0 -> DshTeal
-        1 -> Color(0xFF8B5CF6)
-        2 -> Color(0xFF14B8A6)
-        else -> Color(0xFFF59E0B)
-    }
-    Row(
-        Modifier.fillMaxWidth().padding(horizontal = 20.dp)
-            .background(if (active) DshUserBubble else DshSurface, CardShape)
-            .clickable(onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 13.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Box(Modifier.size(40.dp).background(tint.copy(alpha = 0.12f), CircleShape), contentAlignment = Alignment.Center) {
-            Text(initial, color = tint, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-        }
-        Spacer(Modifier.width(12.dp))
-        Column(Modifier.weight(1f)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+    Column(Modifier.fillMaxWidth().clickable(onClick = onClick)) {
+        Row(
+            Modifier.fillMaxWidth().background(if (active) DshSurface else Color.Transparent)
+                .padding(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
+                Modifier.width(2.dp).height(32.dp)
+                    .background(if (active) DshTeal else Color.Transparent),
+            )
+            Spacer(Modifier.width(10.dp))
+            Column(Modifier.width(46.dp)) {
+                Text(
+                    formatTime(session.updatedAt),
+                    color = DshMuted,
+                    fontSize = 10.sp,
+                    fontFamily = DshMono,
+                )
+                Text(
+                    if (session.running) "RUN" else "DONE",
+                    color = if (session.running) DshTeal else DshMuted,
+                    fontSize = 9.sp,
+                    fontFamily = DshMono,
+                    modifier = Modifier.padding(top = 3.dp),
+                )
+            }
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
                 Text(
                     title,
                     color = DshText,
-                    fontSize = 14.5.sp,
-                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f, fill = false),
                 )
-                if (session.running) {
-                    Spacer(Modifier.width(6.dp))
-                    Box(Modifier.size(6.dp).background(Color(0xFF10B981), CircleShape))
-                }
+                Text(
+                    session.cwd?.takeIf { it.isNotBlank() } ?: "默认工作区",
+                    color = DshMuted,
+                    fontSize = 10.sp,
+                    fontFamily = DshMono,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = 3.dp),
+                )
             }
-            Text(
-                session.cwd?.takeIf { it.isNotBlank() } ?: "默认工作区",
-                color = DshMuted,
-                fontSize = 11.5.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(top = 2.dp),
+            Spacer(Modifier.width(8.dp))
+            Icon(
+                Icons.Outlined.ChevronRight,
+                contentDescription = null,
+                tint = DshMuted,
+                modifier = Modifier.size(16.dp),
             )
         }
-        Text(formatTime(session.updatedAt), color = DshMuted.copy(alpha = 0.8f), fontSize = 10.5.sp)
+        HorizontalDivider(color = DshBorder, thickness = 1.dp, modifier = Modifier.padding(start = 20.dp))
     }
 }
 

@@ -73,7 +73,13 @@ class MainActivity : ComponentActivity() {
         super.onPause()
         isForeground = false
         viewModel.setForeground(false)
-        if (viewModel.keepAliveEnabled) KeepAliveService.start(this)
+    }
+
+    override fun onStop() {
+        super.onStop()
+        if (!isChangingConfigurations && viewModel.keepAliveEnabled) {
+            KeepAliveService.start(this)
+        }
     }
 
     companion object {

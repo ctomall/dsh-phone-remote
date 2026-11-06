@@ -147,6 +147,7 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.outlined.ChevronRight
 import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Checklist
@@ -806,9 +807,9 @@ private fun ChatScreen(vm: NativeViewModel) {
             (vm.input.isNotBlank() || vm.pendingAttachments.isNotEmpty())
         Row(
             Modifier.fillMaxWidth().imePadding().padding(horizontal = 12.dp, vertical = 8.dp)
-                .clip(RoundedCornerShape(26.dp))
+                .clip(RoundedCornerShape(10.dp))
                 .background(DshSurface)
-                .border(1.dp, DshBorder, RoundedCornerShape(26.dp))
+                .border(1.dp, DshBorder, RoundedCornerShape(10.dp))
                 .padding(horizontal = 4.dp, vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -1094,9 +1095,10 @@ private fun UserMessageRow(item: ChatItem.User, onImage: (Bitmap) -> Unit) {
                 fontSize = 14.sp,
                 modifier = Modifier
                     .widthIn(max = 300.dp)
-                    .clip(RoundedCornerShape(20.dp))
+                    .clip(RoundedCornerShape(8.dp))
                     .background(DshUserBubble)
-                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                    .border(1.dp, DshBorder, RoundedCornerShape(8.dp))
+                    .padding(horizontal = 12.dp, vertical = 9.dp),
             )
         }
         if (item.attachments.isNotEmpty()) MessageAttachments(item.attachments, onImage)
@@ -1186,19 +1188,20 @@ private fun AssistantMessageRow(item: ChatItem.Assistant, vm: NativeViewModel?, 
     val bodyText = bodyTranslation?.text ?: item.text
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         Box(
-            Modifier.size(28.dp).clip(CircleShape).background(DshSelected),
+            Modifier.size(24.dp).background(DshSurface2),
             contentAlignment = Alignment.Center,
-        ) { Text("D", color = DshTeal, fontSize = 12.sp, fontWeight = FontWeight.Bold) }
+        ) { Text("D", color = DshMuted, fontSize = 10.sp, fontFamily = DshMono) }
         Column(
             Modifier
                 .weight(1f)
-                .clip(RoundedCornerShape(18.dp))
+                .clip(RoundedCornerShape(10.dp))
                 .background(DshSurface)
-                .padding(horizontal = 14.dp, vertical = 12.dp),
+                .border(1.dp, DshBorder, RoundedCornerShape(10.dp))
+                .padding(horizontal = 12.dp, vertical = 10.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("DSH", color = DshTealSoft, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
+                Text("DSH", color = DshMuted, fontSize = 10.sp, fontFamily = DshMono)
                 if (item.streaming) {
                     Spacer(Modifier.width(8.dp))
                     StreamingDots()
@@ -1288,9 +1291,8 @@ private fun ThinkSection(key: String, reasoning: String, vm: NativeViewModel?) {
     }
     Column(
         Modifier.fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .background(DshSurface2)
-            .border(1.dp, DshBorder, RoundedCornerShape(12.dp)),
+            .clip(RoundedCornerShape(8.dp))
+            .border(1.dp, DshBorder, RoundedCornerShape(8.dp)),
     ) {
         Row(
             Modifier.fillMaxWidth().clickable { expanded = !expanded }.padding(horizontal = 10.dp, vertical = 8.dp),
@@ -1298,7 +1300,7 @@ private fun ThinkSection(key: String, reasoning: String, vm: NativeViewModel?) {
         ) {
             Icon(Icons.Filled.Lightbulb, contentDescription = null, tint = DshMuted, modifier = Modifier.size(14.dp))
             Spacer(Modifier.width(6.dp))
-            Text("思考", color = DshMuted, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+            Text("思考", color = DshMuted, fontSize = 10.sp, fontFamily = DshMono)
             Spacer(Modifier.weight(1f))
             Text(if (expanded) "收起" else "展开", color = DshMuted, fontSize = 10.sp)
         }
@@ -1404,145 +1406,216 @@ private fun TaskDetailScreen(vm: NativeViewModel) {
     }
     Column(Modifier.fillMaxSize()) {
         Row(
-            Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp),
+            Modifier.fillMaxWidth().padding(start = 8.dp, end = 20.dp, top = 6.dp, bottom = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            IconButton(onClick = { vm.closeTask() }) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回", tint = DshText.copy(alpha = 0.8f))
+            IconButton(onClick = { vm.closeTask() }, modifier = Modifier.size(40.dp)) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回", tint = DshText, modifier = Modifier.size(20.dp))
             }
             Column(Modifier.weight(1f)) {
-                Text(vm.taskTitle.ifBlank { "任务" }, color = DshText, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
-                Text(vm.activeCwd?.takeIf { it.isNotBlank() } ?: (if (vm.taskRunning) "运行中" else "已结束"), color = DshMuted, fontSize = 10.5.sp, maxLines = 1)
-            }
-            if (vm.taskRunning) {
                 Text(
-                    "运行中",
-                    color = DshTeal,
-                    fontSize = 10.sp,
+                    vm.taskTitle.ifBlank { "任务" },
+                    color = DshText,
+                    fontSize = 18.sp,
                     fontWeight = FontWeight.Medium,
-                    modifier = Modifier.background(DshSurface2, RoundedCornerShape(9.dp)).padding(horizontal = 10.dp, vertical = 5.dp),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    listOf(vm.activeCwd.orEmpty(), if (vm.taskRunning) "运行中" else "已结束").filter { it.isNotBlank() }.joinToString(" · "),
+                    color = DshMuted,
+                    fontSize = 10.sp,
+                    fontFamily = DshMono,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = 2.dp),
                 )
             }
+            Text(
+                if (vm.taskRunning) "RUN" else "DONE",
+                color = if (vm.taskRunning) DshTeal else DshMuted,
+                fontSize = 9.sp,
+                fontFamily = DshMono,
+            )
         }
-        Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        HorizontalDivider(color = DshBorder, thickness = 1.dp)
+        Column(
+            Modifier.weight(1f).verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(0.dp),
+        ) {
             state.first?.let { goal ->
-                Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(DshSurface).padding(14.dp)) {
-                    Text("目标", color = DshTeal, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
-                    Text(goal, color = DshText, fontSize = 14.sp, lineHeight = 20.sp, modifier = Modifier.padding(top = 4.dp))
+                Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp)) {
+                    Text("目标", color = DshMuted, fontSize = 10.sp, fontFamily = DshMono)
+                    Text(goal, color = DshText, fontSize = 14.sp, lineHeight = 21.sp, modifier = Modifier.padding(top = 6.dp))
                 }
+                HorizontalDivider(color = DshBorder, thickness = 1.dp)
             }
-            Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(DshSurface).padding(14.dp)) {
-                Text("待办", color = DshMuted, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
-                if (state.second.isEmpty()) {
-                    Text("这个任务还没有 todo（Agent 调用 todo_write 后会出现）", color = DshMuted, fontSize = 11.sp, modifier = Modifier.padding(top = 6.dp))
-                } else {
-                    state.second.forEach { (content, status) ->
-                        val done = status == "completed"
-                        val doing = status == "in_progress"
-                        Row(Modifier.fillMaxWidth().padding(vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                when {
-                                    done -> Icons.Filled.CheckCircle
-                                    doing -> Icons.Filled.PlayArrow
-                                    else -> Icons.Filled.RadioButtonUnchecked
-                                },
-                                contentDescription = null,
-                                tint = when {
-                                    done -> DshTeal
-                                    doing -> DshTeal
-                                    else -> DshMuted
-                                },
-                                modifier = Modifier.size(16.dp),
-                            )
-                            Spacer(Modifier.width(10.dp))
-                            Text(content, color = if (done) DshMuted else DshText, fontSize = 13.sp)
-                        }
+            Text(
+                "待办",
+                color = DshMuted,
+                fontSize = 10.sp,
+                fontFamily = DshMono,
+                modifier = Modifier.padding(start = 20.dp, top = 18.dp, bottom = 6.dp),
+            )
+            if (state.second.isEmpty()) {
+                Text(
+                    "还没有 todo。Agent 调用 todo_write 后出现在这里",
+                    color = DshMuted,
+                    fontSize = 12.sp,
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp),
+                )
+            } else {
+                state.second.forEach { (content, status) ->
+                    val done = status == "completed"
+                    val doing = status == "in_progress"
+                    Row(
+                        Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            if (done) "OK" else if (doing) "··" else "·",
+                            color = if (done) DshTeal else if (doing) DshTeal else DshMuted,
+                            fontSize = 10.sp,
+                            fontFamily = DshMono,
+                            modifier = Modifier.width(26.dp),
+                        )
+                        Text(
+                            content,
+                            color = if (done) DshMuted else DshText,
+                            fontSize = 13.sp,
+                            textDecoration = if (done) TextDecoration.LineThrough else null,
+                        )
                     }
+                    HorizontalDivider(color = DshBorder, thickness = 1.dp, modifier = Modifier.padding(start = 20.dp))
                 }
             }
             if (activeQuestion != null) {
+                Spacer(Modifier.height(10.dp))
                 InboxQuestionContent(
                     pending = activeQuestion.pending,
                     sessionTitle = activeQuestion.sessionTitle,
                     onAnswer = { answers -> vm.answerSessionQuestion(activeQuestion, answers) },
                     onOpen = { vm.sessions.firstOrNull { it.id == activeQuestion.sessionId }?.let { vm.openTask(it) } },
                 )
+                Spacer(Modifier.height(10.dp))
             } else if (vm.pendingQuestions.isNotEmpty()) {
-                Row(
-                    Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(DshErrorBg)
-                        .border(1.dp, DshErrorBorder, RoundedCornerShape(16.dp))
-                        .clickable { vm.openSession(vm.sessions.first { it.id == vm.activeSessionId }) }
-                        .padding(12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Icon(Icons.Filled.ErrorOutline, contentDescription = null, tint = DshDanger, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(10.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text("等待你处理", color = DshText, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-                        Text("Agent 正在等待回答或批准", color = DshMuted, fontSize = 11.sp)
-                    }
-                    Text("去处理", color = DshTeal, fontSize = 12.sp, fontWeight = FontWeight.Medium)
-                }
+                Spacer(Modifier.height(10.dp))
+                Text(
+                    "等待你处理 · 打开会话回答",
+                    color = DshTeal,
+                    fontSize = 12.sp,
+                    fontFamily = DshMono,
+                    modifier = Modifier.clickable {
+                        vm.sessions.firstOrNull { it.id == vm.activeSessionId }?.let { vm.openSession(it) }
+                    }.padding(horizontal = 20.dp, vertical = 10.dp),
+                )
+                Spacer(Modifier.height(10.dp))
             }
-            Text("时间线", color = DshMuted, fontSize = 11.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(top = 6.dp))
+            Text(
+                "时间线",
+                color = DshMuted,
+                fontSize = 10.sp,
+                fontFamily = DshMono,
+                modifier = Modifier.padding(start = 20.dp, top = 18.dp, bottom = 6.dp),
+            )
             if (tools.isEmpty()) {
-                Text("暂无工具调用", color = DshMuted, fontSize = 11.sp)
+                Text("暂无工具调用", color = DshMuted, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 20.dp))
             } else {
                 tools.forEach { tool ->
-                    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(DshSurface).padding(horizontal = 14.dp, vertical = 11.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Box(Modifier.size(6.dp).clip(CircleShape).background(if (tool.isError) DshDanger else DshTeal))
-                        Spacer(Modifier.width(8.dp))
-                        Text(tool.name, color = DshText, fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold)
-                        Text(
-                            (if (tool.at > 0L) "${formatTime(tool.at)} · " else "") + toolSummary(tool.arguments),
-                            color = DshMuted,
-                            fontSize = 11.sp,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f).padding(start = 8.dp),
-                        )
-                        Text(if (tool.result != null) "完成" else "执行中", color = DshMuted, fontSize = 10.sp)
+                    Row(
+                        Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.Top,
+                    ) {
+                        Column(Modifier.width(44.dp)) {
+                            Text(
+                                if (tool.at > 0L) SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(tool.at)) else "--:--",
+                                color = DshMuted,
+                                fontSize = 10.sp,
+                                fontFamily = DshMono,
+                            )
+                            Text(
+                                if (tool.result != null) "OK" else "RUN",
+                                color = if (tool.result != null) DshMuted else DshTeal,
+                                fontSize = 9.sp,
+                                fontFamily = DshMono,
+                                modifier = Modifier.padding(top = 3.dp),
+                            )
+                        }
+                        Spacer(Modifier.width(10.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(tool.name, color = DshText, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                            Text(
+                                toolSummary(tool.arguments),
+                                color = DshMuted,
+                                fontSize = 10.sp,
+                                fontFamily = DshMono,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.padding(top = 2.dp),
+                            )
+                        }
                     }
+                    HorizontalDivider(color = DshBorder, thickness = 1.dp, modifier = Modifier.padding(start = 20.dp))
                 }
             }
-            Text("产物", color = DshMuted, fontSize = 11.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(top = 6.dp))
+            Text(
+                "产物",
+                color = DshMuted,
+                fontSize = 10.sp,
+                fontFamily = DshMono,
+                modifier = Modifier.padding(start = 20.dp, top = 18.dp, bottom = 6.dp),
+            )
             if (artifacts.isEmpty()) {
-                Text("还没有写入产物（write / edit 后会出现）", color = DshMuted, fontSize = 11.sp)
+                Text(
+                    "还没有写入产物",
+                    color = DshMuted,
+                    fontSize = 12.sp,
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp),
+                )
             } else {
                 artifacts.forEach { path ->
                     Row(
-                        Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(DshSurface)
-                            .clickable { vm.openArtifact(path) }
-                            .padding(horizontal = 14.dp, vertical = 11.dp),
+                        Modifier.fillMaxWidth().clickable { vm.openArtifact(path) }
+                            .padding(horizontal = 20.dp, vertical = 11.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Icon(Icons.Filled.Edit, contentDescription = null, tint = DshTeal, modifier = Modifier.size(14.dp))
-                        Spacer(Modifier.width(8.dp))
-                        Text(path, color = DshText, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(
+                            path.substringAfterLast('/'),
+                            color = DshText,
+                            fontSize = 12.sp,
+                            fontFamily = DshMono,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
                     }
+                    HorizontalDivider(color = DshBorder, thickness = 1.dp, modifier = Modifier.padding(start = 20.dp))
                 }
             }
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(24.dp))
         }
-        Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text(
-                "进入会话",
-                color = DshTeal,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Medium,
-                modifier = Modifier.clip(RoundedCornerShape(14.dp)).background(DshSurface).clickable {
-                    vm.sessions.firstOrNull { it.id == vm.activeSessionId }?.let { vm.openSession(it) }
-                }.padding(horizontal = 18.dp, vertical = 11.dp),
-            )
+        HorizontalDivider(color = DshBorder, thickness = 1.dp)
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
             Text(
                 "刷新",
+                color = DshMuted,
+                fontSize = 12.sp,
+                fontFamily = DshMono,
+                modifier = Modifier.clickable { vm.reloadTask() }.padding(vertical = 10.dp),
+            )
+            Spacer(Modifier.weight(1f))
+            Text(
+                "进入会话",
                 color = DshOnAccent,
                 fontSize = 13.sp,
-                fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.weight(1f).clip(RoundedCornerShape(14.dp)).background(DshTeal).clickable {
-                    vm.reloadTask()
-                }.padding(vertical = 11.dp),
+                fontWeight = FontWeight.Medium,
                 textAlign = TextAlign.Center,
+                modifier = Modifier.clip(RoundedCornerShape(6.dp)).background(DshTeal).clickable {
+                    vm.sessions.firstOrNull { it.id == vm.activeSessionId }?.let { vm.openSession(it) }
+                }.padding(horizontal = 22.dp, vertical = 11.dp),
             )
         }
     }
@@ -1834,22 +1907,37 @@ private fun ToolCard(tool: ChatItem.Tool) {
     Column(
         Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
-            .background(DshSurface)
             .clickable { expanded = !expanded }
-            .padding(horizontal = 14.dp, vertical = 11.dp),
+            .padding(vertical = 9.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(6.dp).clip(CircleShape).background(tint))
-            Spacer(Modifier.width(6.dp))
-            Text("工具", color = tint, fontSize = 9.sp, fontWeight = FontWeight.SemiBold)
-            Spacer(Modifier.width(6.dp))
-            Text(tool.name, color = DshText, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+            Text(
+                if (tool.at > 0L) SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(tool.at)) else "--:--",
+                color = DshMuted,
+                fontSize = 10.sp,
+                fontFamily = DshMono,
+                modifier = Modifier.width(42.dp),
+            )
+            Box(Modifier.size(5.dp).background(if (tool.isError) DshDanger else tint))
+            Spacer(Modifier.width(8.dp))
+            Text(tool.name, color = DshText, fontSize = 12.5.sp, fontWeight = FontWeight.Medium)
             Spacer(Modifier.weight(1f))
-            Text(if (tool.result == null) "执行中…" else if (tool.isError) "失败" else "完成", color = if (tool.isError) DshDanger else DshMuted, fontSize = 9.sp)
+            Text(
+                if (tool.result == null) "RUN" else if (tool.isError) "ERR" else "OK",
+                color = if (tool.isError) DshDanger else DshMuted,
+                fontSize = 9.sp,
+                fontFamily = DshMono,
+            )
         }
         toolDetail(tool)?.let { detail ->
-            Text(detail, color = DshMuted, fontFamily = FontFamily.Monospace, fontSize = 10.sp, maxLines = 1, modifier = Modifier.padding(top = 4.dp))
+            Text(
+                detail,
+                color = DshMuted,
+                fontFamily = DshMono,
+                fontSize = 10.sp,
+                maxLines = 1,
+                modifier = Modifier.padding(start = 55.dp, top = 3.dp),
+            )
         }
         if (expanded) {
             if (tool.arguments.isNotBlank()) {
@@ -1902,8 +1990,8 @@ private fun TopBar(
     ) {
         IconButton(onClick = onBack) { Icon(backIcon, contentDescription = "返回", tint = DshText.copy(alpha = 0.8f)) }
         Column(Modifier.weight(1f)) {
-            Text(title, color = DshText, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
-            Text(subtitle, color = DshMuted, fontSize = 10.5.sp)
+            Text(title, color = DshText, fontSize = 15.sp, fontWeight = FontWeight.Medium, maxLines = 1)
+            Text(subtitle, color = DshMuted, fontSize = 10.sp, fontFamily = DshMono)
         }
         actions()
     }
@@ -2350,15 +2438,15 @@ internal fun SettingsTab(vm: NativeViewModel) {
                 Text(
                     "设置",
                     color = DshText,
-                    fontSize = 26.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = (-0.6).sp,
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.Medium,
                 )
                 Text(
                     "${vm.currentProfile?.name ?: "未绑定"} · ${vm.connection}",
                     color = DshMuted,
-                    fontSize = 12.sp,
-                    modifier = Modifier.padding(top = 2.dp),
+                    fontSize = 10.sp,
+                    fontFamily = DshMono,
+                    modifier = Modifier.padding(top = 4.dp),
                 )
             }
         }
@@ -2479,16 +2567,16 @@ private fun SettingsContent(
             SettingsGroup("外观") {
                 SettingsActionRow(
                     Icons.Filled.LightMode,
-                    "云白",
-                    "清爽蓝紫",
+                    "纸白",
+                    "纸面与墨色",
                     selected = mode == DshThemeMode.PAPER,
                     onClick = { onMode(DshThemeMode.PAPER) },
                 )
                 SettingsDivider()
                 SettingsActionRow(
                     Icons.Filled.DarkMode,
-                    "深海",
-                    "暗色青绿",
+                    "夜墨",
+                    "石墨与夜色",
                     selected = mode == DshThemeMode.AURORA,
                     onClick = { onMode(DshThemeMode.AURORA) },
                 )
@@ -2540,22 +2628,16 @@ private fun SettingsGroup(title: String, content: @Composable androidx.compose.f
     Text(
         title,
         color = DshMuted,
-        fontSize = 11.sp,
-        fontWeight = FontWeight.Medium,
-        letterSpacing = 0.4.sp,
-        modifier = Modifier.padding(start = 20.dp, top = 14.dp, bottom = 6.dp),
+        fontSize = 10.sp,
+        fontFamily = DshMono,
+        modifier = Modifier.padding(start = 20.dp, top = 24.dp, bottom = 6.dp),
     )
-    Column(
-        Modifier.padding(horizontal = 20.dp).fillMaxWidth()
-            .clip(RoundedCornerShape(18.dp))
-            .background(DshSurface),
-        content = content,
-    )
+    Column(Modifier.fillMaxWidth(), content = content)
 }
 
 @Composable
 private fun SettingsDivider() {
-    HorizontalDivider(color = DshBorder, modifier = Modifier.padding(horizontal = 14.dp))
+    HorizontalDivider(color = DshBorder, thickness = 1.dp, modifier = Modifier.padding(start = 46.dp))
 }
 
 @Composable
@@ -2570,26 +2652,34 @@ private fun SettingsActionRow(
     Row(
         Modifier.fillMaxWidth()
             .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
-            .padding(horizontal = 14.dp, vertical = 13.dp),
+            .padding(horizontal = 20.dp, vertical = 13.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(icon, contentDescription = null, tint = DshMuted, modifier = Modifier.size(18.dp))
-        Spacer(Modifier.width(12.dp))
+        Icon(icon, contentDescription = null, tint = DshMuted, modifier = Modifier.size(16.dp))
+        Spacer(Modifier.width(10.dp))
         Column(Modifier.weight(1f)) {
-            Text(title, color = DshText, fontSize = 14.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(title, color = DshText, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             subtitle?.let {
-                Text(it, color = DshMuted, fontSize = 10.5.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 1.dp))
+                Text(
+                    it,
+                    color = DshMuted,
+                    fontSize = 10.sp,
+                    fontFamily = DshMono,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = 2.dp),
+                )
             }
         }
         when {
-            selected == true -> Icon(Icons.Filled.Check, contentDescription = "已选", tint = DshTeal, modifier = Modifier.size(16.dp))
-            selected == false -> Box(Modifier.size(16.dp).clip(CircleShape).border(1.5.dp, DshBorder, CircleShape))
-            value != null -> Text(value, color = DshMuted, fontSize = 11.sp)
+            selected == true -> Icon(Icons.Filled.Check, contentDescription = "已选", tint = DshTeal, modifier = Modifier.size(15.dp))
+            selected == false -> Box(Modifier.size(14.dp).border(1.dp, DshBorder, CircleShape))
+            value != null -> Text(value, color = DshMuted, fontSize = 10.sp, fontFamily = DshMono)
             onClick != null -> Icon(
-                Icons.Filled.KeyboardArrowRight,
+                Icons.Outlined.ChevronRight,
                 contentDescription = null,
                 tint = DshMuted,
-                modifier = Modifier.size(16.dp),
+                modifier = Modifier.size(14.dp),
             )
         }
     }
@@ -2604,20 +2694,20 @@ private fun SettingsSwitchRow(
     onChange: (Boolean) -> Unit,
 ) {
     Row(
-        Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp),
+        Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(icon, contentDescription = null, tint = DshMuted, modifier = Modifier.size(18.dp))
-        Spacer(Modifier.width(12.dp))
+        Icon(icon, contentDescription = null, tint = DshMuted, modifier = Modifier.size(16.dp))
+        Spacer(Modifier.width(10.dp))
         Column(Modifier.weight(1f)) {
-            Text(title, color = DshText, fontSize = 14.sp, fontWeight = FontWeight.Medium)
-            Text(subtitle, color = DshMuted, fontSize = 10.5.sp, maxLines = 2)
+            Text(title, color = DshText, fontSize = 14.sp)
+            Text(subtitle, color = DshMuted, fontSize = 10.sp, fontFamily = DshMono, maxLines = 2)
         }
         Spacer(Modifier.width(10.dp))
         Switch(
             checked = checked,
             onCheckedChange = onChange,
-            colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = DshTeal),
+            colors = SwitchDefaults.colors(checkedThumbColor = DshOnAccent, checkedTrackColor = DshTeal),
         )
     }
 }
