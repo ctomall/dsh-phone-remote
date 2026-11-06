@@ -27,6 +27,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Refresh
@@ -40,6 +41,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -126,7 +128,7 @@ internal fun ToolboxScreen(vm: NativeViewModel) {
             "search" -> SearchSection(vm)
             "skills" -> SkillsSection(vm)
             "tools" -> ToolsSection(vm)
-            "browser" -> BrowserSection()
+            "browser" -> BrowserSection(vm)
             "ssh" -> SshSection(vm)
             "attachments" -> AttachmentsSection(vm)
             else -> FilesSection(vm)
@@ -314,9 +316,9 @@ private fun ToolsSection(vm: NativeViewModel) {
 /* --------------------------------- 浏览器 --------------------------------- */
 
 @Composable
-private fun BrowserSection() {
-    var address by remember { mutableStateOf("https://example.com/") }
-    var current by remember { mutableStateOf(address) }
+private fun BrowserSection(vm: NativeViewModel) {
+    var address by remember(vm.browserUrl) { mutableStateOf(vm.browserUrl) }
+    var current by remember(vm.browserUrl) { mutableStateOf(vm.browserUrl) }
     var webView by remember { mutableStateOf<WebView?>(null) }
     Column(Modifier.fillMaxSize()) {
         Row(
@@ -493,11 +495,42 @@ private fun AttachmentsSection(vm: NativeViewModel) {
     }
     var preview by remember { mutableStateOf<Bitmap?>(null) }
     Column(Modifier.fillMaxSize()) {
+        LaunchedEffect(Unit) {
+            if (vm.files.isEmpty()) vm.loadFiles(vm.filePath)
+        }
         Text("当前会话附件", color = DshMuted, fontSize = 9.sp, fontFamily = DshMono, modifier = Modifier.padding(20.dp))
         if (attachments.isEmpty()) {
-            Text("还没有附件", color = DshMuted, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 20.dp))
+            Text("没有上传附件", color = DshMuted, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 20.dp))
+        }
+        val images = vm.files.filter {
+            it.type != "directory" && it.name.substringAfterLast('.', "").lowercase() in
+                setOf("png", "jpg", "jpeg", "webp", "gif", "svg", "bmp")
         }
         LazyColumn(Modifier.fillMaxSize()) {
+            if (images.isNotEmpty()) {
+                item(key = "workspace-images-title") {
+                    Text(
+                        "工作区图片",
+                        color = DshMuted,
+                        fontSize = 9.sp,
+                        fontFamily = DshMono,
+                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
+                    )
+                }
+                items(images, key = { "file-" + it.name }) { entry ->
+                    Row(
+                        Modifier.fillMaxWidth().clickable { vm.openFile(entry) }
+                            .padding(horizontal = 20.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(Icons.Filled.Image, null, tint = DshMuted, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(10.dp))
+                        Text(entry.name, color = DshText, fontSize = 12.sp, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text("查看", color = DshTeal, fontSize = 10.sp, fontFamily = DshMono)
+                    }
+                    HorizontalDivider(color = DshBorder, thickness = 1.dp, modifier = Modifier.padding(start = 20.dp))
+                }
+            }
             items(attachments, key = { it.name + it.bytes }) { item ->
                 val bitmap = remember(item) { item.preview ?: attachmentPreview(item.data) }
                 Row(

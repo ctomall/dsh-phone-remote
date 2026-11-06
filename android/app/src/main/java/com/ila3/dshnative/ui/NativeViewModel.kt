@@ -198,6 +198,7 @@ class NativeViewModel(app: Application) : AndroidViewModel(app) {
     var skills by mutableStateOf<List<DshClient.SkillItem>>(emptyList())
     var skillsBusy by mutableStateOf(false)
     var fileKindFilter by mutableStateOf("all")
+    var browserUrl by mutableStateOf("https://example.com/")
     var pairPrefillUrl by mutableStateOf("")
     var multiDevice by mutableStateOf(store.multiDevice())
         private set
@@ -227,6 +228,12 @@ class NativeViewModel(app: Application) : AndroidViewModel(app) {
 
     fun closeToolbox() {
         screen = Screen.Sessions
+    }
+
+    fun openBrowser(url: String) {
+        browserUrl = url
+        toolboxSection = "browser"
+        screen = Screen.Toolbox
     }
 
     fun openToolbox(section: String = "search") {
