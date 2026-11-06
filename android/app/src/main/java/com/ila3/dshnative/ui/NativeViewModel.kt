@@ -176,6 +176,14 @@ class NativeViewModel(app: Application) : AndroidViewModel(app) {
         private set
     var autoScroll by mutableStateOf(store.autoScroll())
         private set
+    var multiDevice by mutableStateOf(store.multiDevice())
+        private set
+    var showDeviceRunning by mutableStateOf(store.showDeviceRunning())
+        private set
+    var usage by mutableStateOf<DshClient.SessionMeta?>(null)
+    var turnDurations by mutableStateOf<Map<Int, Long>>(emptyMap())
+    var permissionOptions by mutableStateOf<List<DshClient.PermissionOption>>(emptyList())
+    var presetOptions by mutableStateOf<List<DshClient.PresetOption>>(emptyList())
 
     init {
         runCatching { translationStore.load() }.getOrElse { emptyMap() }
@@ -190,6 +198,17 @@ class NativeViewModel(app: Application) : AndroidViewModel(app) {
     fun updateToolExpanded(value: Boolean) {
         toolExpanded = value
         store.setToolExpanded(value)
+    }
+
+    fun updateMultiDevice(value: Boolean) {
+        multiDevice = value
+        store.setMultiDevice(value)
+        loadSessions()
+    }
+
+    fun updateShowDeviceRunning(value: Boolean) {
+        showDeviceRunning = value
+        store.setShowDeviceRunning(value)
     }
 
     fun updateAutoScroll(value: Boolean) {
@@ -326,7 +345,28 @@ class NativeViewModel(app: Application) : AndroidViewModel(app) {
             error = ""
             connection = "连接中"
             try {
-                val list = withContext(Dispatchers.IO) { active.sessions() }
+                val localName = currentProfile?.name
+                val list = withContext(Dispatchers.IO) {
+                    val local = active.sessions().map { it.copy(device = localName) }
+                    if (!multiDevice) {
+                        local
+                    } else {
+                        val remote = profiles
+                            .filter { it.id != currentProfile?.id }
+                            .flatMap { profile ->
+                                runCatching {
+                                    val extra = DshClient(getApplication(), profile.url, profile.id)
+                                    try {
+                                        extra.sessions().map { it.copy(device = profile.name) }
+                                    } finally {
+                                        extra.close()
+                                    }
+                                }.getOrDefault(emptyList())
+                            }
+                        val filteredRemote = if (showDeviceRunning) remote else remote.filterNot { it.running }
+                        local + filteredRemote
+                    }
+                }
                 sessions = list.sortedByDescending { it.updatedAt }
                 connection = "已连接"
                 refreshInbox()
@@ -368,6 +408,7 @@ class NativeViewModel(app: Application) : AndroidViewModel(app) {
         screen = Screen.Chat
         connection = "连接中"
         error = ""
+        refreshSessionMeta()
         following = true
         followAttempt = 0
         viewModelScope.launch {
@@ -644,6 +685,42 @@ class NativeViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    fun refreshSessionMeta() {
+        val active = client ?: return
+        val sid = activeSessionId
+        if (sid.isEmpty()) return
+        viewModelScope.launch {
+            runCatching { withContext(Dispatchers.IO) { active.sessionMeta(sid) } }
+                .onSuccess { usage = it }
+            if (permissionOptions.isEmpty()) {
+                runCatching { withContext(Dispatchers.IO) { active.permissionCatalog() } }
+                    .onSuccess { permissionOptions = it }
+            }
+            if (presetOptions.isEmpty()) {
+                runCatching { withContext(Dispatchers.IO) { active.presets() } }
+                    .onSuccess { presetOptions = it }
+            }
+        }
+    }
+
+    fun setPermission(value: String) {
+        val active = client ?: return
+        viewModelScope.launch {
+            runCatching { withContext(Dispatchers.IO) { active.setPermission(activeSessionId, value) } }
+                .onFailure { error = it.message ?: "切换权限失败" }
+            refreshSessionMeta()
+        }
+    }
+
+    fun setDefaultPreset(id: String) {
+        val active = client ?: return
+        viewModelScope.launch {
+            runCatching { withContext(Dispatchers.IO) { active.setDefaultPreset(id) } }
+                .onFailure { error = it.message ?: "设置预设失败" }
+            refreshSessionMeta()
+        }
+    }
+
     fun renameActive(title: String) {
         val clean = title.trim()
         val active = client ?: return
@@ -851,6 +928,7 @@ class NativeViewModel(app: Application) : AndroidViewModel(app) {
                     hasMoreHistory = false
                 } else {
                     messages.addAll(0, page.items)
+                    turnDurations = turnDurations + page.turnDurations
                     historyAdded = page.items.size
                     historyVersion += 1
                     if (page.oldestSeq != Long.MAX_VALUE) oldestSeq = page.oldestSeq

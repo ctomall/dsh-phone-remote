@@ -71,6 +71,8 @@ import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.GridView
+import androidx.compose.material.icons.filled.Devices
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.PlayArrow
@@ -99,6 +101,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Text
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
@@ -642,9 +646,14 @@ private fun ChatScreen(vm: NativeViewModel) {
     val rows = remember(vm.messages.size, vm.activeSessionId) { chatRows(vm.messages) }
     var showSessionPicker by remember { mutableStateOf(false) }
     var sessionQuery by remember { mutableStateOf("") }
+    var showPermissionDialog by remember { mutableStateOf(false) }
+    var showPresetDialog by remember { mutableStateOf(false) }
+    var deviceMenu by remember { mutableStateOf(false) }
     val durations = remember(rows) {
         rows.mapIndexed { index, row ->
             if (row is ChatRow.Msg && row.item is ChatItem.Assistant && row.at > 0L) {
+                val assistant = row.item as ChatItem.Assistant
+                vm.turnDurations[assistant.turn]?.let { return@mapIndexed it / 1000L }
                 var end = row.at
                 for (next in rows.drop(index + 1)) {
                     if (next is ChatRow.Msg && next.item is ChatItem.User) break
@@ -727,6 +736,42 @@ private fun ChatScreen(vm: NativeViewModel) {
             onBack = { vm.closeSession() },
             backIcon = Icons.AutoMirrored.Filled.ArrowBack,
             actions = {
+                Box {
+                    IconButton(onClick = { deviceMenu = true }) {
+                        Icon(Icons.Filled.Devices, contentDescription = "多设备", tint = DshMuted)
+                    }
+                    DropdownMenu(expanded = deviceMenu, onDismissRequest = { deviceMenu = false }) {
+                        Text(
+                            vm.currentProfile?.name ?: "本机",
+                            color = DshMuted,
+                            fontSize = 9.sp,
+                            fontFamily = DshMono,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                        )
+                        DropdownMenuItem(
+                            text = { Text("多设备会话聚合", fontSize = 12.sp) },
+                            trailingIcon = {
+                                Switch(
+                                    checked = vm.multiDevice,
+                                    onCheckedChange = { vm.updateMultiDevice(it) },
+                                    colors = SwitchDefaults.colors(checkedThumbColor = DshOnAccent, checkedTrackColor = DshTeal),
+                                )
+                            },
+                            onClick = { vm.updateMultiDevice(!vm.multiDevice) },
+                        )
+                        DropdownMenuItem(
+                            text = { Text("显示多设备运行中任务", fontSize = 12.sp) },
+                            trailingIcon = {
+                                Switch(
+                                    checked = vm.showDeviceRunning,
+                                    onCheckedChange = { vm.updateShowDeviceRunning(it) },
+                                    colors = SwitchDefaults.colors(checkedThumbColor = DshOnAccent, checkedTrackColor = DshTeal),
+                                )
+                            },
+                            onClick = { vm.updateShowDeviceRunning(!vm.showDeviceRunning) },
+                        )
+                    }
+                }
                 IconButton(onClick = { showSessionPicker = true }) {
                     Icon(Icons.Filled.GridView, contentDescription = "切换会话", tint = DshMuted)
                 }
@@ -842,12 +887,23 @@ private fun ChatScreen(vm: NativeViewModel) {
         }
         if (vm.pendingAttachments.isNotEmpty()) PendingAttachmentTray(vm)
         if (vm.messages.isNotEmpty()) {
+            val meta = vm.usage
+            val billed = (meta?.inputTokens ?: 0L) + (meta?.cacheReadTokens ?: 0L) + (meta?.cacheWriteTokens ?: 0L)
+            val hit = if (meta != null && billed > 0L) (meta.cacheReadTokens * 100.0 / billed).toInt() else null
+            val turns = meta?.turns?.takeIf { it > 0 } ?: (rounds.lastOrNull() ?: 0)
             Row(
                 Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 2.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                ChatStatPill("${rounds.lastOrNull() ?: 0} 轮 · ${vm.messages.size} 条")
-                ChatStatPill("${vm.currentModel?.name ?: "默认模型"} · ${vm.connection}")
+                ChatStatPill(if (hit != null) "$turns 轮 · 命中 $hit%" else "$turns 轮 · ${vm.messages.size} 条")
+                ChatStatPill(
+                    if (meta?.contextUsed != null && meta.contextWindow != null) {
+                        val pct = (meta.contextUsed * 100.0 / meta.contextWindow).toInt()
+                        "$pct% · ${formatTokens(meta.contextUsed)}/${formatTokens(meta.contextWindow)}"
+                    } else {
+                        "${vm.currentModel?.name ?: "默认模型"} · ${vm.connection}"
+                    },
+                )
             }
         }
         val attachmentUploading = vm.pendingAttachments.any { it.status == NativeViewModel.AttachmentStatus.UPLOADING }
@@ -949,10 +1005,40 @@ private fun ChatScreen(vm: NativeViewModel) {
                     vm.dismissChatMenu()
                     filePicker.launch(arrayOf("*/*"))
                 },
+                onPermission = {
+                    vm.dismissChatMenu()
+                    showPermissionDialog = true
+                },
+                onPreset = {
+                    vm.dismissChatMenu()
+                    showPresetDialog = true
+                },
+                permissionLabel = permissionLabel(vm),
+                presetLabel = presetLabel(vm),
             )
         }
     }
     if (vm.showRenameDialog) RenameDialog(vm)
+    if (showPermissionDialog) {
+        OptionDialog(
+            title = "权限",
+            note = "当前会话立即生效",
+            options = vm.permissionOptions.map { it.value to permissionName(it.value, it.name) },
+            current = vm.usage?.permission,
+            onPick = { vm.setPermission(it); showPermissionDialog = false },
+            onClose = { showPermissionDialog = false },
+        )
+    }
+    if (showPresetDialog) {
+        OptionDialog(
+            title = "Agent 预设",
+            note = "预设创建后不可切换；这里设置的是新会话默认",
+            options = vm.presetOptions.map { it.id to presetName(it.id, it.name) },
+            current = vm.usage?.agentPreset,
+            onPick = { vm.setDefaultPreset(it); showPresetDialog = false },
+            onClose = { showPresetDialog = false },
+        )
+    }
     if (showSessionPicker) {
         ModalBottomSheet(
             onDismissRequest = { showSessionPicker = false },
@@ -1034,7 +1120,7 @@ private fun SessionPickerSheet(vm: NativeViewModel, query: String, onQuery: (Str
                                 overflow = TextOverflow.Ellipsis,
                             )
                             Text(
-                                session.cwd?.takeIf { it.isNotBlank() } ?: "默认工作区",
+                                listOfNotNull(session.device, session.cwd?.takeIf { it.isNotBlank() } ?: "默认工作区").joinToString(" · "),
                                 color = DshMuted,
                                 fontSize = 9.sp,
                                 fontFamily = DshMono,
@@ -1055,6 +1141,79 @@ private fun SessionPickerSheet(vm: NativeViewModel, query: String, onQuery: (Str
     }
 }
 
+private val PermissionNames = mapOf(
+    "read-only" to "只读",
+    "workspace-write" to "工作区写入",
+    "danger-full-access" to "完全访问",
+    "auto" to "自动审查",
+    "custom" to "自定义",
+)
+
+private val PresetNames = mapOf(
+    "standard" to "标准模式",
+    "ptc" to "PTC",
+    "minimal" to "精简模式",
+    "cordis" to "Cordis",
+)
+
+private fun permissionName(value: String, catalogName: String? = null): String =
+    catalogName?.takeIf { it.isNotBlank() && it != value } ?: PermissionNames[value] ?: value
+
+private fun presetName(id: String, catalogName: String? = null): String =
+    catalogName?.takeIf { it.isNotBlank() && it != id } ?: PresetNames[id] ?: id
+
+private fun permissionLabel(vm: NativeViewModel): String {
+    val value = vm.usage?.permission ?: return "默认"
+    return permissionName(value, vm.permissionOptions.firstOrNull { it.value == value }?.name)
+}
+
+private fun presetLabel(vm: NativeViewModel): String {
+    val value = vm.usage?.agentPreset ?: return "默认"
+    return presetName(value, vm.presetOptions.firstOrNull { it.id == value }?.name)
+}
+
+private fun formatTokens(value: Long): String = when {
+    value >= 1_000_000 -> String.format(java.util.Locale.US, "%.1fM", value / 1_000_000.0)
+    value >= 1_000 -> "${value / 1_000}K"
+    else -> "$value"
+}
+
+@Composable
+private fun OptionDialog(
+    title: String,
+    note: String,
+    options: List<Pair<String, String>>,
+    current: String?,
+    onPick: (String) -> Unit,
+    onClose: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onClose,
+        title = { Text(title, color = DshText, fontSize = 15.sp, fontWeight = FontWeight.Medium) },
+        text = {
+            Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(note, color = DshMuted, fontSize = 10.sp, fontFamily = DshMono)
+                Spacer(Modifier.height(6.dp))
+                options.forEach { (value, name) ->
+                    Row(
+                        Modifier.fillMaxWidth().clickable { onPick(value) }.padding(vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(name, color = DshText, fontSize = 13.sp, modifier = Modifier.weight(1f))
+                        if (value == current) {
+                            Text("当前", color = DshTeal, fontSize = 9.sp, fontFamily = DshMono)
+                        }
+                    }
+                    HorizontalDivider(color = DshBorder, thickness = 1.dp)
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onClose) { Text("关闭", color = DshTeal, fontSize = 12.sp) } },
+        containerColor = DshSurface,
+        shape = RoundedCornerShape(10.dp),
+    )
+}
+
 @Composable
 private fun ChatStatPill(text: String) {
     Text(
@@ -1067,13 +1226,15 @@ private fun ChatStatPill(text: String) {
 }
 
 @Composable
-private fun ChatActionSheet(vm: NativeViewModel, onPickImage: () -> Unit = {}, onPickFile: () -> Unit = {}) {
+private fun ChatActionSheet(vm: NativeViewModel, onPickImage: () -> Unit = {}, onPickFile: () -> Unit = {}, onPermission: () -> Unit = {}, onPreset: () -> Unit = {}, permissionLabel: String = "", presetLabel: String = "") {
     Column(Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 16.dp, vertical = 8.dp)) {
         Text("会话操作", color = DshText, fontSize = 15.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp))
         ChatAction(Icons.Filled.Image, "上传图片") { onPickImage() }
         ChatAction(Icons.Filled.AttachFile, "上传文件") { onPickFile() }
         ChatAction(Icons.Filled.Checklist, "任务与进度") { vm.dismissChatMenu(); vm.openTasks() }
         ChatAction(Icons.Filled.Tune, "更换模型", vm.currentModel?.name ?: "默认") { vm.dismissChatMenu(); vm.openModelPicker() }
+        ChatAction(Icons.Filled.Lock, "权限", permissionLabel.ifBlank { "默认" }) { onPermission() }
+        ChatAction(Icons.Filled.Devices, "切换 Agent 预设", presetLabel.ifBlank { "默认" }) { onPreset() }
         ChatAction(Icons.Filled.Edit, "重命名会话") { vm.showRename() }
         ChatAction(Icons.Filled.Refresh, "刷新会话") { vm.reloadActiveSession() }
         ChatAction(Icons.Filled.Folder, "文件") { vm.dismissChatMenu(); vm.openFiles() }

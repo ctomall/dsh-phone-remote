@@ -1,8 +1,8 @@
 {
-  "versionCode": 50,
-  "versionName": "0.20.7",
-  "apkUrl": "https://raw.githubusercontent.com/ctomall/dsh-phone-remote/main/updates/DSHNative-0.20.7.apk",
-  "sha256": "052780c1cf00fc3db7d6cd8c700a67c73c606510f74f252e6a8ac9f9a65d719b",
-  "notes": "会话切换面板（搜索/活动行/运行点）、卡片轮次耗时",
-  "signature": "MEQCIGURr7ItNdI4i8lKTn8jMMVTfEARFv6R66+jTRxS10waAiA6oxRTuFyXTQlAI8p3N54Tl7wlD57ziseYIg/IkjwY8w=="
+  "versionCode": 51,
+  "versionName": "0.21.0",
+  "apkUrl": "https://raw.githubusercontent.com/ctomall/dsh-phone-remote/main/updates/DSHNative-0.21.0.apk",
+  "sha256": "ad35de64816024e1c520b67968d04a73f7cf80c335d53c4bf6b24bb39f3222c5",
+  "notes": "多设备聚合菜单、权限/Agent 预设切换、真实 usage 胶囊、服务端轮次耗时",
+  "signature": "MEQCIF7qG6IJe1OoJyPfEydlI8A4GPTAM8499uc+vz7NJ17HAiBx6LjSoU3Bty0byiOWh9iER1HUSxqFhPHjqmbZxVCTsg=="
 }
