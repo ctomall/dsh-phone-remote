@@ -3,6 +3,8 @@ package com.ila3.dshnative.ui
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.interaction.collectIsDraggedAsState
+import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -405,7 +407,7 @@ private fun TasksScreen(vm: NativeViewModel) {
         )
         LazyColumn(
             Modifier.fillMaxSize(),
-            contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 72.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             item { SectionLabel("运行中的会话") }
@@ -646,10 +648,30 @@ private fun SessionRow(session: SessionSummary, active: Boolean = false, onClick
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
+private suspend fun androidx.compose.foundation.lazy.LazyListState.pinToBottom() {
+    repeat(8) {
+        val total = layoutInfo.totalItemsCount
+        if (total > 0) {
+            runCatching { scrollToItem(total - 1, 1_000_000) }
+            runCatching { scrollBy(1_000_000f) }
+            if (!canScrollForward) return
+        }
+        kotlinx.coroutines.delay(70)
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ChatScreen(vm: NativeViewModel) {
     val listState = rememberLazyListState()
     val rows = remember(vm.messages.size, vm.activeSessionId) { chatRows(vm.messages) }
+    val streamVersion = vm.messages.lastOrNull()?.let { item ->
+        when (item) {
+            is ChatItem.Assistant -> item.text.length + (item.reasoning?.length ?: 0)
+            is ChatItem.Tool -> item.arguments.length + (item.result?.length ?: 0)
+            else -> 0
+        }
+    } ?: 0
     var showSessionPicker by remember { mutableStateOf(false) }
     var sessionQuery by remember { mutableStateOf("") }
     var showPermissionDialog by remember { mutableStateOf(false) }
@@ -678,6 +700,9 @@ private fun ChatScreen(vm: NativeViewModel) {
         }
     }
     var initialScrollDone by remember(vm.activeSessionId) { mutableStateOf(false) }
+    var followBottom by remember(vm.activeSessionId) { mutableStateOf(true) }
+    val dragged by listState.interactionSource.collectIsDraggedAsState()
+    LaunchedEffect(dragged) { if (dragged) followBottom = false }
     var historyAnchorIndex by remember { mutableStateOf(-1) }
     var historyAnchorOffset by remember { mutableStateOf(0) }
     val context = LocalContext.current
@@ -700,23 +725,38 @@ private fun ChatScreen(vm: NativeViewModel) {
         if (saved) cameraTarget?.let { vm.attach(it) }
         cameraTarget = null
     }
-    LaunchedEffect(vm.activeSessionId, rows.size) {
+    LaunchedEffect(vm.activeSessionId, rows.size, streamVersion) {
         if (rows.isEmpty()) return@LaunchedEffect
         val lastIndex = rows.lastIndex
         if (!initialScrollDone) {
-            // Opening a long conversation must land on the newest message
-            // immediately. animateScrollToItem would visibly travel from the
-            // top through hundreds of records.
-            runCatching { listState.scrollToItem(lastIndex + 1) }
+            // Wait for the snapshot's incremental appends to settle: rows can
+            // arrive in several batches, and pinning the first batch would leave
+            // the rest below the viewport. Any newer batch restarts this effect.
+            kotlinx.coroutines.delay(180)
+            listState.pinToBottom()
             initialScrollDone = true
-        } else {
-            // Follow live output only while the reader is already near the
-            // bottom; scrolling up to read history must not be interrupted.
-            val lastVisible = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1
-            if (vm.autoScroll && lastVisible >= rows.size - 3) {
-                runCatching { listState.animateScrollToItem(lastIndex + 1) }
-            }
+        } else if (vm.autoScroll && followBottom) {
+            // Follow batched snapshot appends and streaming growth until the
+            // reader drags the list; then leave their position alone.
+            listState.pinToBottom()
         }
+    }
+    LaunchedEffect(vm.activeSessionId) {
+        // Opening a session: keep pinning until the snapshot stops growing.
+        repeat(12) {
+            kotlinx.coroutines.delay(120)
+            val total = listState.layoutInfo.totalItemsCount
+            if (total > 0) runCatching { listState.scrollToItem(total - 1) }
+        }
+    }
+    LaunchedEffect(vm.activeSessionId, vm.autoScroll) {
+        if (!vm.autoScroll) return@LaunchedEffect
+        snapshotFlow { listState.layoutInfo.totalItemsCount }
+            .collect { total ->
+                if (total > 0 && followBottom) {
+                    runCatching { listState.scrollToItem(total - 1, 1_000_000) }
+                }
+            }
     }
     LaunchedEffect(vm.historyVersion) {
         if (historyAnchorIndex >= 0) {
@@ -880,15 +920,14 @@ private fun ChatScreen(vm: NativeViewModel) {
             }
         }
         val atBottom by remember {
-            derivedStateOf {
-                val info = listState.layoutInfo
-                val last = info.visibleItemsInfo.lastOrNull()
-                last == null || last.index >= info.totalItemsCount - 1
-            }
+            derivedStateOf { !listState.canScrollForward }
         }
         if (!atBottom && vm.messages.isNotEmpty()) {
             SmallFloatingActionButton(
-                onClick = { scope.launch { runCatching { listState.animateScrollToItem(vm.messages.size) } } },
+                onClick = {
+                    followBottom = true
+                    scope.launch { listState.pinToBottom() }
+                },
                 modifier = Modifier.align(Alignment.BottomEnd).padding(14.dp),
                 containerColor = DshSurface,
                 contentColor = DshTeal,

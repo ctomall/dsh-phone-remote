@@ -1,8 +1,8 @@
 {
-  "versionCode": 54,
-  "versionName": "0.22.0",
-  "apkUrl": "https://raw.githubusercontent.com/ctomall/dsh-phone-remote/main/updates/DSHNative-0.22.0.apk",
-  "sha256": "7fc607c07060c98b7871a873ea29681afb41a2c2e3c7806d596edbebc12f3b7b",
-  "notes": "消息操作行：复制/赞/踩/折叠/翻译/朗读/分享 + 每条用量与时间",
-  "signature": "MEUCIQDFpSX5xLaSA7BsT/4gnBIpTdOVu7k3YtcqXwnvQZfgSQIgcYprfflpa08xS0r6Y8LaeT2b+OqD7oX1bE35bGxpgUs="
+  "versionCode": 55,
+  "versionName": "0.22.1",
+  "apkUrl": "https://raw.githubusercontent.com/ctomall/dsh-phone-remote/main/updates/DSHNative-0.22.1.apk",
+  "sha256": "ce596f062ab8593df66c4657a556ee4e1d440b64542500aa1c1406c1a2d077be",
+  "notes": "修复打开会话不追踪最新位置：批量快照追加期间保持贴底，底部留白避免最后一张卡片被裁切",
+  "signature": "MEUCIDi8zAg2JK8I+gNCJU/UEIL6nm6kTYzEEOsGMxsvLi8EAiEA7r17fKYzKV8zlpGztoEOTsk/yud7BTC1TrRrgqLR1nI="
 }
