@@ -116,7 +116,7 @@ internal fun ToolboxScreen(vm: NativeViewModel) {
             "skills" -> SkillsSection(vm)
             "tools" -> ToolsSection(vm)
             "browser" -> BrowserSection()
-            "ssh" -> SshSection()
+            "ssh" -> SshSection(vm)
             else -> FilesSection(vm)
         }
     }
@@ -346,12 +346,12 @@ private fun BrowserSection() {
 /* --------------------------------- SSH --------------------------------- */
 
 @Composable
-private fun SshSection() {
+private fun SshSection(vm: NativeViewModel) {
     val hosts = remember { mutableStateListOf<SshHost>() }
     var showAdd by remember { mutableStateOf(false) }
     var status by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
-    var name by remember { mutableStateOf("") }
-    var host by remember { mutableStateOf("") }
+    var name by remember { mutableStateOf("本机") }
+    var host by remember { mutableStateOf("127.0.0.1") }
     var user by remember { mutableStateOf("root") }
     var port by remember { mutableStateOf("22") }
     val scope = rememberCoroutineScope()
@@ -364,7 +364,7 @@ private fun SshSection() {
             Text("添加", color = DshTeal, fontSize = 11.sp, fontFamily = DshMono, modifier = Modifier.clickable { showAdd = true })
         }
         Text(
-            "仅保存主机与连通性测试；完整交互终端仍在电脑端",
+            "保存主机，点「终端」在会话里执行 ssh；密码与密钥交互在终端内完成",
             color = DshMuted,
             fontSize = 10.sp,
             modifier = Modifier.padding(horizontal = 20.dp),
@@ -397,6 +397,9 @@ private fun SshSection() {
                                 }
                             }.padding(8.dp),
                         )
+                        Text("终端", color = DshTeal, fontSize = 10.sp, fontFamily = DshMono, modifier = Modifier.clickable {
+                            vm.openSshTerminal(item.host, item.user, item.port)
+                        }.padding(8.dp))
                         Text("复制", color = DshTeal, fontSize = 10.sp, fontFamily = DshMono, modifier = Modifier.clickable {
                             clipboard.setText(AnnotatedString("ssh ${item.user}@${item.host} -p ${item.port}"))
                         }.padding(8.dp))
@@ -431,7 +434,7 @@ private fun SshSection() {
                         hosts.add(SshHost(System.currentTimeMillis().toString(), name.ifBlank { host }, host.trim(), user.ifBlank { "root" }, p))
                     }
                     showAdd = false
-                    name = ""; host = ""; user = "root"; port = "22"
+                    name = "本机"; host = "127.0.0.1"; user = "root"; port = "22"
                 }) { Text("保存", color = DshTeal) }
             },
             dismissButton = { TextButton(onClick = { showAdd = false }) { Text("取消", color = DshMuted) } },

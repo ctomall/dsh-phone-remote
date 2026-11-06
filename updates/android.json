@@ -1,8 +1,8 @@
 {
-  "versionCode": 56,
-  "versionName": "0.23.0",
-  "apkUrl": "https://raw.githubusercontent.com/ctomall/dsh-phone-remote/main/updates/DSHNative-0.23.0.apk",
-  "sha256": "284081caf6c4018e0f9417d50632275469f125649fe4a41984701074ee2e3aca",
-  "notes": "工具箱：会话搜索、技能目录、工具统计、内置浏览器、SSH 主机、文件筛选入口",
-  "signature": "MEQCIGQKj/gQ9ogKEHGcFFCd3zjox9dBTMbEqUGBLnF6E5+cAiA8PUUlmgvHEoKHqmpOU6wVDdg+4Y50DTsOICmV2vW10Q=="
+  "versionCode": 57,
+  "versionName": "0.23.1",
+  "apkUrl": "https://raw.githubusercontent.com/ctomall/dsh-phone-remote/main/updates/DSHNative-0.23.1.apk",
+  "sha256": "294e04357a6a0a8db0df9d1c532b4707c1a6ce6919449e97b4d88367d7675601",
+  "notes": "SSH 真终端（xterm + ssh 命令）、图片双指缩放、SSH 主机预填",
+  "signature": "MEYCIQDo3q/WG1NHSudj76nWDTrKnAtbDfB7jVclVgZfYVymAAIhALFlDrSMlgO1K/GQoJhr+PPsRl9mJBUg70AZjPwVjDEF"
 }
