@@ -233,7 +233,9 @@ internal fun ThemeToggle() {
 @Composable
 private fun ServersScreen(vm: NativeViewModel) {
     val context = LocalContext.current
-    var url by remember { mutableStateOf(vm.currentProfile?.url ?: "https://harness.ila3.net/phone/") }
+    var url by remember(vm.pairPrefillUrl) {
+        mutableStateOf(vm.pairPrefillUrl.ifBlank { vm.currentProfile?.url ?: "https://harness.ila3.net/phone/" })
+    }
     var code by remember { mutableStateOf("") }
     var scanHint by remember { mutableStateOf("") }
     val scanLauncher = rememberLauncherForActivityResult(ScanContract()) { result ->
@@ -747,7 +749,14 @@ private fun ChatScreen(vm: NativeViewModel) {
                                 listOf(NativeViewModel.DeviceState(vm.currentProfile?.id, vm.currentProfile?.name ?: "本机", true))
                             }
                             states.forEach { state ->
-                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                Row(
+                                    Modifier.fillMaxWidth().clickable {
+                                        if (!state.ok) {
+                                            vm.profiles.firstOrNull { it.id == state.id }?.let { vm.openServersFor(it) }
+                                        }
+                                    },
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
                                     Box(
                                         Modifier.size(5.dp).background(if (state.ok) DshTeal else DshDanger, CircleShape),
                                     )
@@ -760,7 +769,7 @@ private fun ChatScreen(vm: NativeViewModel) {
                                         modifier = Modifier.weight(1f),
                                     )
                                     Text(
-                                        if (state.ok) "${state.sessions} 会话" else "不可用",
+                                        if (state.ok) "${state.sessions} 会话" else "不可用 · 重新配对",
                                         color = if (state.ok) DshMuted else DshDanger,
                                         fontSize = 9.sp,
                                         fontFamily = DshMono,
