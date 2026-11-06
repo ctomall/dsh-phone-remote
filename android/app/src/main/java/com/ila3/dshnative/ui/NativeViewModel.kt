@@ -15,6 +15,7 @@ import java.util.Base64
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
@@ -203,6 +204,8 @@ class NativeViewModel(app: Application) : AndroidViewModel(app) {
     var gallery by mutableStateOf<List<GalleryItem>>(emptyList())
     var galleryBusy by mutableStateOf(false)
     var thumbnails by mutableStateOf<Map<String, Bitmap>>(emptyMap())
+    var galleryPreviewIndex by mutableIntStateOf(-1)
+    var galleryPreviewBase by mutableStateOf<List<GalleryItem>>(emptyList())
     var pairPrefillUrl by mutableStateOf("")
     var multiDevice by mutableStateOf(store.multiDevice())
         private set
@@ -1198,20 +1201,22 @@ class NativeViewModel(app: Application) : AndroidViewModel(app) {
             loadFiles(if (filePath.isEmpty()) entry.name else "$filePath/${entry.name}")
             return
         }
+        val sid = activeSessionId.ifBlank { sessions.firstOrNull()?.id.orEmpty() }
+        if (sid.isEmpty()) return
         viewModelScope.launch {
             busy = true
             try {
                 val path = if (filePath.isEmpty()) entry.name else "$filePath/${entry.name}"
                 val image = entry.name.substringAfterLast('.', "").lowercase() in setOf("png", "jpg", "jpeg", "webp", "gif")
                 if (image && (entry.size ?: 0) < 2_000_000) {
-                    val bytes = withContext(Dispatchers.IO) { active.readFileBytes(activeSessionId, path) }
+                    val bytes = withContext(Dispatchers.IO) { active.readFileBytes(sid, path) }
                     val bitmap = withContext(Dispatchers.IO) { BitmapFactory.decodeByteArray(bytes, 0, bytes.size) }
                     if (bitmap != null) {
                         filePreview = FilePreviewData(entry.name, null, bitmap)
                         return@launch
                     }
                 }
-                val text = withContext(Dispatchers.IO) { active.readFileText(activeSessionId, path) }
+                val text = withContext(Dispatchers.IO) { active.readFileText(sid, path) }
                 filePreview = FilePreviewData(entry.name, text, null)
             } catch (e: Exception) {
                 error = e.message ?: "读取文件失败"
@@ -1221,9 +1226,23 @@ class NativeViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    fun openGalleryAt(index: Int, items: List<GalleryItem>) {
+        if (index !in items.indices) return
+        galleryPreviewBase = items
+        galleryPreviewIndex = index
+        openArtifact(items[index].path)
+    }
+
+    fun galleryStep(delta: Int) {
+        val next = galleryPreviewIndex + delta
+        if (next !in galleryPreviewBase.indices) return
+        galleryPreviewIndex = next
+        openArtifact(galleryPreviewBase[next].path)
+    }
+
     fun openArtifact(path: String) {
         val active = client ?: return
-        val session = activeSessionId
+        val session = activeSessionId.ifBlank { sessions.firstOrNull()?.id.orEmpty() }
         if (session.isEmpty()) return
         viewModelScope.launch {
             busy = true

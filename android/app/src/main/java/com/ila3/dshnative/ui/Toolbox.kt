@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
@@ -521,11 +522,11 @@ private fun AttachmentsSection(vm: NativeViewModel) {
                 item { Text("加载图片中", color = DshMuted, fontSize = 9.sp, fontFamily = DshMono, modifier = Modifier.padding(20.dp)) }
             }
             if (vm.gallery.isNotEmpty()) {
-                items(vm.gallery.take(shown), key = { "gallery-" + it.path }) { item ->
+                itemsIndexed(vm.gallery.take(shown), key = { _, item -> "gallery-" + item.path }) { index, item ->
                     val thumb = vm.thumbnails[item.path]
                     LaunchedEffect(item.path) { vm.loadThumbnail(item) }
                     Row(
-                        Modifier.fillMaxWidth().clickable { vm.openArtifact(item.path) }
+                        Modifier.fillMaxWidth().clickable { vm.openGalleryAt(index, vm.gallery.take(shown)) }
                             .padding(horizontal = 20.dp, vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {

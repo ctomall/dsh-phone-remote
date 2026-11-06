@@ -1,8 +1,8 @@
 {
-  "versionCode": 61,
-  "versionName": "0.23.5",
-  "apkUrl": "https://raw.githubusercontent.com/ctomall/dsh-phone-remote/main/updates/DSHNative-0.23.5.apk",
-  "sha256": "3e444ccc27d6f8f6c6c8b4938471626eace2858d44fac1a6b33eb03ebc7abcab",
-  "notes": "图片画廊刷新与分页（首屏 40，最多 300）",
-  "signature": "MEUCIGY+1AqbnugQ1QfbF0c1qNZgsWufb4T2BBFUaQSiPuLrAiEAqg6KvykuxkDyI7/T6zSaUJ7cQXqKw1zzLHn47O9CkOU="
+  "versionCode": 62,
+  "versionName": "0.23.6",
+  "apkUrl": "https://raw.githubusercontent.com/ctomall/dsh-phone-remote/main/updates/DSHNative-0.23.6.apk",
+  "sha256": "970724090f42b607f03c9334c656a3511fce684ce0b43f490b451088931e2a96",
+  "notes": "修复预览不可用：预览层全局挂载、无活动会话也能按首个会话读取；画廊支持上一张/下一张",
+  "signature": "MEUCIQDuuYMQhkvkfjNLtlyE6z/o5Kbf7UoifnIx8Hbt7ziGtwIgWXp7aPzKp8RadOzKtc14FrynmZw3WSzeuUoGBr0psQE="
 }

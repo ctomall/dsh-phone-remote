@@ -475,7 +475,6 @@ private fun FilesTab(vm: NativeViewModel) {
                 }
             }
         }
-        FilePreviewSheet(vm)
     }
 }
 
@@ -489,6 +488,33 @@ internal fun FilePreviewSheet(vm: NativeViewModel) {
         containerColor = DshSurface,
     ) {
         Column(Modifier.fillMaxWidth().padding(20.dp)) {
+            if (vm.galleryPreviewIndex >= 0 && vm.galleryPreviewBase.isNotEmpty()) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        "‹ 上一张",
+                        color = if (vm.galleryPreviewIndex > 0) DshTeal else DshMuted,
+                        fontSize = 11.sp,
+                        fontFamily = DshMono,
+                        modifier = Modifier.clickable { vm.galleryStep(-1) }.padding(vertical = 4.dp),
+                    )
+                    Spacer(Modifier.weight(1f))
+                    Text(
+                        "${vm.galleryPreviewIndex + 1} / ${vm.galleryPreviewBase.size}",
+                        color = DshMuted,
+                        fontSize = 9.sp,
+                        fontFamily = DshMono,
+                    )
+                    Spacer(Modifier.weight(1f))
+                    Text(
+                        "下一张 ›",
+                        color = if (vm.galleryPreviewIndex < vm.galleryPreviewBase.lastIndex) DshTeal else DshMuted,
+                        fontSize = 11.sp,
+                        fontFamily = DshMono,
+                        modifier = Modifier.clickable { vm.galleryStep(1) }.padding(vertical = 4.dp),
+                    )
+                }
+                Spacer(Modifier.height(4.dp))
+            }
             Text(preview.name, color = DshText, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.height(10.dp))
             when {

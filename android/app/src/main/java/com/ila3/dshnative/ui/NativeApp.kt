@@ -198,6 +198,7 @@ fun NativeApp(vm: NativeViewModel = viewModel()) {
             .statusBarsPadding()
             .navigationBarsPadding(),
     ) {
+        FilePreviewSheet(vm)
         when (val screen = vm.screen) {
             Screen.Servers -> ServersScreen(vm)
             Screen.Sessions -> HomeScreen(vm)
@@ -2426,7 +2427,6 @@ private fun TaskDetailScreen(vm: NativeViewModel) {
             )
         }
     }
-    FilePreviewSheet(vm)
 }
 
 @Composable
