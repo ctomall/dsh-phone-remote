@@ -73,6 +73,10 @@ import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Devices
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.ThumbUp
+import androidx.compose.material.icons.filled.ThumbDown
+import androidx.compose.material.icons.filled.FormatListBulleted
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.PlayArrow
@@ -1993,44 +1997,61 @@ private fun AssistantMessageRow(item: ChatItem.Assistant, vm: NativeViewModel?, 
                 }
             }
             Row(
-                Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 9.dp),
+                Modifier.fillMaxWidth().padding(start = 8.dp, end = 12.dp, top = 4.dp, bottom = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(14.dp),
             ) {
-                Text(
-                    if (copied) "已复制" else "复制回复",
-                    color = DshTeal,
-                    fontSize = 11.sp,
-                    modifier = Modifier.clickable {
-                        clipboard.setText(AnnotatedString(bodyText))
-                        copied = true
-                    },
-                )
+                val context = LocalContext.current
+                val myRating = item.messageId?.let { vm?.feedback?.get(it) }
+                @Composable fun actionIcon(icon: androidx.compose.ui.graphics.vector.ImageVector, desc: String, tint: Color = DshMuted, onClick: () -> Unit) {
+                    IconButton(onClick = onClick, modifier = Modifier.size(30.dp)) {
+                        Icon(icon, contentDescription = desc, tint = tint, modifier = Modifier.size(15.dp))
+                    }
+                }
+                actionIcon(if (copied) Icons.Filled.Check else Icons.Filled.ContentCopy, "复制") {
+                    clipboard.setText(AnnotatedString(bodyText))
+                    copied = true
+                }
+                if (vm != null && item.messageId != null) {
+                    actionIcon(Icons.Filled.ThumbUp, "有帮助", if (myRating == "positive") DshTeal else DshMuted) {
+                        vm.sendFeedback(item.messageId, "positive")
+                    }
+                    actionIcon(Icons.Filled.ThumbDown, "没帮助", if (myRating == "negative") DshDanger else DshMuted) {
+                        vm.sendFeedback(item.messageId, "negative")
+                    }
+                }
+                actionIcon(Icons.Filled.FormatListBulleted, if (collapsed) "展开" else "折叠") { collapsed = !collapsed }
                 if (vm != null && item.text.isNotBlank()) {
-                    Text(
-                        if (bodyTranslation?.text != null) "查看原文" else "翻译",
-                        color = DshTeal,
-                        fontSize = 11.sp,
-                        modifier = Modifier.clickable {
-                            if (bodyTranslation?.text != null) vm.clearTranslation(bodyKey) else vm.translate(bodyKey, item.text)
-                        },
-                    )
+                    actionIcon(Icons.Filled.Translate, "翻译", if (bodyTranslation?.text != null) DshTeal else DshMuted) {
+                        if (bodyTranslation?.text != null) vm.clearTranslation(bodyKey) else vm.translate(bodyKey, item.text)
+                    }
                 }
                 if (speaker != null && item.text.isNotBlank()) {
-                    Text(
-                        if (speaker.speakingKey == baseKey) "停止朗读" else "朗读",
-                        color = DshTeal,
-                        fontSize = 11.sp,
-                        modifier = Modifier.clickable { speaker.toggle(baseKey, bodyText) },
-                    )
+                    actionIcon(
+                        if (speaker.speakingKey == baseKey) Icons.Filled.VolumeOff else Icons.Filled.VolumeUp,
+                        "朗读",
+                        if (speaker.speakingKey == baseKey) DshTeal else DshMuted,
+                    ) { speaker.toggle(baseKey, bodyText) }
+                }
+                actionIcon(Icons.Filled.Share, "分享") {
+                    val send = Intent(Intent.ACTION_SEND).apply {
+                        type = "text/plain"
+                        putExtra(Intent.EXTRA_TEXT, bodyText)
+                    }
+                    context.startActivity(Intent.createChooser(send, "分享回复"))
                 }
                 Spacer(Modifier.weight(1f))
-                Text(
-                    vm?.currentModel?.name ?: "默认模型",
-                    color = DshMuted,
-                    fontSize = 9.sp,
-                    fontFamily = DshMono,
-                )
+                if (item.tokens > 0L) {
+                    Text("用量 ${formatTokens(item.tokens)} tok", color = DshMuted, fontSize = 9.sp, fontFamily = DshMono)
+                    Spacer(Modifier.width(8.dp))
+                }
+                if (vm?.showTime != false && item.at > 0L) {
+                    Text(
+                        SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(item.at)),
+                        color = DshMuted,
+                        fontSize = 9.sp,
+                        fontFamily = DshMono,
+                    )
+                }
             }
         }
     }

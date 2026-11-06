@@ -30,6 +30,8 @@ sealed class ChatItem {
         val streaming: Boolean = false,
         override val at: Long = 0L,
         val turn: Int = 0,
+        val messageId: String? = null,
+        val tokens: Long = 0L,
     ) : ChatItem()
 
     data class Tool(
@@ -85,7 +87,15 @@ object ChatParser {
                 val text = messageText(message)
                 val reasoning = reasoningText(message)
                 val at = event.optLong("time", 0L)
-                if (text.isBlank() && reasoning == null) null else ChatItem.Assistant("e$seq", text, reasoning, at = at)
+                val usage = data.optJSONObject("usage")
+                val tokens = usage?.optLong("totalTokens", 0L)?.takeIf { it > 0L }
+                    ?: listOf("inputTokens", "outputTokens", "cacheReadTokens", "cacheWriteTokens")
+                        .sumOf { usage?.optLong(it, 0L) ?: 0L }
+                if (text.isBlank() && reasoning == null) null else ChatItem.Assistant(
+                    "e$seq", text, reasoning, at = at,
+                    messageId = message?.optString("id")?.takeIf { it.isNotEmpty() },
+                    tokens = tokens,
+                )
             }
             "tool/call" -> {
                 val callId = data.optString("callId")

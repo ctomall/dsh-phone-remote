@@ -186,6 +186,7 @@ class NativeViewModel(app: Application) : AndroidViewModel(app) {
     )
 
     var deviceStates by mutableStateOf<List<DeviceState>>(emptyList())
+    var feedback by mutableStateOf<Map<String, String>>(emptyMap())
     var pairPrefillUrl by mutableStateOf("")
     var multiDevice by mutableStateOf(store.multiDevice())
         private set
@@ -737,6 +738,16 @@ class NativeViewModel(app: Application) : AndroidViewModel(app) {
                 runCatching { withContext(Dispatchers.IO) { active.presets() } }
                     .onSuccess { presetOptions = it }
             }
+        }
+    }
+
+    fun sendFeedback(messageId: String, rating: String) {
+        val active = client ?: return
+        val sid = activeSessionId
+        feedback = feedback + (messageId to rating)
+        viewModelScope.launch {
+            runCatching { withContext(Dispatchers.IO) { active.putFeedback(sid, messageId, rating) } }
+                .onFailure { error = it.message ?: "反馈失败" }
         }
     }
 
