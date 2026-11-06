@@ -517,6 +517,13 @@ internal fun FilePreviewSheet(vm: NativeViewModel) {
                 Spacer(Modifier.height(4.dp))
             }
             Text(preview.name, color = DshText, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+            val meta = listOfNotNull(
+                if (preview.width > 0) "${preview.width}×${preview.height}" else null,
+                if (preview.bytes > 0) sizeLabel(preview.bytes) else null,
+            ).joinToString(" · ")
+            if (meta.isNotBlank()) {
+                Text(meta, color = DshMuted, fontSize = 9.sp, fontFamily = DshMono, modifier = Modifier.padding(top = 2.dp))
+            }
             Spacer(Modifier.height(10.dp))
             when {
                 preview.bitmap != null -> {

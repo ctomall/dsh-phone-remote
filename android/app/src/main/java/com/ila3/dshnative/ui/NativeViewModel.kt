@@ -132,7 +132,14 @@ class NativeViewModel(app: Application) : AndroidViewModel(app) {
         private set
     var filePath by mutableStateOf("")
         private set
-    data class FilePreviewData(val name: String, val text: String?, val bitmap: Bitmap?)
+    data class FilePreviewData(
+        val name: String,
+        val text: String?,
+        val bitmap: Bitmap?,
+        val bytes: Long = 0L,
+        val width: Int = 0,
+        val height: Int = 0,
+    )
     var filePreview by mutableStateOf<FilePreviewData?>(null)
         private set
     var terminalTitle by mutableStateOf("终端")
@@ -206,6 +213,7 @@ class NativeViewModel(app: Application) : AndroidViewModel(app) {
     var thumbnails by mutableStateOf<Map<String, Bitmap>>(emptyMap())
     var galleryPreviewIndex by mutableIntStateOf(-1)
     var galleryPreviewBase by mutableStateOf<List<GalleryItem>>(emptyList())
+    var galleryFolder by mutableStateOf("all")
     var pairPrefillUrl by mutableStateOf("")
     var multiDevice by mutableStateOf(store.multiDevice())
         private set
@@ -1212,7 +1220,7 @@ class NativeViewModel(app: Application) : AndroidViewModel(app) {
                     val bytes = withContext(Dispatchers.IO) { active.readFileBytes(sid, path) }
                     val bitmap = withContext(Dispatchers.IO) { BitmapFactory.decodeByteArray(bytes, 0, bytes.size) }
                     if (bitmap != null) {
-                        filePreview = FilePreviewData(entry.name, null, bitmap)
+                        filePreview = FilePreviewData(entry.name, null, bitmap, bytes.size.toLong(), bitmap.width, bitmap.height)
                         return@launch
                     }
                 }
@@ -1254,7 +1262,7 @@ class NativeViewModel(app: Application) : AndroidViewModel(app) {
                 if (image) {
                     val bytes = withContext(Dispatchers.IO) { active.readFileBytes(session, relative) }
                     val bitmap = withContext(Dispatchers.IO) { BitmapFactory.decodeByteArray(bytes, 0, bytes.size) }
-                    filePreview = FilePreviewData(name, null, bitmap)
+                    filePreview = FilePreviewData(name, null, bitmap, bytes.size.toLong(), bitmap?.width ?: 0, bitmap?.height ?: 0)
                 } else {
                     val text = withContext(Dispatchers.IO) { active.readFileText(session, relative) }
                     filePreview = FilePreviewData(name, text, null)

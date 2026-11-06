@@ -513,6 +513,32 @@ private fun AttachmentsSection(vm: NativeViewModel) {
             )
             Text("刷新", color = DshTeal, fontSize = 10.sp, fontFamily = DshMono, modifier = Modifier.clickable { vm.refreshGallery() })
         }
+        val folders = remember(vm.gallery) {
+            vm.gallery.mapNotNull { item ->
+                item.path.substringBefore('/', "").takeIf { item.path.contains('/') && it.isNotBlank() }
+            }.distinct().take(8)
+        }
+        if (folders.isNotEmpty()) {
+            Row(
+                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                (listOf("all") + folders).forEach { folder ->
+                    val active = vm.galleryFolder == folder
+                    Text(
+                        if (folder == "all") "全部" else folder,
+                        color = if (active) DshText else DshMuted,
+                        fontSize = 9.sp,
+                        fontFamily = DshMono,
+                        modifier = Modifier
+                            .background(if (active) DshSurface else Color.Transparent, RoundedCornerShape(6.dp))
+                            .border(1.dp, if (active) DshBorder else Color.Transparent, RoundedCornerShape(6.dp))
+                            .clickable { vm.galleryFolder = folder }
+                            .padding(horizontal = 8.dp, vertical = 4.dp),
+                    )
+                }
+            }
+        }
         Text("当前会话附件", color = DshMuted, fontSize = 9.sp, fontFamily = DshMono, modifier = Modifier.padding(horizontal = 20.dp))
         if (attachments.isEmpty()) {
             Text("没有上传附件", color = DshMuted, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 20.dp))
@@ -522,11 +548,14 @@ private fun AttachmentsSection(vm: NativeViewModel) {
                 item { Text("加载图片中", color = DshMuted, fontSize = 9.sp, fontFamily = DshMono, modifier = Modifier.padding(20.dp)) }
             }
             if (vm.gallery.isNotEmpty()) {
-                itemsIndexed(vm.gallery.take(shown), key = { _, item -> "gallery-" + item.path }) { index, item ->
+                val visible = vm.gallery.filter { item ->
+                    vm.galleryFolder == "all" || item.path.substringBefore('/', "") == vm.galleryFolder
+                }
+                itemsIndexed(visible.take(shown), key = { _, item -> "gallery-" + item.path }) { index, item ->
                     val thumb = vm.thumbnails[item.path]
                     LaunchedEffect(item.path) { vm.loadThumbnail(item) }
                     Row(
-                        Modifier.fillMaxWidth().clickable { vm.openGalleryAt(index, vm.gallery) }
+                        Modifier.fillMaxWidth().clickable { vm.openGalleryAt(index, visible) }
                             .padding(horizontal = 20.dp, vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
@@ -549,10 +578,10 @@ private fun AttachmentsSection(vm: NativeViewModel) {
                     }
                     HorizontalDivider(color = DshBorder, thickness = 1.dp, modifier = Modifier.padding(start = 20.dp))
                 }
-                if (shown < vm.gallery.size) {
+                if (shown < visible.size) {
                     item(key = "gallery-more") {
                         Text(
-                            "加载更多（还有 ${vm.gallery.size - shown} 张）",
+                            "加载更多（还有 ${visible.size - shown} 张）",
                             color = DshTeal,
                             fontSize = 11.sp,
                             fontFamily = DshMono,
