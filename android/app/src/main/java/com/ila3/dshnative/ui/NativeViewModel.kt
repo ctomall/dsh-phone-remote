@@ -186,6 +186,7 @@ class NativeViewModel(app: Application) : AndroidViewModel(app) {
     )
 
     var deviceStates by mutableStateOf<List<DeviceState>>(emptyList())
+    var pairPrefillUrl by mutableStateOf("")
     var multiDevice by mutableStateOf(store.multiDevice())
         private set
     var showDeviceRunning by mutableStateOf(store.showDeviceRunning())
@@ -210,6 +211,12 @@ class NativeViewModel(app: Application) : AndroidViewModel(app) {
     fun updateToolExpanded(value: Boolean) {
         toolExpanded = value
         store.setToolExpanded(value)
+    }
+
+    fun openServersFor(profile: ServerProfile) {
+        pairPrefillUrl = profile.url
+        screen = Screen.Servers
+        error = ""
     }
 
     fun updateMultiDevice(value: Boolean) {
