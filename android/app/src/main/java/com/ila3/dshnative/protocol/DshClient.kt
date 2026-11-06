@@ -603,6 +603,20 @@ class DshClient private constructor(
         )
     }
 
+    suspend fun putFeedback(sessionId: String, messageId: String, rating: String) {
+        call(
+            "messageFeedback/put",
+            JSONObject().put(
+                "request",
+                JSONObject()
+                    .put("sessionId", sessionId)
+                    .put("messageId", messageId)
+                    .put("rating", rating)
+                    .put("ifVersion", JSONObject.NULL),
+            ),
+        )
+    }
+
     data class ModelChoice(val provider: String, val model: String, val name: String)
     data class ModelGroup(val id: String, val name: String, val models: List<ModelChoice>)
     data class ModelCatalogData(val default: ModelChoice?, val groups: List<ModelGroup>)
