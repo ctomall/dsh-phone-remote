@@ -496,36 +496,49 @@ private fun AttachmentsSection(vm: NativeViewModel) {
     var preview by remember { mutableStateOf<Bitmap?>(null) }
     Column(Modifier.fillMaxSize()) {
         LaunchedEffect(Unit) {
-            if (vm.files.isEmpty()) vm.loadFiles(vm.filePath)
+            if (vm.gallery.isEmpty()) vm.loadGallery()
         }
         Text("当前会话附件", color = DshMuted, fontSize = 9.sp, fontFamily = DshMono, modifier = Modifier.padding(20.dp))
         if (attachments.isEmpty()) {
             Text("没有上传附件", color = DshMuted, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 20.dp))
         }
-        val images = vm.files.filter {
-            it.type != "directory" && it.name.substringAfterLast('.', "").lowercase() in
-                setOf("png", "jpg", "jpeg", "webp", "gif", "svg", "bmp")
-        }
         LazyColumn(Modifier.fillMaxSize()) {
-            if (images.isNotEmpty()) {
+            if (vm.galleryBusy) {
+                item { Text("加载图片中", color = DshMuted, fontSize = 9.sp, fontFamily = DshMono, modifier = Modifier.padding(20.dp)) }
+            }
+            if (vm.gallery.isNotEmpty()) {
                 item(key = "workspace-images-title") {
                     Text(
-                        "工作区图片",
+                        "工作区图片 · ${vm.gallery.size}",
                         color = DshMuted,
                         fontSize = 9.sp,
                         fontFamily = DshMono,
                         modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
                     )
                 }
-                items(images, key = { "file-" + it.name }) { entry ->
+                items(vm.gallery, key = { "gallery-" + it.path }) { item ->
+                    val thumb = vm.thumbnails[item.path]
+                    LaunchedEffect(item.path) { vm.loadThumbnail(item) }
                     Row(
-                        Modifier.fillMaxWidth().clickable { vm.openFile(entry) }
-                            .padding(horizontal = 20.dp, vertical = 10.dp),
+                        Modifier.fillMaxWidth().clickable { vm.openArtifact(item.path) }
+                            .padding(horizontal = 20.dp, vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Icon(Icons.Filled.Image, null, tint = DshMuted, modifier = Modifier.size(16.dp))
+                        if (thumb != null) {
+                            Image(
+                                thumb.asImageBitmap(),
+                                contentDescription = item.name,
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.size(56.dp).clip(RoundedCornerShape(6.dp)),
+                            )
+                        } else {
+                            Box(Modifier.size(56.dp).background(DshSurface2, RoundedCornerShape(6.dp)))
+                        }
                         Spacer(Modifier.width(10.dp))
-                        Text(entry.name, color = DshText, fontSize = 12.sp, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Column(Modifier.weight(1f)) {
+                            Text(item.name, color = DshText, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(item.path, color = DshMuted, fontSize = 9.sp, fontFamily = DshMono, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
                         Text("查看", color = DshTeal, fontSize = 10.sp, fontFamily = DshMono)
                     }
                     HorizontalDivider(color = DshBorder, thickness = 1.dp, modifier = Modifier.padding(start = 20.dp))

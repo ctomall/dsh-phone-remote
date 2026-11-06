@@ -199,6 +199,10 @@ class NativeViewModel(app: Application) : AndroidViewModel(app) {
     var skillsBusy by mutableStateOf(false)
     var fileKindFilter by mutableStateOf("all")
     var browserUrl by mutableStateOf("https://example.com/")
+    data class GalleryItem(val path: String, val name: String, val size: Long?)
+    var gallery by mutableStateOf<List<GalleryItem>>(emptyList())
+    var galleryBusy by mutableStateOf(false)
+    var thumbnails by mutableStateOf<Map<String, Bitmap>>(emptyMap())
     var pairPrefillUrl by mutableStateOf("")
     var multiDevice by mutableStateOf(store.multiDevice())
         private set
@@ -228,6 +232,57 @@ class NativeViewModel(app: Application) : AndroidViewModel(app) {
 
     fun closeToolbox() {
         screen = Screen.Sessions
+    }
+
+    fun loadGallery() {
+        val active = client ?: return
+        val sid = activeSessionId.ifBlank { sessions.firstOrNull()?.id.orEmpty() }
+        if (sid.isEmpty()) return
+        viewModelScope.launch {
+            galleryBusy = true
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    val images = mutableListOf<GalleryItem>()
+                    val imageExt = setOf("png", "jpg", "jpeg", "webp", "gif", "bmp")
+                    suspend fun walk(path: String, depth: Int) {
+                        val entries = runCatching { active.listFiles(sid, path) }.getOrDefault(emptyList())
+                        entries.forEach { entry ->
+                            val child = if (path.isEmpty()) entry.name else "$path/${entry.name}"
+                            if (entry.type == "directory") {
+                                if (depth > 0 && !entry.name.startsWith(".") &&
+                                    entry.name !in setOf("node_modules", "build", "dist", ".git")
+                                ) walk(child, depth - 1)
+                            } else if (entry.name.substringAfterLast('.', "").lowercase() in imageExt) {
+                                images.add(GalleryItem(child, entry.name, entry.size))
+                            }
+                        }
+                    }
+                    walk("", 1)
+                    images.take(80)
+                }
+            }.onSuccess { gallery = it }
+                .onFailure { error = it.message ?: "加载图片失败" }
+            galleryBusy = false
+        }
+    }
+
+    fun loadThumbnail(item: GalleryItem) {
+        if (thumbnails.containsKey(item.path)) return
+        val active = client ?: return
+        val sid = activeSessionId.ifBlank { sessions.firstOrNull()?.id.orEmpty() }
+        if (sid.isEmpty()) return
+        viewModelScope.launch {
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    val bytes = active.readFileBytes(sid, item.path, 400_000)
+                    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                    BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+                    var sample = 1
+                    while (bounds.outWidth / sample > 480 || bounds.outHeight / sample > 480) sample *= 2
+                    BitmapFactory.decodeByteArray(bytes, 0, bytes.size, BitmapFactory.Options().apply { inSampleSize = sample })
+                }
+            }.onSuccess { bitmap -> if (bitmap != null) thumbnails = thumbnails + (item.path to bitmap) }
+        }
     }
 
     fun openBrowser(url: String) {
