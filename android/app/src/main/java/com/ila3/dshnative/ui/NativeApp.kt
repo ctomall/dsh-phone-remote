@@ -69,6 +69,7 @@ import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.VerticalAlignBottom
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.PlayArrow
@@ -822,6 +823,15 @@ private fun ChatScreen(vm: NativeViewModel) {
             }
         }
         if (vm.pendingAttachments.isNotEmpty()) PendingAttachmentTray(vm)
+        if (vm.messages.isNotEmpty()) {
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 2.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                ChatStatPill("${rounds.lastOrNull() ?: 0} 轮 · ${vm.messages.size} 条")
+                ChatStatPill("${vm.currentModel?.name ?: "默认模型"} · ${vm.connection}")
+            }
+        }
         val attachmentUploading = vm.pendingAttachments.any { it.status == NativeViewModel.AttachmentStatus.UPLOADING }
         val attachmentFailed = vm.pendingAttachments.any { it.status == NativeViewModel.AttachmentStatus.FAILED }
         val sendEnabled = !attachmentUploading && !attachmentFailed &&
@@ -911,16 +921,39 @@ private fun ChatScreen(vm: NativeViewModel) {
             sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
             containerColor = DshSurface,
         ) {
-            ChatActionSheet(vm)
+            ChatActionSheet(
+                vm,
+                onPickImage = {
+                    vm.dismissChatMenu()
+                    imagePicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                },
+                onPickFile = {
+                    vm.dismissChatMenu()
+                    filePicker.launch(arrayOf("*/*"))
+                },
+            )
         }
     }
     if (vm.showRenameDialog) RenameDialog(vm)
 }
 
 @Composable
-private fun ChatActionSheet(vm: NativeViewModel) {
+private fun ChatStatPill(text: String) {
+    Text(
+        text,
+        color = DshMuted,
+        fontSize = 9.sp,
+        fontFamily = DshMono,
+        modifier = Modifier.border(1.dp, DshBorder, CircleShape).padding(horizontal = 10.dp, vertical = 5.dp),
+    )
+}
+
+@Composable
+private fun ChatActionSheet(vm: NativeViewModel, onPickImage: () -> Unit = {}, onPickFile: () -> Unit = {}) {
     Column(Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 16.dp, vertical = 8.dp)) {
         Text("会话操作", color = DshText, fontSize = 15.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp))
+        ChatAction(Icons.Filled.Image, "上传图片") { onPickImage() }
+        ChatAction(Icons.Filled.AttachFile, "上传文件") { onPickFile() }
         ChatAction(Icons.Filled.Checklist, "任务与进度") { vm.dismissChatMenu(); vm.openTasks() }
         ChatAction(Icons.Filled.Tune, "更换模型", vm.currentModel?.name ?: "默认") { vm.dismissChatMenu(); vm.openModelPicker() }
         ChatAction(Icons.Filled.Edit, "重命名会话") { vm.showRename() }
@@ -1266,8 +1299,30 @@ private fun fileEditPath(tool: ChatItem.Tool): String = runCatching {
     args.optString("path").ifBlank { args.optString("file_path") }
 }.getOrNull()?.takeIf { it.isNotBlank() } ?: toolSummary(tool.arguments)
 
+/** Line counts derived from the edit payload; null when the tool does not expose a patch. */
+private fun fileDiffStats(tool: ChatItem.Tool): Pair<Int, Int>? = runCatching {
+    val args = org.json.JSONObject(tool.arguments)
+    fun lines(text: String) = if (text.isEmpty()) 0 else text.count { it == '\n' } + 1
+    when (tool.name) {
+        "write", "write_file" -> lines(args.optString("content")) to 0
+        "edit" -> lines(args.optString("new_string")) to lines(args.optString("old_string"))
+        "apply_patch", "patch" -> {
+            val patch = args.optString("patch").ifBlank { args.optString("input") }
+            val added = patch.lineSequence().count { it.startsWith("+") && !it.startsWith("+++") }
+            val removed = patch.lineSequence().count { it.startsWith("-") && !it.startsWith("---") }
+            added to removed
+        }
+        else -> null
+    }
+}.getOrNull()
+
 @Composable
 private fun FileEditCard(tools: List<ChatItem.Tool>) {
+    var expanded by remember(tools.first().key) { mutableStateOf(false) }
+    val stats = tools.map { fileDiffStats(it) }
+    val totalAdded = stats.sumOf { it?.first ?: 0 }
+    val totalRemoved = stats.sumOf { it?.second ?: 0 }
+    val shown = if (expanded) tools else tools.take(4)
     Column(
         Modifier.fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
@@ -1282,15 +1337,22 @@ private fun FileEditCard(tools: List<ChatItem.Tool>) {
             Spacer(Modifier.width(8.dp))
             Text("已编辑 ${tools.size} 个文件", color = DshText, fontSize = 12.5.sp, fontWeight = FontWeight.Medium)
             Spacer(Modifier.weight(1f))
-            Text(
-                tools.first().at.takeIf { it > 0L }?.let { SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(it)) } ?: "--:--",
-                color = DshMuted,
-                fontSize = 9.sp,
-                fontFamily = DshMono,
-            )
+            if (totalAdded > 0 || totalRemoved > 0) {
+                Text("+$totalAdded", color = DshTeal, fontSize = 10.sp, fontFamily = DshMono)
+                Spacer(Modifier.width(6.dp))
+                Text("-$totalRemoved", color = DshDanger, fontSize = 10.sp, fontFamily = DshMono)
+            } else {
+                Text(
+                    tools.first().at.takeIf { it > 0L }?.let { SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(it)) } ?: "--:--",
+                    color = DshMuted,
+                    fontSize = 9.sp,
+                    fontFamily = DshMono,
+                )
+            }
         }
         HorizontalDivider(color = DshBorder, thickness = 1.dp)
-        tools.forEach { tool ->
+        shown.forEachIndexed { index, tool ->
+            val diff = stats[index]
             Row(
                 Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 7.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -1304,14 +1366,30 @@ private fun FileEditCard(tools: List<ChatItem.Tool>) {
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f),
                 )
-                Text(
-                    if (tool.isError) "ERR" else "OK",
-                    color = if (tool.isError) DshDanger else DshMuted,
-                    fontSize = 9.sp,
-                    fontFamily = DshMono,
-                )
+                if (diff != null && (diff.first > 0 || diff.second > 0)) {
+                    Text("+${diff.first}", color = DshTeal, fontSize = 9.sp, fontFamily = DshMono)
+                    Spacer(Modifier.width(5.dp))
+                    Text("-${diff.second}", color = DshDanger, fontSize = 9.sp, fontFamily = DshMono)
+                } else {
+                    Text(
+                        if (tool.isError) "ERR" else "OK",
+                        color = if (tool.isError) DshDanger else DshMuted,
+                        fontSize = 9.sp,
+                        fontFamily = DshMono,
+                    )
+                }
             }
-            if (tool != tools.last()) HorizontalDivider(color = DshBorder, thickness = 1.dp, modifier = Modifier.padding(start = 12.dp))
+            if (index != shown.lastIndex) HorizontalDivider(color = DshBorder, thickness = 1.dp, modifier = Modifier.padding(start = 12.dp))
+        }
+        if (tools.size > 4) {
+            HorizontalDivider(color = DshBorder, thickness = 1.dp)
+            Text(
+                if (expanded) "收起" else "展开 ${tools.size - 4} 个",
+                color = DshTeal,
+                fontSize = 10.sp,
+                fontFamily = DshMono,
+                modifier = Modifier.fillMaxWidth().clickable { expanded = !expanded }.padding(horizontal = 12.dp, vertical = 8.dp),
+            )
         }
     }
 }
@@ -1472,6 +1550,7 @@ private fun ToolLogLine(tool: ChatItem.Tool) {
 private fun AssistantMessageRow(item: ChatItem.Assistant, vm: NativeViewModel?, speaker: Speaker?) {
     val clipboard = LocalClipboardManager.current
     var copied by remember { mutableStateOf(false) }
+    var collapsed by remember(item.key) { mutableStateOf(false) }
     val baseKey = if (vm != null) "${vm.activeSessionId}:${item.key}" else item.key
     val bodyKey = "$baseKey:body"
     val bodyTranslation = vm?.translations?.get(bodyKey)
@@ -1494,7 +1573,8 @@ private fun AssistantMessageRow(item: ChatItem.Assistant, vm: NativeViewModel?, 
             .border(1.dp, DshBorder, RoundedCornerShape(14.dp)),
     ) {
         Row(
-            Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, top = 10.dp, bottom = 8.dp),
+            Modifier.fillMaxWidth().clickable { collapsed = !collapsed }
+                .padding(start = 12.dp, end = 12.dp, top = 10.dp, bottom = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(
@@ -1529,66 +1609,86 @@ private fun AssistantMessageRow(item: ChatItem.Assistant, vm: NativeViewModel?, 
                     modifier = Modifier.clickable { vm.stopGeneration() },
                 )
             }
-        }
-        Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            item.reasoning?.let { reasoning -> ThinkSection(baseKey, reasoning, vm) }
-            if (bodyTranslation?.loading == true) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    CircularProgressIndicator(Modifier.size(12.dp), color = DshTeal, strokeWidth = 1.5.dp)
-                    Spacer(Modifier.width(8.dp))
-                    Text("翻译中", color = DshMuted, fontSize = 10.sp, fontFamily = DshMono)
-                }
-            }
-            if (bodyTranslation?.error != null) {
-                Text("翻译失败：${bodyTranslation.error}", color = DshDanger, fontSize = 10.sp)
-                TextButton(onClick = { vm?.retryTranslation(bodyKey, item.text) }) {
-                    Text("重试", color = DshTeal, fontSize = 10.sp)
-                }
-            }
-            if (bodyText.isNotBlank()) CollapsibleMarkdown(bodyText)
-            if (item.streaming) {
-                Box(Modifier.width(7.dp).height(14.dp).background(DshTeal))
-            }
-        }
-        Row(
-            Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 9.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(14.dp),
-        ) {
-            Text(
-                if (copied) "已复制" else "复制回复",
-                color = DshTeal,
-                fontSize = 11.sp,
-                modifier = Modifier.clickable {
-                    clipboard.setText(AnnotatedString(bodyText))
-                    copied = true
-                },
+            Spacer(Modifier.width(8.dp))
+            Icon(
+                if (collapsed) Icons.Filled.ExpandMore else Icons.Filled.ExpandLess,
+                contentDescription = if (collapsed) "展开" else "收起",
+                tint = DshMuted,
+                modifier = Modifier.size(15.dp),
             )
-            if (vm != null && item.text.isNotBlank()) {
+        }
+        if (collapsed) {
+            if (item.text.isNotBlank()) {
                 Text(
-                    if (bodyTranslation?.text != null) "查看原文" else "翻译",
+                    item.text.lineSequence().firstOrNull().orEmpty().take(90),
+                    color = DshMuted,
+                    fontSize = 12.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(start = 12.dp, end = 12.dp, bottom = 10.dp),
+                )
+            }
+        } else {
+            Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                item.reasoning?.let { reasoning -> ThinkSection(baseKey, reasoning, vm) }
+                if (bodyTranslation?.loading == true) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        CircularProgressIndicator(Modifier.size(12.dp), color = DshTeal, strokeWidth = 1.5.dp)
+                        Spacer(Modifier.width(8.dp))
+                        Text("翻译中", color = DshMuted, fontSize = 10.sp, fontFamily = DshMono)
+                    }
+                }
+                if (bodyTranslation?.error != null) {
+                    Text("翻译失败：${bodyTranslation.error}", color = DshDanger, fontSize = 10.sp)
+                    TextButton(onClick = { vm?.retryTranslation(bodyKey, item.text) }) {
+                        Text("重试", color = DshTeal, fontSize = 10.sp)
+                    }
+                }
+                if (bodyText.isNotBlank()) CollapsibleMarkdown(bodyText)
+                if (item.streaming) {
+                    Box(Modifier.width(7.dp).height(14.dp).background(DshTeal))
+                }
+            }
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 9.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                Text(
+                    if (copied) "已复制" else "复制回复",
                     color = DshTeal,
                     fontSize = 11.sp,
                     modifier = Modifier.clickable {
-                        if (bodyTranslation?.text != null) vm.clearTranslation(bodyKey) else vm.translate(bodyKey, item.text)
+                        clipboard.setText(AnnotatedString(bodyText))
+                        copied = true
                     },
                 )
-            }
-            if (speaker != null && item.text.isNotBlank()) {
+                if (vm != null && item.text.isNotBlank()) {
+                    Text(
+                        if (bodyTranslation?.text != null) "查看原文" else "翻译",
+                        color = DshTeal,
+                        fontSize = 11.sp,
+                        modifier = Modifier.clickable {
+                            if (bodyTranslation?.text != null) vm.clearTranslation(bodyKey) else vm.translate(bodyKey, item.text)
+                        },
+                    )
+                }
+                if (speaker != null && item.text.isNotBlank()) {
+                    Text(
+                        if (speaker.speakingKey == baseKey) "停止朗读" else "朗读",
+                        color = DshTeal,
+                        fontSize = 11.sp,
+                        modifier = Modifier.clickable { speaker.toggle(baseKey, bodyText) },
+                    )
+                }
+                Spacer(Modifier.weight(1f))
                 Text(
-                    if (speaker.speakingKey == baseKey) "停止朗读" else "朗读",
-                    color = DshTeal,
-                    fontSize = 11.sp,
-                    modifier = Modifier.clickable { speaker.toggle(baseKey, bodyText) },
+                    vm?.currentModel?.name ?: "默认模型",
+                    color = DshMuted,
+                    fontSize = 9.sp,
+                    fontFamily = DshMono,
                 )
             }
-            Spacer(Modifier.weight(1f))
-            Text(
-                vm?.currentModel?.name ?: "默认模型",
-                color = DshMuted,
-                fontSize = 9.sp,
-                fontFamily = DshMono,
-            )
         }
     }
 }
@@ -3182,9 +3282,9 @@ internal fun ChatCardsPreviewContent() {
         )
         FileEditCard(
             listOf(
-                ChatItem.Tool("p-t1", "c1", "edit", "{\"path\":\"module-detail.zh.json\"}", "ok", false, at = now - 50_000),
-                ChatItem.Tool("p-t2", "c2", "edit", "{\"path\":\"ModuleDirectoryClient.tsx\"}", "ok", false, at = now - 49_000),
-                ChatItem.Tool("p-t3", "c3", "edit", "{\"path\":\"page.tsx\"}", "ok", false, at = now - 48_000),
+                ChatItem.Tool("p-t1", "c1", "edit", "{\"path\":\"module-detail.zh.json\",\"old_string\":\"a\\nb\",\"new_string\":\"a\\nb\\nc\\nd\"}", "ok", false, at = now - 50_000),
+                ChatItem.Tool("p-t2", "c2", "edit", "{\"path\":\"ModuleDirectoryClient.tsx\",\"old_string\":\"x\",\"new_string\":\"x\\ny\\nz\"}", "ok", false, at = now - 49_000),
+                ChatItem.Tool("p-t3", "c3", "write", "{\"path\":\"page.tsx\",\"content\":\"1\\n2\\n3\\n4\\n5\"}", "ok", false, at = now - 48_000),
             ),
         )
     }

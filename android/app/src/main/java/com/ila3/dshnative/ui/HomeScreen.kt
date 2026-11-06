@@ -33,6 +33,12 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Checklist
@@ -155,7 +161,7 @@ private fun NowTab(vm: NativeViewModel) {
             item(key = "running-empty") { HintRow("没有运行中的任务。") }
         } else {
             items(running, key = { "run-${it.id}" }) { session ->
-                HomeSessionRow(session, active = session.id == vm.activeSessionId) { vm.openTask(session) }
+                HomeSessionRow(session, active = session.id == vm.activeSessionId, onClick = { vm.openTask(session) }, onRename = vm::renameSession)
             }
         }
         item(key = "recent-title") { SectionCaption("最近完成") }
@@ -163,7 +169,7 @@ private fun NowTab(vm: NativeViewModel) {
             item(key = "recent-empty") { HintRow("还没有已完成的会话。") }
         } else {
             items(recent, key = { "done-${it.id}" }) { session ->
-                HomeSessionRow(session, active = false) { vm.openTask(session) }
+                HomeSessionRow(session, active = false, onClick = { vm.openTask(session) }, onRename = vm::renameSession)
             }
         }
     }
@@ -257,7 +263,7 @@ private fun TasksTab(vm: NativeViewModel) {
                 }
                 shown.isEmpty() -> item { HintRow(if (filter == 1) "没有运行中的任务。" else "没有已完成的任务。") }
                 else -> items(shown, key = { it.id }) { session ->
-                    HomeSessionRow(session, active = session.id == vm.activeSessionId) { vm.openTask(session) }
+                    HomeSessionRow(session, active = session.id == vm.activeSessionId, onClick = { vm.openTask(session) }, onRename = vm::renameSession)
                 }
             }
         }
@@ -985,22 +991,23 @@ internal fun InboxQuestionContent(
 }
 
 @Composable
-private fun HomeSessionRow(session: SessionSummary, active: Boolean, onClick: () -> Unit) {
+private fun HomeSessionRow(session: SessionSummary, active: Boolean, onClick: () -> Unit, onRename: (String, String) -> Unit) {
     val title = session.title?.takeIf { it.isNotBlank() } ?: session.id.take(18)
-    Column(Modifier.fillMaxWidth().clickable(onClick = onClick)) {
+    val clipboard = LocalClipboardManager.current
+    var menuOpen by remember { mutableStateOf(false) }
+    var renameOpen by remember { mutableStateOf(false) }
+    var draft by remember(session.id) { mutableStateOf(title) }
+    Column(Modifier.fillMaxWidth()) {
         Row(
-            Modifier.fillMaxWidth().background(if (active) DshSurface else Color.Transparent)
-                .padding(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 12.dp),
+            Modifier.fillMaxWidth()
+                .background(if (active) DshSelected else Color.Transparent)
+                .clickable(onClick = onClick)
+                .padding(start = 20.dp, end = 12.dp, top = 11.dp, bottom = 11.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Box(
-                Modifier.width(2.dp).height(32.dp)
-                    .background(if (active) DshTeal else Color.Transparent),
-            )
-            Spacer(Modifier.width(10.dp))
             Column(Modifier.width(46.dp)) {
                 Text(
-                    formatTime(session.updatedAt),
+                    relativeTime(session.updatedAt),
                     color = DshMuted,
                     fontSize = 10.sp,
                     fontFamily = DshMono,
@@ -1015,14 +1022,20 @@ private fun HomeSessionRow(session: SessionSummary, active: Boolean, onClick: ()
             }
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
-                Text(
-                    title,
-                    color = DshText,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Medium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (session.running) {
+                        Box(Modifier.size(6.dp).background(DshTeal, CircleShape))
+                        Spacer(Modifier.width(6.dp))
+                    }
+                    Text(
+                        title,
+                        color = DshText,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
                 Text(
                     session.cwd?.takeIf { it.isNotBlank() } ?: "默认工作区",
                     color = DshMuted,
@@ -1033,17 +1046,66 @@ private fun HomeSessionRow(session: SessionSummary, active: Boolean, onClick: ()
                     modifier = Modifier.padding(top = 3.dp),
                 )
             }
-            Spacer(Modifier.width(8.dp))
-            Icon(
-                Icons.Outlined.ChevronRight,
-                contentDescription = null,
-                tint = DshMuted,
-                modifier = Modifier.size(16.dp),
-            )
+            Box {
+                Icon(
+                    Icons.Outlined.MoreHoriz,
+                    contentDescription = "会话操作",
+                    tint = DshMuted,
+                    modifier = Modifier.size(18.dp).clickable { menuOpen = true }.padding(4.dp),
+                )
+                DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                    DropdownMenuItem(text = { Text("重命名", fontSize = 12.sp) }, onClick = {
+                        menuOpen = false
+                        draft = title
+                        renameOpen = true
+                    })
+                    DropdownMenuItem(text = { Text("复制标题", fontSize = 12.sp) }, onClick = {
+                        menuOpen = false
+                        clipboard.setText(AnnotatedString(title))
+                    })
+                }
+            }
         }
         HorizontalDivider(color = DshBorder, thickness = 1.dp, modifier = Modifier.padding(start = 20.dp))
+    }
+    if (renameOpen) {
+        AlertDialog(
+            onDismissRequest = { renameOpen = false },
+            title = { Text("重命名会话", fontSize = 15.sp) },
+            text = {
+                BasicTextField(
+                    value = draft,
+                    onValueChange = { draft = it },
+                    singleLine = true,
+                    textStyle = androidx.compose.ui.text.TextStyle(color = DshText, fontSize = 14.sp),
+                    modifier = Modifier.fillMaxWidth().border(1.dp, DshBorder, RoundedCornerShape(6.dp)).padding(10.dp),
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    renameOpen = false
+                    if (draft.isNotBlank()) onRename(session.id, draft.trim())
+                }) { Text("保存", color = DshTeal) }
+            },
+            dismissButton = { TextButton(onClick = { renameOpen = false }) { Text("取消", color = DshMuted) } },
+            containerColor = DshSurface,
+            shape = RoundedCornerShape(10.dp),
+        )
     }
 }
 
 private fun formatTime(time: Long): String =
     if (time <= 0L) "--:--" else SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(time))
+
+internal fun relativeTime(time: Long): String {
+    if (time <= 0L) return "--:--"
+    val now = java.util.Calendar.getInstance()
+    val then = java.util.Calendar.getInstance().apply { timeInMillis = time }
+    val sameYear = now.get(java.util.Calendar.YEAR) == then.get(java.util.Calendar.YEAR)
+    val dayDiff = now.get(java.util.Calendar.DAY_OF_YEAR) - then.get(java.util.Calendar.DAY_OF_YEAR)
+    return when {
+        sameYear && dayDiff == 0 -> SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(time))
+        sameYear && dayDiff == 1 -> "昨天"
+        else -> SimpleDateFormat("M/d", Locale.getDefault()).format(Date(time))
+    }
+}

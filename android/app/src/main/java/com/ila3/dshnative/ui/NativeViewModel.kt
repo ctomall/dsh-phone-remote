@@ -630,6 +630,20 @@ class NativeViewModel(app: Application) : AndroidViewModel(app) {
         showRenameDialog = false
     }
 
+    fun renameSession(id: String, title: String) {
+        val clean = title.trim()
+        val client = client ?: return
+        if (clean.isEmpty() || id.isEmpty()) return
+        viewModelScope.launch {
+            runCatching { withContext(Dispatchers.IO) { client.renameSession(id, clean) } }
+                .onSuccess { committed ->
+                    sessions = sessions.map { if (it.id == id) it.copy(title = committed) else it }
+                    if (id == activeSessionId) activeSessionTitle = committed
+                }
+                .onFailure { error = it.message ?: "重命名失败" }
+        }
+    }
+
     fun renameActive(title: String) {
         val clean = title.trim()
         val active = client ?: return
