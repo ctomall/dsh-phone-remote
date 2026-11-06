@@ -364,11 +364,12 @@ private fun FilesTab(vm: NativeViewModel) {
             }
             Row(
                 Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 4.dp)
-                    .background(DshSurface, RoundedCornerShape(12.dp))
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                    .background(DshSurface, RoundedCornerShape(8.dp))
+                    .border(1.dp, DshBorder, RoundedCornerShape(8.dp))
+                    .padding(horizontal = 12.dp, vertical = 9.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Icon(Icons.Filled.Search, contentDescription = null, tint = DshMuted, modifier = Modifier.size(16.dp))
+                Icon(Icons.Outlined.Search, contentDescription = null, tint = DshMuted, modifier = Modifier.size(15.dp))
                 Spacer(Modifier.width(8.dp))
                 Box(Modifier.weight(1f)) {
                     if (query.isEmpty()) Text("搜索当前目录", color = DshMuted, fontSize = 12.sp)
@@ -665,8 +666,8 @@ internal fun NavSettingsScreen(vm: NativeViewModel) {
                 modifier = Modifier.clickable { vm.closeNavSettings() }.padding(horizontal = 8.dp),
             )
             Column(Modifier.weight(1f)) {
-                Text("底部导航", color = DshText, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
-                Text("拖动排序 · 控制显示 · 最多 4 个", color = DshMuted, fontSize = 10.5.sp)
+                Text("底部导航", color = DshText, fontSize = 18.sp, fontWeight = FontWeight.Medium)
+                Text("排序 · 显示 · 最多 4 个", color = DshMuted, fontSize = 10.sp, fontFamily = DshMono)
             }
         }
         Text(
@@ -676,46 +677,41 @@ internal fun NavSettingsScreen(vm: NativeViewModel) {
             modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
         )
         Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
-            Column(
-                Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp)
-                    .background(DshSurface, RoundedCornerShape(18.dp)),
-            ) {
+            Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp)) {
                 DefaultNavItems.forEachIndexed { index, item ->
                     val visible = item.id !in vm.navHidden
                     Row(
                         Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 10.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Column(Modifier.width(30.dp)) {
+                        Column(Modifier.width(26.dp)) {
                             if (!item.locked) {
-                                Text("↑", color = DshMuted, fontSize = 14.sp, modifier = Modifier.clickable { vm.moveNav(item.id, -1) }.padding(2.dp))
-                                Text("↓", color = DshMuted, fontSize = 14.sp, modifier = Modifier.clickable { vm.moveNav(item.id, 1) }.padding(2.dp))
+                                Text("↑", color = DshMuted, fontSize = 12.sp, fontFamily = DshMono, modifier = Modifier.clickable { vm.moveNav(item.id, -1) }.padding(1.dp))
+                                Text("↓", color = DshMuted, fontSize = 12.sp, fontFamily = DshMono, modifier = Modifier.clickable { vm.moveNav(item.id, 1) }.padding(1.dp))
                             }
                         }
-                        Box(Modifier.size(30.dp).background(DshSurface2, RoundedCornerShape(9.dp)), contentAlignment = Alignment.Center) {
-                            Icon(navIcon(item.id), contentDescription = null, tint = if (visible) DshTeal else DshMuted, modifier = Modifier.size(16.dp))
-                        }
+                        Icon(navIcon(item.id), contentDescription = null, tint = if (visible) DshTeal else DshMuted, modifier = Modifier.size(16.dp))
                         Spacer(Modifier.width(10.dp))
                         Column(Modifier.weight(1f)) {
                             Text(item.label, color = if (visible) DshText else DshMuted, fontSize = 14.sp, fontWeight = FontWeight.Medium)
-                            if (item.locked) Text("固定显示", color = DshMuted, fontSize = 10.sp)
                         }
-                        Switch(
-                            checked = visible,
-                            onCheckedChange = { vm.toggleNav(item.id) },
-                            enabled = !item.locked,
-                            colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = DshTeal),
-                        )
+                        if (item.locked) {
+                            Text("固定", color = DshMuted, fontSize = 9.sp, fontFamily = DshMono)
+                        } else {
+                            Switch(
+                                checked = visible,
+                                onCheckedChange = { vm.toggleNav(item.id) },
+                                colors = SwitchDefaults.colors(checkedThumbColor = DshOnAccent, checkedTrackColor = DshTeal),
+                            )
+                        }
                     }
-                    if (index != DefaultNavItems.lastIndex) {
-                        HorizontalDivider(color = DshBorder, modifier = Modifier.padding(start = 74.dp))
-                    }
+                    HorizontalDivider(color = DshBorder, thickness = 1.dp, modifier = Modifier.padding(start = 54.dp))
                 }
             }
             Row(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text("恢复默认", color = DshTeal, fontSize = 12.sp, fontWeight = FontWeight.Medium, modifier = Modifier.clickable { vm.resetNav() })
+                Text("恢复默认", color = DshTeal, fontSize = 11.sp, fontFamily = DshMono, modifier = Modifier.clickable { vm.resetNav() })
                 Spacer(Modifier.weight(1f))
-                Text("规则：至少 2 个；「现在」固定", color = DshMuted, fontSize = 10.5.sp)
+                Text("至少 2 个 · 现在固定", color = DshMuted, fontSize = 9.sp, fontFamily = DshMono)
             }
         }
         PreviewNavBar(vm)

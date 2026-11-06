@@ -95,7 +95,8 @@ class NativeStore(context: Context) {
 
     fun navHidden(): Set<String> = prefs.getString("nav_hidden", "")
         ?.split(',')?.filter { it.isNotBlank() }?.toSet()
-        ?: emptySet()
+        ?.takeIf { it.isNotEmpty() }
+        ?: setOf("automation", "team")
 
     fun setNavHidden(hidden: Set<String>) {
         prefs.edit().putString("nav_hidden", hidden.joinToString(",")).apply()
