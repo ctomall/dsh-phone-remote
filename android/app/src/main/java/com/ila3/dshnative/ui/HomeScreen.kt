@@ -8,6 +8,9 @@ import android.provider.MediaStore
 import android.content.Context
 import android.content.Intent
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -489,12 +492,38 @@ internal fun FilePreviewSheet(vm: NativeViewModel) {
             Text(preview.name, color = DshText, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.height(10.dp))
             when {
-                preview.bitmap != null -> Image(
-                    preview.bitmap.asImageBitmap(),
-                    contentDescription = preview.name,
-                    contentScale = ContentScale.Fit,
-                    modifier = Modifier.fillMaxWidth().height(360.dp),
-                )
+                preview.bitmap != null -> {
+                    var scale by remember(preview.name) { mutableStateOf(1f) }
+                    var offset by remember(preview.name) { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
+                    Column {
+                        Image(
+                            preview.bitmap.asImageBitmap(),
+                            contentDescription = preview.name,
+                            contentScale = ContentScale.Fit,
+                            modifier = Modifier.fillMaxWidth().height(360.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .graphicsLayer(
+                                    scaleX = scale,
+                                    scaleY = scale,
+                                    translationX = offset.x,
+                                    translationY = offset.y,
+                                )
+                                .pointerInput(preview.name) {
+                                    detectTransformGestures { _, pan, zoom, _ ->
+                                        scale = (scale * zoom).coerceIn(1f, 5f)
+                                        offset = if (scale > 1f) offset + pan else androidx.compose.ui.geometry.Offset.Zero
+                                    }
+                                },
+                        )
+                        Text(
+                            if (scale > 1f) "双指缩放 · 已放大 ${"%.1f".format(scale)}×" else "双指缩放查看细节",
+                            color = DshMuted,
+                            fontSize = 9.sp,
+                            fontFamily = DshMono,
+                            modifier = Modifier.padding(top = 6.dp),
+                        )
+                    }
+                }
                 preview.text != null -> Text(
                     preview.text,
                     color = DshText,

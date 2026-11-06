@@ -904,7 +904,8 @@ class NativeViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun openTerminal() {
-        if (activeSessionId.isEmpty()) return
+        val sid = activeSessionId.ifBlank { sessions.firstOrNull()?.id.orEmpty() }
+        if (sid.isEmpty()) return
         val active = client ?: return
         screen = Screen.Terminal
         terminalChunks.clear()
@@ -913,20 +914,27 @@ class NativeViewModel(app: Application) : AndroidViewModel(app) {
             busy = true
             error = ""
             try {
-                val terminals = withContext(Dispatchers.IO) { active.listTerminals(activeSessionId) }
+                val terminals = withContext(Dispatchers.IO) { active.listTerminals(sid) }
                 val terminal = terminals.firstOrNull() ?: withContext(Dispatchers.IO) {
-                    active.createTerminal(activeSessionId)
+                    active.createTerminal(sid)
                 }
                 terminalTitle = terminal.title
                 terminalSequence = 0L
                 terminalHandle = active.attachTerminal(
-                    activeSessionId,
+                    sid,
                     terminal.id,
                     onFrame = { frame ->
                         when (frame.optString("type")) {
                             "snapshot" -> {
                                 terminalChunks.clear()
                                 terminalChunks.add(frame.optString("screen"))
+                                pendingTerminalCommand?.let { command ->
+                                    pendingTerminalCommand = null
+                                    viewModelScope.launch {
+                                        kotlinx.coroutines.delay(400)
+                                        sendTerminalInput(command + "\r")
+                                    }
+                                }
                             }
                             "output" -> terminalChunks.add(frame.optString("data"))
                         }
@@ -939,6 +947,17 @@ class NativeViewModel(app: Application) : AndroidViewModel(app) {
                 busy = false
             }
         }
+    }
+
+    private var pendingTerminalCommand: String? = null
+
+    fun openSshTerminal(host: String, user: String, port: Int) {
+        if (activeSessionId.isEmpty() && sessions.isEmpty()) {
+            error = "还没有会话，无法启动终端"
+            return
+        }
+        pendingTerminalCommand = "ssh -p $port $user@$host"
+        openTerminal()
     }
 
     fun sendTerminalInput(data: String) {
