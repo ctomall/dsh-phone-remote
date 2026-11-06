@@ -280,23 +280,18 @@ private fun MoreTab(vm: NativeViewModel) {
                         .padding(horizontal = 20.dp, vertical = 14.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Icon(navIcon(id), contentDescription = item.label, tint = DshMuted, modifier = Modifier.size(18.dp))
+                    Icon(navIcon(id), contentDescription = item.label, tint = DshMuted, modifier = Modifier.size(16.dp))
                     Spacer(Modifier.width(12.dp))
                     Text(item.label, color = DshText, fontSize = 14.sp, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
-                    Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = DshMuted, modifier = Modifier.size(17.dp))
+                    Icon(Icons.Outlined.ChevronRight, contentDescription = null, tint = DshMuted, modifier = Modifier.size(16.dp))
                 }
+                HorizontalDivider(color = DshBorder, thickness = 1.dp)
             }
             Row(
-                Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp)
-                    .background(DshSurface2, RoundedCornerShape(14.dp))
-                    .clickable { vm.openNavSettings() }
-                    .padding(horizontal = 14.dp, vertical = 13.dp),
+                Modifier.fillMaxWidth().clickable { vm.openNavSettings() }.padding(horizontal = 20.dp, vertical = 16.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Icon(Icons.Filled.Settings, contentDescription = null, tint = DshTeal, modifier = Modifier.size(18.dp))
-                Spacer(Modifier.width(12.dp))
-                Text("编辑底部导航", color = DshText, fontSize = 14.sp, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
-                Icon(Icons.Outlined.ChevronRight, contentDescription = null, tint = DshMuted, modifier = Modifier.size(16.dp))
+                Text("编辑底部导航", color = DshTeal, fontSize = 12.sp, fontFamily = DshMono)
             }
         }
     }

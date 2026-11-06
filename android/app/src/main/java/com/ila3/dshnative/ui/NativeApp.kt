@@ -893,28 +893,31 @@ private fun ChatScreen(vm: NativeViewModel) {
 @Composable
 private fun ChatActionSheet(vm: NativeViewModel) {
     Column(Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 16.dp, vertical = 8.dp)) {
-        Text("会话操作", color = DshText, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(8.dp))
+        Text("会话操作", color = DshText, fontSize = 15.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp))
         ChatAction(Icons.Filled.Checklist, "任务与进度") { vm.dismissChatMenu(); vm.openTasks() }
         ChatAction(Icons.Filled.Tune, "更换模型", vm.currentModel?.name ?: "默认") { vm.dismissChatMenu(); vm.openModelPicker() }
         ChatAction(Icons.Filled.Edit, "重命名会话") { vm.showRename() }
         ChatAction(Icons.Filled.Refresh, "刷新会话") { vm.reloadActiveSession() }
         ChatAction(Icons.Filled.Folder, "文件") { vm.dismissChatMenu(); vm.openFiles() }
         ChatAction(Icons.Filled.Terminal, "终端") { vm.dismissChatMenu(); vm.openTerminal() }
-        HorizontalDivider(color = DshBorder, modifier = Modifier.padding(vertical = 6.dp))
+        HorizontalDivider(color = DshBorder, thickness = 1.dp, modifier = Modifier.padding(vertical = 6.dp))
         ChatAction(Icons.Filled.StopCircle, "停止生成", danger = true) { vm.stopGeneration() }
     }
 }
 
 @Composable
 private fun ChatAction(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, value: String? = null, danger: Boolean = false, onClick: () -> Unit) {
-    Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).clickable(onClick = onClick).padding(horizontal = 10.dp, vertical = 13.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(icon, contentDescription = null, tint = if (danger) DshDanger else DshMuted, modifier = Modifier.size(20.dp))
-        Spacer(Modifier.width(12.dp))
-        Text(label, color = if (danger) DshDanger else DshText, fontSize = 14.sp, modifier = Modifier.weight(1f))
-        value?.let { Text(it, color = DshMuted, fontSize = 11.sp) }
+    Column {
+        Row(
+            Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 8.dp, vertical = 13.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(icon, contentDescription = null, tint = if (danger) DshDanger else DshMuted, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(12.dp))
+            Text(label, color = if (danger) DshDanger else DshText, fontSize = 14.sp, modifier = Modifier.weight(1f))
+            value?.let { Text(it, color = DshMuted, fontSize = 10.sp, fontFamily = DshMono) }
+        }
+        HorizontalDivider(color = DshBorder, thickness = 1.dp, modifier = Modifier.padding(start = 38.dp))
     }
 }
 
@@ -937,6 +940,7 @@ private fun RenameDialog(vm: NativeViewModel) {
         confirmButton = { TextButton(onClick = { vm.renameActive(title) }) { Text("保存", color = DshTeal) } },
         dismissButton = { TextButton(onClick = { vm.dismissRename() }) { Text("取消", color = DshMuted) } },
         containerColor = DshSurface,
+        shape = RoundedCornerShape(10.dp),
     )
 }
 
@@ -1029,36 +1033,37 @@ internal fun QuestionCard(pending: DshClient.PendingQuestion, onSubmit: (org.jso
 private fun ModelPickerDialog(vm: NativeViewModel) {
     AlertDialog(
         onDismissRequest = { vm.dismissModelPicker() },
-        title = { Text("选择模型", color = DshText, fontSize = 16.sp) },
+        title = { Text("选择模型", color = DshText, fontSize = 15.sp, fontWeight = FontWeight.Medium) },
         text = {
             LazyColumn(Modifier.heightIn(max = 420.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 vm.modelGroups.forEach { group ->
                     item(key = "group-${group.id}") {
-                        Text(group.name, color = DshMuted, fontSize = 10.sp, modifier = Modifier.padding(top = 8.dp, bottom = 4.dp))
+                        Text(group.name, color = DshMuted, fontSize = 10.sp, fontFamily = DshMono, modifier = Modifier.padding(top = 10.dp, bottom = 4.dp))
                     }
                     items(group.models, key = { "${group.id}-${it.model}" }) { model ->
                         val selected = vm.currentModel?.provider == group.id && vm.currentModel?.model == model.model
-                        Row(
-                            Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(if (selected) DshSelected else Color.Transparent)
-                                .clickable { vm.chooseModel(model) }
-                                .padding(horizontal = 10.dp, vertical = 9.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Column(Modifier.weight(1f)) {
-                                Text(model.name, color = DshText, fontSize = 13.sp)
-                                Text(model.provider, color = DshMuted, fontSize = 9.sp)
+                        Column {
+                            Row(
+                                Modifier
+                                    .fillMaxWidth()
+                                    .clickable { vm.chooseModel(model) }
+                                    .padding(horizontal = 4.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Column(Modifier.weight(1f)) {
+                                    Text(model.name, color = DshText, fontSize = 13.sp)
+                                    Text(model.provider, color = DshMuted, fontSize = 9.sp, fontFamily = DshMono)
+                                }
+                                if (selected) Text("当前", color = DshTeal, fontSize = 9.sp, fontFamily = DshMono)
                             }
-                            if (selected) Text("当前", color = DshTealSoft, fontSize = 10.sp)
+                            HorizontalDivider(color = DshBorder, thickness = 1.dp)
                         }
                     }
                 }
             }
         },
         confirmButton = {
-            TextButton(onClick = { vm.dismissModelPicker() }) { Text("关闭", color = DshTealSoft) }
+            TextButton(onClick = { vm.dismissModelPicker() }) { Text("关闭", color = DshTeal, fontSize = 12.sp) }
         },
         containerColor = DshSurface,
     )
@@ -1781,7 +1786,7 @@ private fun PendingAttachmentCard(
 private fun AttachSheet(onImage: () -> Unit, onCamera: () -> Unit, onFile: () -> Unit, onClose: () -> Unit) {
     Column(Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 16.dp, vertical = 8.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("添加附件", color = DshText, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(8.dp))
+            Text("添加附件", color = DshText, fontSize = 15.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(8.dp))
             Spacer(Modifier.weight(1f))
             IconButton(onClick = onClose) { Icon(Icons.Filled.Close, contentDescription = "关闭", tint = DshMuted) }
         }
@@ -1803,19 +1808,15 @@ private fun AttachSheet(onImage: () -> Unit, onCamera: () -> Unit, onFile: () ->
 private fun AttachTile(label: String, icon: ImageVector, onClick: () -> Unit, modifier: Modifier = Modifier) {
     Column(
         modifier
-            .clip(RoundedCornerShape(16.dp))
-            .background(DshSurface2)
-            .border(1.dp, DshBorder, RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(8.dp))
+            .border(1.dp, DshBorder, RoundedCornerShape(8.dp))
             .clickable(onClick = onClick)
-            .padding(vertical = 16.dp),
+            .padding(vertical = 14.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Box(
-            Modifier.size(40.dp).clip(CircleShape).background(DshSelected),
-            contentAlignment = Alignment.Center,
-        ) { Icon(icon, contentDescription = null, tint = DshTeal, modifier = Modifier.size(20.dp)) }
-        Text(label, color = DshText, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+        Icon(icon, contentDescription = null, tint = DshMuted, modifier = Modifier.size(18.dp))
+        Text(label, color = DshText, fontSize = 12.sp)
     }
 }
 
