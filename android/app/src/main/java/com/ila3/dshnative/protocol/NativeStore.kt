@@ -5,6 +5,8 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.util.UUID
 
+data class SshHost(val id: String, val name: String, val host: String, val user: String, val port: Int)
+
 data class ServerProfile(
     val id: String,
     val name: String,
@@ -106,6 +108,40 @@ class NativeStore(context: Context) {
 
     fun setThinkExpanded(value: Boolean) {
         prefs.edit().putBoolean("think_expanded", value).apply()
+    }
+
+    fun sshHosts(): List<SshHost> {
+        val raw = prefs.getString("ssh_hosts", "") ?: ""
+        if (raw.isEmpty()) return emptyList()
+        return runCatching {
+            val array = JSONArray(raw)
+            buildList {
+                for (i in 0 until array.length()) {
+                    val item = array.optJSONObject(i) ?: continue
+                    val host = item.optString("host")
+                    if (host.isNotEmpty()) add(
+                        SshHost(
+                            item.optString("id"),
+                            item.optString("name", host),
+                            host,
+                            item.optString("user", "root"),
+                            item.optInt("port", 22),
+                        ),
+                    )
+                }
+            }
+        }.getOrDefault(emptyList())
+    }
+
+    fun setSshHosts(hosts: List<SshHost>) {
+        val array = JSONArray()
+        hosts.forEach {
+            array.put(
+                JSONObject().put("id", it.id).put("name", it.name)
+                    .put("host", it.host).put("user", it.user).put("port", it.port),
+            )
+        }
+        prefs.edit().putString("ssh_hosts", array.toString()).apply()
     }
 
     fun multiDevice(): Boolean = prefs.getBoolean("multi_device", false)

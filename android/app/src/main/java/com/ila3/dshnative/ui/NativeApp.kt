@@ -1280,6 +1280,12 @@ private fun presetLabel(vm: NativeViewModel): String {
     return presetName(value, vm.presetOptions.firstOrNull { it.id == value }?.name)
 }
 
+private fun formatMillis(ms: Long): String = when {
+    ms >= 60_000 -> "${ms / 60_000}m${(ms % 60_000) / 1000}s"
+    ms >= 1_000 -> String.format(java.util.Locale.US, "%.1fs", ms / 1000.0)
+    else -> "${ms}ms"
+}
+
 private fun formatTokens(value: Long): String = when {
     value >= 1_000_000 -> String.format(java.util.Locale.US, "%.1fM", value / 1_000_000.0)
     value >= 1_000 -> "${value / 1_000}K"
@@ -1880,6 +1886,14 @@ private fun ToolCallCard(tool: ChatItem.Tool, showTime: Boolean = true, defaultE
                 fontSize = 9.sp,
                 fontFamily = DshMono,
             )
+            if (tool.endedAt > tool.at && tool.at > 0L) {
+                Text(
+                    " · ${formatMillis(tool.endedAt - tool.at)}",
+                    color = DshMuted,
+                    fontSize = 9.sp,
+                    fontFamily = DshMono,
+                )
+            }
             Icon(
                 if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
                 contentDescription = if (expanded) "收起" else "展开",

@@ -27,6 +27,7 @@ import com.ila3.dshnative.protocol.NativeNotifications
 import com.ila3.dshnative.protocol.NativeStore
 import com.ila3.dshnative.protocol.ServerProfile
 import com.ila3.dshnative.protocol.SessionSummary
+import com.ila3.dshnative.protocol.SshHost
 import com.ila3.dshnative.protocol.TranslationStore
 import com.ila3.dshnative.protocol.Translator
 import kotlinx.coroutines.Dispatchers
@@ -186,6 +187,7 @@ class NativeViewModel(app: Application) : AndroidViewModel(app) {
         val error: String? = null,
     )
 
+    var sshHosts by mutableStateOf(store.sshHosts())
     var deviceStates by mutableStateOf<List<DeviceState>>(emptyList())
     var feedback by mutableStateOf<Map<String, String>>(emptyMap())
     var toolboxSection by mutableStateOf("search")
@@ -904,52 +906,70 @@ class NativeViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun openTerminal() {
-        val sid = activeSessionId.ifBlank { sessions.firstOrNull()?.id.orEmpty() }
-        if (sid.isEmpty()) return
         val active = client ?: return
+        val candidates = (listOf(activeSessionId) + sessions.map { it.id }).filter { it.isNotBlank() }.distinct()
+        if (candidates.isEmpty()) return
         screen = Screen.Terminal
         terminalChunks.clear()
         terminalTitle = "终端"
         viewModelScope.launch {
             busy = true
             error = ""
-            try {
-                val terminals = withContext(Dispatchers.IO) { active.listTerminals(sid) }
-                val terminal = terminals.firstOrNull() ?: withContext(Dispatchers.IO) {
-                    active.createTerminal(sid)
-                }
-                terminalTitle = terminal.title
-                terminalSequence = 0L
-                terminalHandle = active.attachTerminal(
-                    sid,
-                    terminal.id,
-                    onFrame = { frame ->
-                        when (frame.optString("type")) {
-                            "snapshot" -> {
-                                terminalChunks.clear()
-                                terminalChunks.add(frame.optString("screen"))
-                                pendingTerminalCommand?.let { command ->
-                                    pendingTerminalCommand = null
-                                    viewModelScope.launch {
-                                        kotlinx.coroutines.delay(400)
-                                        sendTerminalInput(command + "\r")
+            var lastError: String? = null
+            for (sid in candidates) {
+                try {
+                    val terminals = withContext(Dispatchers.IO) { active.listTerminals(sid) }
+                    val terminal = terminals.firstOrNull() ?: withContext(Dispatchers.IO) {
+                        active.createTerminal(sid)
+                    }
+                    terminalTitle = terminal.title
+                    terminalSequence = 0L
+                    terminalHandle = active.attachTerminal(
+                        sid,
+                        terminal.id,
+                        onFrame = { frame ->
+                            when (frame.optString("type")) {
+                                "snapshot" -> {
+                                    terminalChunks.clear()
+                                    terminalChunks.add(frame.optString("screen"))
+                                    pendingTerminalCommand?.let { command ->
+                                        pendingTerminalCommand = null
+                                        viewModelScope.launch {
+                                            kotlinx.coroutines.delay(400)
+                                            sendTerminalInput(command + "\r")
+                                        }
                                     }
                                 }
+                                "output" -> terminalChunks.add(frame.optString("data"))
                             }
-                            "output" -> terminalChunks.add(frame.optString("data"))
-                        }
-                    },
-                    onFailure = { failure -> error = failure.message ?: "终端连接失败" },
-                )
-            } catch (e: Exception) {
-                error = e.message ?: "打开终端失败"
-            } finally {
-                busy = false
+                        },
+                        onFailure = { failure -> error = failure.message ?: "终端连接失败" },
+                    )
+                    lastError = null
+                    break
+                } catch (e: Exception) {
+                    lastError = e.message ?: "打开终端失败"
+                    // A session routed to a subagent cannot host a terminal; try the next one.
+                    if (!lastError.contains("owned by subagent", ignoreCase = true)) break
+                }
             }
+            if (lastError != null) error = lastError
+            busy = false
         }
     }
 
     private var pendingTerminalCommand: String? = null
+
+    fun addSshHost(name: String, host: String, user: String, port: Int) {
+        val entry = SshHost(java.util.UUID.randomUUID().toString(), name.ifBlank { host }, host, user, port)
+        sshHosts = sshHosts + entry
+        store.setSshHosts(sshHosts)
+    }
+
+    fun removeSshHost(id: String) {
+        sshHosts = sshHosts.filterNot { it.id == id }
+        store.setSshHosts(sshHosts)
+    }
 
     fun openSshTerminal(host: String, user: String, port: Int) {
         if (activeSessionId.isEmpty() && sessions.isEmpty()) {
@@ -1272,7 +1292,7 @@ class NativeViewModel(app: Application) : AndroidViewModel(app) {
                 val index = messages.indexOfFirst { it is ChatItem.Tool && it.callId == item.callId }
                 if (index >= 0) {
                     val tool = messages[index] as ChatItem.Tool
-                    messages[index] = tool.copy(result = item.text, isError = item.isError)
+                    messages[index] = tool.copy(result = item.text, isError = item.isError, endedAt = item.at)
                 } else {
                     messages.add(ChatItem.Notice(item.key, item.text))
                 }
