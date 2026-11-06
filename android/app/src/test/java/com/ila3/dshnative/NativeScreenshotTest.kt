@@ -7,6 +7,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import com.ila3.dshnative.ui.AttachSheetPreviewContent
 import com.ila3.dshnative.ui.ChatPreviewContent
+import com.ila3.dshnative.ui.ChatStreamingPreviewContent
 import com.ila3.dshnative.ui.ProductChatPreview
 import com.ila3.dshnative.ui.ProductHomePreview
 import com.ila3.dshnative.ui.ProductInboxFirstPreview
@@ -75,6 +76,14 @@ class NativeScreenshotTest {
         val activity = Robolectric.buildActivity(ComponentActivity::class.java).setup().get()
         activity.setContent { DshNativeTheme { AttachSheetPreviewContent() } }
         capture(activity, "native-attach-sheet.png")
+    }
+
+    @Test
+    fun captureChatStreaming() {
+        val activity = Robolectric.buildActivity(ComponentActivity::class.java).setup().get()
+        DshTheme.mode = DshThemeMode.PAPER
+        activity.setContent { DshNativeTheme { ChatStreamingPreviewContent() } }
+        capture(activity, "chat-streaming.png")
     }
 
     @Test
