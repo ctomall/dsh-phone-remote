@@ -1,8 +1,8 @@
 {
-  "versionCode": 43,
-  "versionName": "0.20.0",
-  "apkUrl": "https://raw.githubusercontent.com/ctomall/dsh-phone-remote/main/updates/DSHNative-0.20.0.apk",
-  "sha256": "494062cd642a1c86dd2a60ce087dae6daa17331e25dfc1ad1567c7c8f63a0133",
-  "notes": "unslop 重设计：工程日志方向（纸面、细线、左侧等宽时间栏、命令条、trace 时间线）",
-  "signature": "MEUCIQDhyWocqkX9T5FfVyyE0XGOebVXHp2N9qr5Vvfj+koarwIgZrcV4JE5xyeLaiPx/K74XCKWOw1Eux0kAqjB64a+8aA="
+  "versionCode": 44,
+  "versionName": "0.20.1",
+  "apkUrl": "https://raw.githubusercontent.com/ctomall/dsh-phone-remote/main/updates/DSHNative-0.20.1.apk",
+  "sha256": "f470d734841702d98a6a920c164d28e9508dcff665783acaf57300ee2c747233",
+  "notes": "工程日志收尾：连接页/导航设置扁平化，隐藏项默认收纳，夜墨主题校验",
+  "signature": "MEUCIHQeEhdOuoH4/qkh4ct4AASeHtYKKPgUgCzwiQIM/SBsAiEA6jMe+WdoZFPQvi8TNK872QOxMkT24z/yoQle0SW4BLo="
 }

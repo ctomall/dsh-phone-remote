@@ -274,12 +274,13 @@ private fun ServersScreen(vm: NativeViewModel) {
         item {
             Row(verticalAlignment = Alignment.Top) {
                 Column(Modifier.weight(1f)) {
-                    Text("DSH 原生", color = DshText, fontSize = 28.sp, fontWeight = FontWeight.Bold)
+                    Text("DSH 原生", color = DshText, fontSize = 24.sp, fontWeight = FontWeight.Medium)
                     Text(
-                        "原生会话、流式消息与工具卡片；对外入口仍是 https://…/phone/",
+                        "配对与连接",
                         color = DshMuted,
-                        fontSize = 12.sp,
-                        modifier = Modifier.padding(top = 6.dp),
+                        fontSize = 10.sp,
+                        fontFamily = DshMono,
+                        modifier = Modifier.padding(top = 4.dp),
                     )
                 }
                 ThemeToggle()
@@ -287,48 +288,41 @@ private fun ServersScreen(vm: NativeViewModel) {
         }
         if (vm.profiles.isNotEmpty()) {
             item {
-                Text("已绑定 DSH", color = DshMuted, fontSize = 11.sp, modifier = Modifier.padding(top = 8.dp))
+                Text("已绑定", color = DshMuted, fontSize = 10.sp, fontFamily = DshMono, modifier = Modifier.padding(top = 8.dp))
             }
             items(vm.profiles, key = { it.id }) { profile ->
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(22.dp))
-                        .background(DshSurface)
-                        .border(1.dp, DshBorder, RoundedCornerShape(22.dp))
-                        .clickable { vm.switchTo(profile) }
-                        .padding(14.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Column(Modifier.weight(1f)) {
-                        Text(profile.name, color = DshText, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
-                        Text(profile.url, color = DshMuted, fontSize = 11.sp, maxLines = 1)
+                Column(Modifier.fillMaxWidth()) {
+                    Row(
+                        Modifier.fillMaxWidth().clickable { vm.switchTo(profile) }.padding(vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            Text(profile.name, color = DshText, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                            Text(profile.url, color = DshMuted, fontSize = 10.sp, fontFamily = DshMono, maxLines = 1)
+                        }
+                        if (profile.id == vm.currentId) {
+                            Text("当前", color = DshTeal, fontSize = 9.sp, fontFamily = DshMono)
+                        }
+                        TextButton(onClick = { vm.deleteProfile(profile) }) {
+                            Text("删除", color = DshDanger, fontSize = 10.sp, fontFamily = DshMono)
+                        }
                     }
-                    if (profile.id == vm.currentId) {
-                        Text("当前", color = DshTealSoft, fontSize = 10.sp)
-                    }
-                    TextButton(onClick = { vm.deleteProfile(profile) }) {
-                        Text("删除", color = DshDanger, fontSize = 11.sp)
-                    }
+                    HorizontalDivider(color = DshBorder, thickness = 1.dp)
                 }
             }
         }
         item {
+            Text(
+                if (vm.profiles.isEmpty()) "连接第一台 DSH" else "添加 DSH",
+                color = DshMuted,
+                fontSize = 10.sp,
+                fontFamily = DshMono,
+                modifier = Modifier.padding(top = 14.dp),
+            )
             Column(
-                Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(22.dp))
-                    .background(DshSurface)
-                    .border(1.dp, DshBorder, RoundedCornerShape(22.dp))
-                    .padding(16.dp),
+                Modifier.fillMaxWidth().padding(top = 2.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                Text(
-                    if (vm.profiles.isEmpty()) "连接第一台 DSH" else "添加 DSH",
-                    color = DshText,
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 14.sp,
-                )
                 OutlinedTextField(
                     value = url,
                     onValueChange = { url = it },
@@ -349,10 +343,10 @@ private fun ServersScreen(vm: NativeViewModel) {
                 )
                 OutlinedButton(
                     onClick = startScan,
-                    shape = RoundedCornerShape(16.dp),
+                    shape = RoundedCornerShape(6.dp),
                     modifier = Modifier.fillMaxWidth().height(44.dp),
                 ) {
-                    Text("扫一扫配对二维码", color = DshTealSoft, fontSize = 13.sp)
+                    Text("扫一扫配对二维码", color = DshTeal, fontSize = 12.sp)
                 }
                 if (scanHint.isNotEmpty()) {
                     Text(scanHint, color = DshMuted, fontSize = 10.sp)
@@ -361,7 +355,7 @@ private fun ServersScreen(vm: NativeViewModel) {
                     onClick = { vm.pair(url, code) },
                     enabled = !vm.busy,
                     colors = ButtonDefaults.buttonColors(containerColor = DshTeal, contentColor = DshOnAccent),
-                    shape = RoundedCornerShape(16.dp),
+                    shape = RoundedCornerShape(6.dp),
                     modifier = Modifier.fillMaxWidth().height(46.dp),
                 ) {
                     if (vm.busy) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp, color = DshOnAccent)
