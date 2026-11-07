@@ -1,8 +1,8 @@
 {
-  "versionCode": 69,
-  "versionName": "0.23.13",
-  "apkUrl": "https://raw.githubusercontent.com/ctomall/dsh-phone-remote/main/updates/DSHNative-0.23.13.apk",
-  "sha256": "528865cf9b578dc35a157762882b6e5f43393b659017d27a29ef68e2a200893c",
-  "notes": "代码预览轻量语法着色；关闭换行时支持横向滚动",
-  "signature": "MEUCIBZ3EedXQHRH95TY9XWFU+lBO3gNDP2VMWqKtj7HG77IAiEAkx9SrPvJFaSqG4O0cJYCcm7q8tOgqA+zJ1hLZH4aw5o="
+  "versionCode": 70,
+  "versionName": "0.23.14",
+  "apkUrl": "https://raw.githubusercontent.com/ctomall/dsh-phone-remote/main/updates/DSHNative-0.23.14.apk",
+  "sha256": "e2910ec0953434ed3af50c687f93baef7c071aedcee0b8f4388907d81967515b",
+  "notes": "移植 Web 提示词增强：流式改写、9 种方向、替换输入框/重试/复制",
+  "signature": "MEYCIQDslEub9ki+zl8JzZA5FtWvG84HNqgakNXHEDtreCF38QIhAOoLIdoI/qEUBVn9CYmtcqwXIfCZXPvQbpHQ2vocnWvW"
 }

@@ -79,6 +79,7 @@ import androidx.compose.material.icons.filled.ThumbUp
 import androidx.compose.material.icons.filled.ThumbDown
 import androidx.compose.material.icons.filled.FormatListBulleted
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.PlayArrow
@@ -989,6 +990,7 @@ private fun ChatScreen(vm: NativeViewModel) {
                 )
             }
         }
+        if (vm.optimizerVisible) OptimizerPanel(vm)
         val attachmentUploading = vm.pendingAttachments.any { it.status == NativeViewModel.AttachmentStatus.UPLOADING }
         val attachmentFailed = vm.pendingAttachments.any { it.status == NativeViewModel.AttachmentStatus.FAILED }
         val sendEnabled = !attachmentUploading && !attachmentFailed &&
@@ -1020,6 +1022,12 @@ private fun ChatScreen(vm: NativeViewModel) {
                 modifier = Modifier.size(40.dp),
             ) {
                 Icon(Icons.Filled.Mic, contentDescription = "语音输入", tint = DshMuted, modifier = Modifier.size(19.dp))
+            }
+            IconButton(
+                onClick = { vm.openOptimizer() },
+                modifier = Modifier.size(40.dp),
+            ) {
+                Icon(Icons.Filled.AutoAwesome, contentDescription = "提示词增强", tint = DshTeal, modifier = Modifier.size(18.dp))
             }
             Box(Modifier.weight(1f)) {
                 if (vm.input.isEmpty()) {
@@ -1327,6 +1335,80 @@ private fun OptionDialog(
         containerColor = DshSurface,
         shape = RoundedCornerShape(10.dp),
     )
+}
+
+@Composable
+private fun OptimizerPanel(vm: NativeViewModel) {
+    val clipboard = LocalClipboardManager.current
+    Column(
+        Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp)
+            .clip(RoundedCornerShape(10.dp))
+            .background(DshSurface)
+            .border(1.dp, DshBorder, RoundedCornerShape(10.dp))
+            .padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("提示词增强", color = DshText, fontSize = 11.sp, fontFamily = DshMono)
+            Spacer(Modifier.weight(1f))
+            Text(
+                if (vm.optimizerBusy) "生成中…" else "关闭",
+                color = DshMuted,
+                fontSize = 10.sp,
+                fontFamily = DshMono,
+                modifier = Modifier.clickable { vm.closeOptimizer() },
+            )
+        }
+        Row(
+            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            vm.optimizerModes.forEach { (id, label) ->
+                val active = vm.optimizerMode == id
+                Text(
+                    label,
+                    color = if (active) DshText else DshMuted,
+                    fontSize = 10.sp,
+                    fontFamily = DshMono,
+                    modifier = Modifier
+                        .background(if (active) DshSurface2 else Color.Transparent, RoundedCornerShape(6.dp))
+                        .border(1.dp, if (active) DshBorder else Color.Transparent, RoundedCornerShape(6.dp))
+                        .clickable { vm.updateOptimizerMode(id) }
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                )
+            }
+        }
+        if (vm.optimizerError.isNotBlank()) {
+            Text(vm.optimizerError, color = DshDanger, fontSize = 10.sp)
+        }
+        Text(
+            vm.optimizerText.ifBlank { if (vm.optimizerBusy) "正在改写草稿…" else "写一段草稿后点「优化」" },
+            color = if (vm.optimizerText.isBlank()) DshMuted else DshText,
+            fontSize = 12.sp,
+            lineHeight = 18.sp,
+            modifier = Modifier.fillMaxWidth().heightIn(max = 150.dp).verticalScroll(rememberScrollState()),
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text(
+                "替换输入框",
+                color = if (vm.optimizerText.isBlank()) DshMuted else DshTeal,
+                fontSize = 11.sp,
+                modifier = Modifier.clickable { if (vm.optimizerText.isNotBlank()) vm.applyOptimizer() },
+            )
+            Text(
+                "重试",
+                color = DshTeal,
+                fontSize = 11.sp,
+                modifier = Modifier.clickable { vm.runOptimizer() },
+            )
+            Text(
+                "复制",
+                color = DshTeal,
+                fontSize = 11.sp,
+                modifier = Modifier.clickable { if (vm.optimizerText.isNotBlank()) clipboard.setText(AnnotatedString(vm.optimizerText)) },
+            )
+        }
+    }
 }
 
 @Composable

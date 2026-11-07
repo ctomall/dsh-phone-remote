@@ -638,6 +638,55 @@ class DshClient private constructor(
         }
     }
 
+    /** Stream one prompt rewrite from the ai-prompt-optimizer host route. */
+    suspend fun optimizePrompt(
+        prompt: String,
+        mode: String,
+        sessionId: String?,
+        onDelta: (String) -> Unit,
+    ): String = withContext(Dispatchers.IO) {
+        val payload = JSONObject().put("prompt", prompt).put("mode", mode)
+        if (!sessionId.isNullOrBlank()) payload.put("sessionId", sessionId)
+        val url = base.resolve("prompt-optimizer/optimize")!!
+        val request = Request.Builder()
+            .url(url)
+            .post(payload.toString().toRequestBody(JSON))
+            .header("accept", "application/x-ndjson")
+            .build()
+        http.newCall(request).execute().use { response ->
+            if (response.code == 401 || response.code == 403) {
+                throw DshException("提示词增强未授权", "auth/required", response.code)
+            }
+            if (!response.isSuccessful) {
+                val text = response.body?.string().orEmpty()
+                val message = runCatching { JSONObject(text).optJSONObject("error")?.optString("message") }.getOrNull()
+                throw DshException(message ?: "提示词增强失败：HTTP ${response.code}", "optimizer/http", response.code)
+            }
+            val source = response.body?.source() ?: throw DshException("提示词增强无响应")
+            val out = StringBuilder()
+            while (true) {
+                val line = source.readUtf8Line() ?: break
+                if (line.isBlank()) continue
+                val event = runCatching { JSONObject(line) }.getOrNull() ?: continue
+                when (event.optString("type")) {
+                    "delta" -> {
+                        val text = event.optString("text")
+                        if (text.isNotEmpty()) {
+                            out.append(text)
+                            onDelta(text)
+                        }
+                    }
+                    "done" -> Unit
+                    "error" -> throw DshException(
+                        event.optString("message", "提示词增强失败"),
+                        event.optString("code", "optimizer/failed"),
+                    )
+                }
+            }
+            out.toString()
+        }
+    }
+
     suspend fun putFeedback(sessionId: String, messageId: String, rating: String) {
         call(
             "messageFeedback/put",
