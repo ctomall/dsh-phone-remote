@@ -1047,7 +1047,7 @@ private fun ChatScreen(vm: NativeViewModel) {
             ) {
                 Icon(Icons.Filled.Mic, contentDescription = "语音输入", tint = DshMuted, modifier = Modifier.size(19.dp))
             }
-            IconButton(
+            if (vm.optimizerEnabled) IconButton(
                 onClick = { vm.openOptimizer() },
                 modifier = Modifier.size(40.dp),
             ) {
@@ -1374,6 +1374,13 @@ private fun OptimizerPanel(vm: NativeViewModel) {
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("提示词增强", color = DshText, fontSize = 11.sp, fontFamily = DshMono)
+            Spacer(Modifier.width(8.dp))
+            Text(
+                "≤${vm.optimizerMaxChars} 字" + if (vm.optimizerSynced) " · 已同步" else "",
+                color = DshMuted,
+                fontSize = 9.sp,
+                fontFamily = DshMono,
+            )
             Spacer(Modifier.weight(1f))
             Text(
                 if (vm.optimizerBusy) "生成中…" else "关闭",
@@ -1383,7 +1390,7 @@ private fun OptimizerPanel(vm: NativeViewModel) {
                 modifier = Modifier.clickable { vm.closeOptimizer() },
             )
         }
-        Row(
+        if (vm.optimizerShowModes) Row(
             Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
