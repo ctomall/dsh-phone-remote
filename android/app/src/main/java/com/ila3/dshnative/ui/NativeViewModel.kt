@@ -227,6 +227,9 @@ class NativeViewModel(app: Application) : AndroidViewModel(app) {
     var optimizerMaxChars by mutableStateOf(8000)
     var optimizerShowModes by mutableStateOf(true)
     var optimizerSynced by mutableStateOf(false)
+    var serverSnapshot by mutableStateOf<JSONObject?>(null)
+    var serverBusy by mutableStateOf(false)
+    var serverError by mutableStateOf("")
     private var optimizerModeTouched = false
     val optimizerModes = listOf(
         "general" to "通用", "structure" to "结构化", "concise" to "精简", "detail" to "补充细节",
@@ -330,6 +333,18 @@ class NativeViewModel(app: Application) : AndroidViewModel(app) {
         toolboxSection = section
         screen = Screen.Toolbox
         if (section == "skills") loadSkills()
+    }
+
+    fun loadServerSnapshot() {
+        val active = client ?: return
+        viewModelScope.launch {
+            serverBusy = true
+            serverError = ""
+            runCatching { withContext(Dispatchers.IO) { active.serverMonitor() } }
+                .onSuccess { serverSnapshot = it }
+                .onFailure { serverError = it.message ?: "读取服务器状态失败" }
+            serverBusy = false
+        }
     }
 
     fun loadOptimizerSettings() {

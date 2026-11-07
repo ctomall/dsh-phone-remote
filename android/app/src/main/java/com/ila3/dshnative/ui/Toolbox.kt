@@ -8,6 +8,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
@@ -72,6 +73,7 @@ import com.ila3.dshnative.protocol.ChatItem
 import com.ila3.dshnative.protocol.SshHost
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import org.json.JSONObject
 import kotlinx.coroutines.withContext
 import java.net.InetSocketAddress
 import java.net.Socket
@@ -83,6 +85,7 @@ private val ToolboxTabs = listOf(
     "browser" to "浏览器",
     "ssh" to "SSH",
     "attachments" to "附件",
+    "server" to "服务器",
     "files" to "文件",
 )
 
@@ -98,7 +101,7 @@ internal fun ToolboxScreen(vm: NativeViewModel) {
             }
             Column(Modifier.weight(1f)) {
                 Text("工具箱", color = DshText, fontSize = 18.sp, fontWeight = FontWeight.Medium)
-                Text("搜索 · 技能 · 工具 · 浏览器 · SSH · 文件", color = DshMuted, fontSize = 9.sp, fontFamily = DshMono)
+                Text("搜索 · 技能 · 工具 · 浏览器 · SSH · 服务器 · 文件", color = DshMuted, fontSize = 9.sp, fontFamily = DshMono)
             }
         }
         Row(
@@ -132,7 +135,131 @@ internal fun ToolboxScreen(vm: NativeViewModel) {
             "browser" -> BrowserSection(vm)
             "ssh" -> SshSection(vm)
             "attachments" -> AttachmentsSection(vm)
+            "server" -> ServerSection(vm)
             else -> FilesSection(vm)
+        }
+    }
+}
+
+/* -------------------------------- 服务器 -------------------------------- */
+private fun jsonNum(obj: JSONObject?, key: String): Double? {
+    if (obj == null || !obj.has(key) || obj.isNull(key)) return null
+    val value = obj.optDouble(key, Double.NaN)
+    return if (value.isNaN()) null else value
+}
+
+@Composable
+private fun ServerSection(vm: NativeViewModel) {
+    LaunchedEffect(Unit) {
+        if (vm.serverSnapshot == null) vm.loadServerSnapshot()
+    }
+    val snapshot = vm.serverSnapshot
+    val sample = snapshot?.optJSONObject("sample")
+    val cpu = sample?.optJSONObject("cpu")
+    val memory = sample?.optJSONObject("memory")
+    val processes = sample?.optJSONObject("processes")
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 12.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(
+                    sample?.optString("host").orEmpty().ifBlank { "本机" },
+                    color = DshText,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium,
+                )
+                Text(
+                    if (vm.serverBusy) "读取中…" else "server-monitor · snapshot",
+                    color = DshMuted,
+                    fontSize = 9.sp,
+                    fontFamily = DshMono,
+                )
+            }
+            Text(
+                "刷新",
+                color = DshTeal,
+                fontSize = 10.sp,
+                fontFamily = DshMono,
+                modifier = Modifier.clickable { vm.loadServerSnapshot() },
+            )
+        }
+        if (vm.serverError.isNotBlank()) {
+            Spacer(Modifier.height(10.dp))
+            Text(vm.serverError, color = DshDanger, fontSize = 11.sp)
+        }
+        Spacer(Modifier.height(14.dp))
+        val metrics = listOfNotNull(
+            jsonNum(cpu, "usage")?.let { "CPU" to it },
+            jsonNum(memory, "usagePct")?.let { "内存" to it },
+        )
+        metrics.forEach { (label, value) ->
+            Row(Modifier.fillMaxWidth().padding(bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(label, color = DshMuted, fontSize = 10.sp, fontFamily = DshMono, modifier = Modifier.width(40.dp))
+                Box(Modifier.weight(1f).height(4.dp).background(DshBorder, RoundedCornerShape(2.dp))) {
+                    Box(
+                        Modifier.fillMaxWidth((value / 100.0).toFloat().coerceIn(0f, 1f))
+                            .height(4.dp).background(DshTeal, RoundedCornerShape(2.dp)),
+                    )
+                }
+                Spacer(Modifier.width(10.dp))
+                Text("${"%.0f".format(value)}%", color = DshText, fontSize = 11.sp, fontFamily = DshMono, modifier = Modifier.width(44.dp))
+            }
+        }
+        val memTotal = jsonNum(memory, "total")
+        val memUsed = jsonNum(memory, "used")
+        if (memTotal != null && memUsed != null) {
+            Text(
+                "内存 ${toolboxBytes(memUsed.toLong())} / ${toolboxBytes(memTotal.toLong())}",
+                color = DshMuted,
+                fontSize = 9.sp,
+                fontFamily = DshMono,
+                modifier = Modifier.padding(top = 2.dp),
+            )
+        }
+        val load = cpu?.optJSONArray("loadAvg")
+        if (load != null && load.length() >= 3) {
+            val text = (0 until minOf(3, load.length())).joinToString(" · ") {
+                if (load.isNull(it)) "—" else "%.2f".format(load.optDouble(it))
+            }
+            Text("负载 $text", color = DshMuted, fontSize = 9.sp, fontFamily = DshMono, modifier = Modifier.padding(top = 2.dp))
+        }
+        Spacer(Modifier.height(14.dp))
+        val disks = sample?.optJSONArray("disks")
+        if (disks != null && disks.length() > 0) {
+            Text("磁盘", color = DshMuted, fontSize = 9.sp, fontFamily = DshMono)
+            Spacer(Modifier.height(4.dp))
+            for (i in 0 until disks.length()) {
+                val disk = disks.optJSONObject(i) ?: continue
+                val mount = disk.optString("mount")
+                val pct = jsonNum(disk, "usagePct") ?: 0.0
+                val used = jsonNum(disk, "used") ?: 0.0
+                val total = jsonNum(disk, "total") ?: 0.0
+                Row(Modifier.fillMaxWidth().padding(vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text(mount, color = DshText, fontSize = 11.sp, fontFamily = DshMono, modifier = Modifier.width(90.dp), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Box(Modifier.weight(1f).height(4.dp).background(DshBorder, RoundedCornerShape(2.dp))) {
+                        Box(Modifier.fillMaxWidth((pct / 100.0).toFloat().coerceIn(0f, 1f)).height(4.dp).background(DshTeal, RoundedCornerShape(2.dp)))
+                    }
+                    Spacer(Modifier.width(8.dp))
+                    Text("${"%.0f".format(pct)}%", color = DshMuted, fontSize = 9.sp, fontFamily = DshMono)
+                }
+                Text(
+                    "${toolboxBytes(used.toLong())} / ${toolboxBytes(total.toLong())}",
+                    color = DshMuted,
+                    fontSize = 8.sp,
+                    fontFamily = DshMono,
+                    modifier = Modifier.padding(start = 90.dp, bottom = 2.dp),
+                )
+            }
+        }
+        Spacer(Modifier.height(14.dp))
+        val total = jsonNum(processes, "total")
+        val running = jsonNum(processes, "running")
+        if (total != null) {
+            Text(
+                "进程 ${total.toInt()} · 运行 ${running?.toInt() ?: 0}",
+                color = DshMuted,
+                fontSize = 9.sp,
+                fontFamily = DshMono,
+            )
         }
     }
 }
