@@ -622,6 +622,7 @@ private fun TextPreviewBlock(text: String, hasMore: Boolean = false, onLoadMore:
     val clipboard = LocalClipboardManager.current
     var showLines by remember { mutableStateOf(true) }
     var wrap by remember { mutableStateOf(true) }
+    var selectable by remember { mutableStateOf(false) }
     val lines = remember(text) { text.lines() }
     Column(Modifier.fillMaxWidth()) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -632,6 +633,16 @@ private fun TextPreviewBlock(text: String, hasMore: Boolean = false, onLoadMore:
                 fontFamily = DshMono,
             )
             Spacer(Modifier.weight(1f))
+            Text(
+                "选择",
+                color = if (selectable) DshTeal else DshMuted,
+                fontSize = 10.sp,
+                fontFamily = DshMono,
+                modifier = Modifier.clickable {
+                    selectable = !selectable
+                    if (selectable) showLines = false
+                },
+            )
             Text(
                 "行号",
                 color = if (showLines) DshTeal else DshMuted,
@@ -663,7 +674,17 @@ private fun TextPreviewBlock(text: String, hasMore: Boolean = false, onLoadMore:
                 .verticalScroll(rememberScrollState())
                 .padding(10.dp),
         ) {
-            if (showLines) {
+            if (selectable) {
+                androidx.compose.foundation.text.selection.SelectionContainer {
+                    Text(
+                        text,
+                        color = DshText,
+                        fontSize = 11.sp,
+                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                        softWrap = wrap,
+                    )
+                }
+            } else if (showLines) {
                 lines.forEachIndexed { index, line ->
                     Row {
                         Text(
@@ -691,6 +712,15 @@ private fun TextPreviewBlock(text: String, hasMore: Boolean = false, onLoadMore:
                     softWrap = wrap,
                 )
             }
+        }
+        if (selectable) {
+            Text(
+                "长按文字选择，拖动调整范围",
+                color = DshMuted,
+                fontSize = 9.sp,
+                fontFamily = DshMono,
+                modifier = Modifier.padding(top = 4.dp),
+            )
         }
         if (hasMore) {
             Text(
