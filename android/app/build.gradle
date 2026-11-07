@@ -17,8 +17,8 @@ android {
         applicationId 'com.ila3.dshnative'
         minSdk 26
         targetSdk 34
-        versionCode 75
-        versionName '0.23.19'
+        versionCode 76
+        versionName '0.23.20'
     }
 
     buildFeatures {
@@ -54,6 +54,12 @@ android {
     }
 
     buildTypes {
+        debug {
+            // Installs beside the release package so a shared device cannot
+            // overwrite this build's signature or data.
+            applicationIdSuffix '.dev'
+            versionNameSuffix '-dev'
+        }
         release {
             minifyEnabled false
             signingConfig keystoreFile.exists() ? signingConfigs.release : signingConfigs.debug

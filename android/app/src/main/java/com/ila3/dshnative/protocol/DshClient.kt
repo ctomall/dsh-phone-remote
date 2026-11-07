@@ -620,13 +620,32 @@ class DshClient private constructor(
 
     data class SlashCommand(val name: String, val description: String, val hint: String?)
 
+    /** Raw array result for RPCs whose contract returns a list. */
+    suspend fun callArray(endpoint: String, args: JSONObject): JSONArray = withContext(Dispatchers.IO) {
+        val envelope = JSONObject()
+            .put("type", "client-request")
+            .put("rpcId", UUID.randomUUID().toString())
+            .put("method", endpoint)
+            .put("payload", JSONObject().put("args", args))
+        val request = Request.Builder()
+            .url(base.resolve("api/$endpoint")!!)
+            .post(envelope.toString().toRequestBody(JSON))
+            .build()
+        http.newCall(request).execute().use { response ->
+            if (response.code == 401 || response.code == 403) {
+                throw DshException("登录已失效，请重新配对", "auth/required", response.code)
+            }
+            if (!response.isSuccessful) throw DshException("$endpoint：HTTP ${response.code}", "rpc/http", response.code)
+            val json = JSONObject(response.body?.string().orEmpty())
+            json.optJSONArray("result")
+                ?: json.optJSONObject("result")?.optJSONArray("value")
+                ?: JSONArray()
+        }
+    }
+
     suspend fun commands(sessionId: String): List<SlashCommand> {
         if (sessionId.isBlank()) return emptyList()
-        val value = call("commands/list", JSONObject().put("agentId", sessionId))
-        val items = value.optJSONArray("commands")
-            ?: value.optJSONArray("items")
-            ?: value.optJSONArray("value")
-            ?: return emptyList()
+        val items = callArray("commands/list", JSONObject().put("agentId", sessionId))
         return buildList {
             for (i in 0 until items.length()) {
                 val item = items.optJSONObject(i) ?: continue
