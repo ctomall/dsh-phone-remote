@@ -990,6 +990,30 @@ private fun ChatScreen(vm: NativeViewModel) {
                 )
             }
         }
+        vm.optimizerUndo?.let { previous ->
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 2.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text("已替换输入框", color = DshMuted, fontSize = 9.sp, fontFamily = DshMono)
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    "撤销",
+                    color = DshTeal,
+                    fontSize = 10.sp,
+                    fontFamily = DshMono,
+                    modifier = Modifier.clickable { vm.undoOptimizer() }.padding(4.dp),
+                )
+                Spacer(Modifier.weight(1f))
+                Text(
+                    "替换前 ${previous.take(18)}…",
+                    color = DshMuted,
+                    fontSize = 9.sp,
+                    fontFamily = DshMono,
+                    maxLines = 1,
+                )
+            }
+        }
         if (vm.optimizerVisible) OptimizerPanel(vm)
         val attachmentUploading = vm.pendingAttachments.any { it.status == NativeViewModel.AttachmentStatus.UPLOADING }
         val attachmentFailed = vm.pendingAttachments.any { it.status == NativeViewModel.AttachmentStatus.FAILED }
