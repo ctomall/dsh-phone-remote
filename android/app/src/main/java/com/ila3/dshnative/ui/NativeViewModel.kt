@@ -139,6 +139,9 @@ class NativeViewModel(app: Application) : AndroidViewModel(app) {
         val bytes: Long = 0L,
         val width: Int = 0,
         val height: Int = 0,
+        val path: String? = null,
+        val hasMore: Boolean = false,
+        val lineCount: Int = 0,
     )
     var filePreview by mutableStateOf<FilePreviewData?>(null)
         private set
@@ -1225,7 +1228,8 @@ class NativeViewModel(app: Application) : AndroidViewModel(app) {
                     }
                 }
                 val text = withContext(Dispatchers.IO) { active.readFileText(sid, path) }
-                filePreview = FilePreviewData(entry.name, text, null)
+                val lines = text.count { it == '\n' } + if (text.isEmpty()) 0 else 1
+                filePreview = FilePreviewData(entry.name, text, null, path = path, hasMore = lines >= 500, lineCount = lines)
             } catch (e: Exception) {
                 error = e.message ?: "读取文件失败"
             } finally {
@@ -1248,6 +1252,33 @@ class NativeViewModel(app: Application) : AndroidViewModel(app) {
         openArtifact(galleryPreviewBase[next].path)
     }
 
+    fun loadMorePreview() {
+        val active = client ?: return
+        val preview = filePreview ?: return
+        val path = preview.path ?: return
+        val sid = activeSessionId.ifBlank { sessions.firstOrNull()?.id.orEmpty() }
+        if (sid.isEmpty()) return
+        viewModelScope.launch {
+            busy = true
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    val offset = preview.lineCount + 1
+                    val text = active.readFileText(sid, path, offset, 500)
+                    val lines = text.count { it == '\n' } + if (text.isEmpty()) 0 else 1
+                    Triple(text, lines, lines >= 500)
+                }
+            }.onSuccess { (text, lines, more) ->
+                val joined = if (preview.text.isNullOrEmpty()) text else preview.text + "\n" + text
+                filePreview = preview.copy(
+                    text = joined,
+                    hasMore = more,
+                    lineCount = preview.lineCount + lines,
+                )
+            }.onFailure { error = it.message ?: "加载更多失败" }
+            busy = false
+        }
+    }
+
     fun openArtifact(path: String) {
         val active = client ?: return
         val session = activeSessionId.ifBlank { sessions.firstOrNull()?.id.orEmpty() }
@@ -1265,7 +1296,8 @@ class NativeViewModel(app: Application) : AndroidViewModel(app) {
                     filePreview = FilePreviewData(name, null, bitmap, bytes.size.toLong(), bitmap?.width ?: 0, bitmap?.height ?: 0)
                 } else {
                     val text = withContext(Dispatchers.IO) { active.readFileText(session, relative) }
-                    filePreview = FilePreviewData(name, text, null)
+                    val lines = text.count { it == '\n' } + if (text.isEmpty()) 0 else 1
+                    filePreview = FilePreviewData(name, text, null, path = relative, hasMore = lines >= 500, lineCount = lines)
                 }
             } catch (e: Exception) {
                 error = e.message ?: "读取产物失败"

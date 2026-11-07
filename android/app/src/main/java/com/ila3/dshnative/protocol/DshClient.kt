@@ -764,11 +764,11 @@ class DshClient private constructor(
         }
     }
 
-    suspend fun readFileText(sessionId: String, path: String): String {
+    suspend fun readFileText(sessionId: String, path: String, offset: Int = 1, limit: Int = 500): String {
         val args = JSONObject()
             .put("workspaceFileScopeId", sessionId)
             .put("path", path.ifBlank { "." })
-            .put("range", JSONObject().put("offset", 1).put("limit", 500))
+            .put("range", JSONObject().put("offset", offset).put("limit", limit))
         return call("workspaceFiles/read", args).optString("text")
     }
 
