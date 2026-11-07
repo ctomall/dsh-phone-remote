@@ -231,6 +231,10 @@ class NativeViewModel(app: Application) : AndroidViewModel(app) {
     var serverBusy by mutableStateOf(false)
     var serverError by mutableStateOf("")
     var sshImportMessage by mutableStateOf("")
+    var showCommandSheet by mutableStateOf(false)
+    var slashCommands by mutableStateOf<List<DshClient.SlashCommand>>(emptyList())
+    var commandsBusy by mutableStateOf(false)
+    var commandsError by mutableStateOf("")
     private var optimizerModeTouched = false
     val optimizerModes = listOf(
         "general" to "通用", "structure" to "结构化", "concise" to "精简", "detail" to "补充细节",
@@ -334,6 +338,29 @@ class NativeViewModel(app: Application) : AndroidViewModel(app) {
         toolboxSection = section
         screen = Screen.Toolbox
         if (section == "skills") loadSkills()
+    }
+
+    fun openCommandSheet() {
+        showCommandSheet = true
+        val active = client ?: return
+        val sid = activeSessionId.ifBlank { sessions.firstOrNull()?.id.orEmpty() }
+        if (sid.isEmpty()) {
+            commandsError = "还没有会话"
+            return
+        }
+        viewModelScope.launch {
+            commandsBusy = true
+            commandsError = ""
+            runCatching { withContext(Dispatchers.IO) { active.commands(sid) } }
+                .onSuccess { slashCommands = it }
+                .onFailure { commandsError = it.message ?: "读取命令失败" }
+            commandsBusy = false
+        }
+    }
+
+    fun insertCommand(name: String) {
+        input = "/$name "
+        showCommandSheet = false
     }
 
     fun loadServerSnapshot() {
