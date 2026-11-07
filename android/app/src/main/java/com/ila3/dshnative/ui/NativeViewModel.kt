@@ -222,6 +222,7 @@ class NativeViewModel(app: Application) : AndroidViewModel(app) {
     var optimizerText by mutableStateOf("")
     var optimizerBusy by mutableStateOf(false)
     var optimizerError by mutableStateOf("")
+    var optimizerUndo by mutableStateOf<String?>(null)
     val optimizerModes = listOf(
         "general" to "通用", "structure" to "结构化", "concise" to "精简", "detail" to "补充细节",
         "technical" to "技术", "frontend" to "前端", "backend" to "后端", "review" to "审查", "dsh" to "DSH",
@@ -372,8 +373,16 @@ class NativeViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun applyOptimizer() {
-        if (optimizerText.isNotBlank()) input = optimizerText.trim()
+        if (optimizerText.isNotBlank()) {
+            optimizerUndo = input
+            input = optimizerText.trim()
+        }
         closeOptimizer()
+    }
+
+    fun undoOptimizer() {
+        optimizerUndo?.let { input = it }
+        optimizerUndo = null
     }
 
     fun searchSessions(query: String) {
