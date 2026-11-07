@@ -643,6 +643,24 @@ class DshClient private constructor(
         }
     }
 
+    /** Whole server-response body, for experimenting with typert services. */
+    suspend fun callRaw(endpoint: String, args: JSONObject): JSONObject = withContext(Dispatchers.IO) {
+        val envelope = JSONObject()
+            .put("type", "client-request")
+            .put("rpcId", UUID.randomUUID().toString())
+            .put("method", endpoint)
+            .put("payload", JSONObject().put("args", args))
+        val request = Request.Builder()
+            .url(base.resolve("api/$endpoint")!!)
+            .post(envelope.toString().toRequestBody(JSON))
+            .build()
+        http.newCall(request).execute().use { response ->
+            val raw = response.body?.string().orEmpty()
+            if (!response.isSuccessful) throw DshException("$endpoint：HTTP ${response.code}", "rpc/http", response.code)
+            JSONObject(raw)
+        }
+    }
+
     suspend fun commands(sessionId: String): List<SlashCommand> {
         if (sessionId.isBlank()) return emptyList()
         val items = callArray("commands/list", JSONObject().put("agentId", sessionId))
