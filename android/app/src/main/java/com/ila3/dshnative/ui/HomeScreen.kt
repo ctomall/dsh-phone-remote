@@ -575,7 +575,7 @@ internal fun FilePreviewSheet(vm: NativeViewModel) {
                         )
                     }
                 }
-                preview.text != null -> TextPreviewBlock(preview.text)
+                preview.text != null -> TextPreviewBlock(preview.text, preview.hasMore, onLoadMore = { vm.loadMorePreview() })
                 else -> Text("无法预览这个文件", color = DshMuted, fontSize = 12.sp)
             }
             Spacer(Modifier.height(14.dp))
@@ -618,7 +618,7 @@ internal fun FilePreviewSheet(vm: NativeViewModel) {
 }
 
 @Composable
-private fun TextPreviewBlock(text: String) {
+private fun TextPreviewBlock(text: String, hasMore: Boolean = false, onLoadMore: () -> Unit = {}) {
     val clipboard = LocalClipboardManager.current
     var showLines by remember { mutableStateOf(true) }
     var wrap by remember { mutableStateOf(true) }
@@ -691,6 +691,15 @@ private fun TextPreviewBlock(text: String) {
                     softWrap = wrap,
                 )
             }
+        }
+        if (hasMore) {
+            Text(
+                "加载更多行",
+                color = DshTeal,
+                fontSize = 10.sp,
+                fontFamily = DshMono,
+                modifier = Modifier.fillMaxWidth().clickable(onClick = onLoadMore).padding(vertical = 8.dp),
+            )
         }
     }
 }
