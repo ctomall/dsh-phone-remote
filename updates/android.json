@@ -1,8 +1,8 @@
 {
-  "versionCode": 77,
-  "versionName": "0.23.21",
-  "apkUrl": "https://raw.githubusercontent.com/ctomall/dsh-phone-remote/main/updates/DSHNative-0.23.21.apk",
-  "sha256": "0865d9af25ac01dbaad79f243f2aa0313f0613378a28275ce0651464bc33435e",
-  "notes": "工具箱新增专家团队：读取 agencyAgents/getTeams，展示名称/说明/成员",
-  "signature": "MEQCIFDpv/fCm+K35jaKyp9mFuzsulwgFaiVhivfBKgIHvUZAiAy+8ox66v0dfe5p23LeuUKAMiJ//gE4vP8oxtgL5Hrjw=="
+  "versionCode": 78,
+  "versionName": "0.23.22",
+  "apkUrl": "https://raw.githubusercontent.com/ctomall/dsh-phone-remote/main/updates/DSHNative-0.23.22.apk",
+  "sha256": "99aa0b836143bdc6079b39aa39d57894017cff0c11e1c76bb871213b528f51e5",
+  "notes": "专家团队详情：成员职责弹窗，一键填入团队调用提示",
+  "signature": "MEUCIHkK4kEQdMUKlsXroUqQVaBUERQ+quXPAQIJDEdBksodAiEAiYZrpJGLPy9FUTOZ739DMmAIq9wTLVdkQq3qf2mvbzo="
 }
