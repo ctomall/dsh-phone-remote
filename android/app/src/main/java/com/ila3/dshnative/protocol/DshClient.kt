@@ -618,6 +618,31 @@ class DshClient private constructor(
         }
     }
 
+    data class SlashCommand(val name: String, val description: String, val hint: String?)
+
+    suspend fun commands(sessionId: String): List<SlashCommand> {
+        if (sessionId.isBlank()) return emptyList()
+        val value = call("commands/list", JSONObject().put("agentId", sessionId))
+        val items = value.optJSONArray("commands")
+            ?: value.optJSONArray("items")
+            ?: value.optJSONArray("value")
+            ?: return emptyList()
+        return buildList {
+            for (i in 0 until items.length()) {
+                val item = items.optJSONObject(i) ?: continue
+                val name = item.optString("name").removePrefix("/")
+                if (name.isEmpty()) continue
+                add(
+                    SlashCommand(
+                        name = name,
+                        description = item.optString("description"),
+                        hint = item.optJSONObject("input")?.optString("hint")?.takeIf { it.isNotBlank() },
+                    ),
+                )
+            }
+        }
+    }
+
     suspend fun skills(sessionId: String): List<SkillItem> {
         val value = call("skills/list", JSONObject().put("request", JSONObject().put("sessionId", sessionId)))
         val items = value.optJSONArray("skills") ?: return emptyList()

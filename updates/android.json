@@ -1,8 +1,8 @@
 {
-  "versionCode": 74,
-  "versionName": "0.23.18",
-  "apkUrl": "https://raw.githubusercontent.com/ctomall/dsh-phone-remote/main/updates/DSHNative-0.23.18.apk",
-  "sha256": "c7ae05748877a5f354b0fb4de6f5c0e9708e61686c2a9c3034c153341eeccdce",
-  "notes": "修复服务器监控 RPC 头；SSH 支持从 Web 导入主机",
-  "signature": "MEUCIQCwCzArgOdGvkj4WvE3ZocSVngHNSFdi5yKPIJcbHQQmwIgExFhrud/h3bVTW62JVGZLluAemCirav0gExGwhDDgsA="
+  "versionCode": 75,
+  "versionName": "0.23.19",
+  "apkUrl": "https://raw.githubusercontent.com/ctomall/dsh-phone-remote/main/updates/DSHNative-0.23.19.apk",
+  "sha256": "129a864028d519db9ef6cf58254d22ff2cd5ddf8f184e8fd334ecd3fca188e3a",
+  "notes": "移植宿主 / 命令：聊天内斜杠按钮、命令列表、点选填入",
+  "signature": "MEYCIQChDPdFGWnBH35q9g+2ZsrNzEqpdl1yrwsygLDEKhFQKgIhAO22erqhglFe6uosy4oEE1jif+MT8cKkNZcfEZD+howY"
 }

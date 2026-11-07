@@ -1015,6 +1015,7 @@ private fun ChatScreen(vm: NativeViewModel) {
             }
         }
         if (vm.optimizerVisible) OptimizerPanel(vm)
+        if (vm.showCommandSheet) CommandSheet(vm)
         val attachmentUploading = vm.pendingAttachments.any { it.status == NativeViewModel.AttachmentStatus.UPLOADING }
         val attachmentFailed = vm.pendingAttachments.any { it.status == NativeViewModel.AttachmentStatus.FAILED }
         val sendEnabled = !attachmentUploading && !attachmentFailed &&
@@ -1047,6 +1048,13 @@ private fun ChatScreen(vm: NativeViewModel) {
             ) {
                 Icon(Icons.Filled.Mic, contentDescription = "语音输入", tint = DshMuted, modifier = Modifier.size(19.dp))
             }
+            Text(
+                "/",
+                color = DshMuted,
+                fontSize = 16.sp,
+                fontFamily = DshMono,
+                modifier = Modifier.clickable { vm.openCommandSheet() }.padding(horizontal = 8.dp, vertical = 6.dp),
+            )
             if (vm.optimizerEnabled) IconButton(
                 onClick = { vm.openOptimizer() },
                 modifier = Modifier.size(40.dp),
@@ -1359,6 +1367,45 @@ private fun OptionDialog(
         containerColor = DshSurface,
         shape = RoundedCornerShape(10.dp),
     )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun CommandSheet(vm: NativeViewModel) {
+    ModalBottomSheet(
+        onDismissRequest = { vm.showCommandSheet = false },
+        containerColor = DshSurface,
+    ) {
+        Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp)) {
+            Text("命令", color = DshText, fontSize = 15.sp, fontWeight = FontWeight.Medium)
+            Text(
+                if (vm.commandsBusy) "读取中…" else "来自宿主已注册的 / 命令",
+                color = DshMuted,
+                fontSize = 9.sp,
+                fontFamily = DshMono,
+                modifier = Modifier.padding(top = 2.dp),
+            )
+            if (vm.commandsError.isNotBlank()) {
+                Text(vm.commandsError, color = DshDanger, fontSize = 11.sp, modifier = Modifier.padding(top = 6.dp))
+            }
+            Spacer(Modifier.height(8.dp))
+            LazyColumn(Modifier.fillMaxWidth().heightIn(max = 420.dp)) {
+                items(vm.slashCommands, key = { it.name }) { command ->
+                    Column(
+                        Modifier.fillMaxWidth().clickable { vm.insertCommand(command.name) }
+                            .padding(vertical = 9.dp),
+                    ) {
+                        Text("/${command.name}", color = DshText, fontSize = 13.sp, fontFamily = DshMono)
+                        if (command.description.isNotBlank()) {
+                            Text(command.description, color = DshMuted, fontSize = 10.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                        }
+                    }
+                    HorizontalDivider(color = DshBorder, thickness = 1.dp)
+                }
+            }
+            Spacer(Modifier.height(12.dp))
+        }
+    }
 }
 
 @Composable
