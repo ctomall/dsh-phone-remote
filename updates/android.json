@@ -1,8 +1,8 @@
 {
-  "versionCode": 73,
-  "versionName": "0.23.17",
-  "apkUrl": "https://raw.githubusercontent.com/ctomall/dsh-phone-remote/main/updates/DSHNative-0.23.17.apk",
-  "sha256": "5f7c067859b221cca4b4626724d77593685d64ffffd5b409ddfb8fd477ffb94c",
-  "notes": "工具箱新增服务器监控：CPU/内存/磁盘/负载/进程（server-monitor snapshot）",
-  "signature": "MEYCIQDIrK+jcVb1Dz6k8Zfiv6VpBGgaN5eomGKhJb3EoTSjYwIhANadImNTkroeJGzDB7H8d9ZqGQG8GzdfjkzQ1Phammfo"
+  "versionCode": 74,
+  "versionName": "0.23.18",
+  "apkUrl": "https://raw.githubusercontent.com/ctomall/dsh-phone-remote/main/updates/DSHNative-0.23.18.apk",
+  "sha256": "c7ae05748877a5f354b0fb4de6f5c0e9708e61686c2a9c3034c153341eeccdce",
+  "notes": "修复服务器监控 RPC 头；SSH 支持从 Web 导入主机",
+  "signature": "MEUCIQCwCzArgOdGvkj4WvE3ZocSVngHNSFdi5yKPIJcbHQQmwIgExFhrud/h3bVTW62JVGZLluAemCirav0gExGwhDDgsA="
 }
