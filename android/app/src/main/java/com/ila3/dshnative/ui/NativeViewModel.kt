@@ -217,6 +217,15 @@ class NativeViewModel(app: Application) : AndroidViewModel(app) {
     var galleryPreviewIndex by mutableIntStateOf(-1)
     var galleryPreviewBase by mutableStateOf<List<GalleryItem>>(emptyList())
     var galleryFolder by mutableStateOf("all")
+    var optimizerVisible by mutableStateOf(false)
+    var optimizerMode by mutableStateOf("general")
+    var optimizerText by mutableStateOf("")
+    var optimizerBusy by mutableStateOf(false)
+    var optimizerError by mutableStateOf("")
+    val optimizerModes = listOf(
+        "general" to "通用", "structure" to "结构化", "concise" to "精简", "detail" to "补充细节",
+        "technical" to "技术", "frontend" to "前端", "backend" to "后端", "review" to "审查", "dsh" to "DSH",
+    )
     var pairPrefillUrl by mutableStateOf("")
     var multiDevice by mutableStateOf(store.multiDevice())
         private set
@@ -315,6 +324,56 @@ class NativeViewModel(app: Application) : AndroidViewModel(app) {
         toolboxSection = section
         screen = Screen.Toolbox
         if (section == "skills") loadSkills()
+    }
+
+    fun openOptimizer() {
+        if (input.isBlank()) {
+            error = "先写一段草稿，再优化"
+            return
+        }
+        optimizerVisible = true
+        optimizerError = ""
+        optimizerText = ""
+        runOptimizer()
+    }
+
+    fun closeOptimizer() {
+        optimizerVisible = false
+        optimizerBusy = false
+        optimizerText = ""
+        optimizerError = ""
+    }
+
+    fun updateOptimizerMode(mode: String) {
+        if (optimizerMode == mode) return
+        optimizerMode = mode
+        if (optimizerVisible) {
+            optimizerText = ""
+            runOptimizer()
+        }
+    }
+
+    fun runOptimizer() {
+        val active = client ?: return
+        val draft = input.trim()
+        if (draft.isEmpty()) return
+        viewModelScope.launch {
+            optimizerBusy = true
+            optimizerError = ""
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    active.optimizePrompt(draft, optimizerMode, activeSessionId) { delta ->
+                        optimizerText += delta
+                    }
+                }
+            }.onFailure { optimizerError = it.message ?: "提示词增强失败" }
+            optimizerBusy = false
+        }
+    }
+
+    fun applyOptimizer() {
+        if (optimizerText.isNotBlank()) input = optimizerText.trim()
+        closeOptimizer()
     }
 
     fun searchSessions(query: String) {
