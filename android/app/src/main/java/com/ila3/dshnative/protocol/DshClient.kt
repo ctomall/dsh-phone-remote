@@ -638,6 +638,30 @@ class DshClient private constructor(
         }
     }
 
+    /** One server-monitor RPC call, e.g. snapshot. */
+    suspend fun serverMonitor(method: String = "snapshot", params: JSONObject = JSONObject()): JSONObject =
+        withContext(Dispatchers.IO) {
+            val payload = JSONObject().put("method", method).put("params", params)
+            val request = Request.Builder()
+                .url(base.resolve("plugin-api/server-monitor/rpc")!!)
+                .post(payload.toString().toRequestBody(JSON))
+                .build()
+            http.newCall(request).execute().use { response ->
+                val text = response.body?.string().orEmpty()
+                val root = runCatching { JSONObject(text) }.getOrNull()
+                    ?: throw DshException("服务器监控无响应", "server-monitor/http", response.code)
+                if (!root.optBoolean("ok", false)) {
+                    val error = root.optJSONObject("error")
+                    throw DshException(
+                        error?.optString("message") ?: "服务器监控失败",
+                        error?.optString("code") ?: "server-monitor/failed",
+                        response.code,
+                    )
+                }
+                root.optJSONObject("value") ?: JSONObject()
+            }
+        }
+
     data class OptimizerSettings(
         val enabled: Boolean = true,
         val defaultMode: String = "general",
