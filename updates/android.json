@@ -1,8 +1,8 @@
 {
-  "versionCode": 71,
-  "versionName": "0.23.15",
-  "apkUrl": "https://raw.githubusercontent.com/ctomall/dsh-phone-remote/main/updates/DSHNative-0.23.15.apk",
-  "sha256": "7bafcbc30099f246af71e6898ad87f283e2a9a4571954e0674ea3994b340a7ef",
-  "notes": "提示词增强替换后可撤销",
-  "signature": "MEQCIFnTENJL0qLEzA9CiU4Jacdc544w6pzqtFMUMRFEI3RAAiBE5YYmLrs3MBg9uI3BEUJYYazNUoBR4PzIqpRGcfhu8g=="
+  "versionCode": 72,
+  "versionName": "0.23.16",
+  "apkUrl": "https://raw.githubusercontent.com/ctomall/dsh-phone-remote/main/updates/DSHNative-0.23.16.apk",
+  "sha256": "387c82d710778769ab11ef0a1959e9de3157e15e8c9af82aed11910a641200d4",
+  "notes": "同步 Web 提示词增强设置：默认方向、字数上限、方向显隐、启用开关",
+  "signature": "MEUCICG4fV8jD0k87WP+zw7KG7LMQ9kx+6F+ABFymXtYP+E+AiEAmGcSQQnH8TJaO9IsBq420J5RnLetrXP/cG27iDkFKqo="
 }

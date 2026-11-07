@@ -638,6 +638,31 @@ class DshClient private constructor(
         }
     }
 
+    data class OptimizerSettings(
+        val enabled: Boolean = true,
+        val defaultMode: String = "general",
+        val maxChars: Int = 8000,
+        val showModes: Boolean = true,
+        val stream: Boolean = true,
+    )
+
+    suspend fun optimizerSettings(): OptimizerSettings = withContext(Dispatchers.IO) {
+        val url = base.resolve("prompt-optimizer/settings")!!
+        val request = Request.Builder().url(url).get().build()
+        http.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) return@withContext OptimizerSettings()
+            val json = runCatching { JSONObject(response.body?.string().orEmpty()) }.getOrNull()
+                ?: return@withContext OptimizerSettings()
+            OptimizerSettings(
+                enabled = json.optBoolean("enabled", true),
+                defaultMode = json.optString("defaultMode", "general"),
+                maxChars = json.optInt("maxChars", 8000),
+                showModes = json.optBoolean("showModes", true),
+                stream = json.optBoolean("stream", true),
+            )
+        }
+    }
+
     /** Stream one prompt rewrite from the ai-prompt-optimizer host route. */
     suspend fun optimizePrompt(
         prompt: String,

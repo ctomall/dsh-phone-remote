@@ -223,6 +223,11 @@ class NativeViewModel(app: Application) : AndroidViewModel(app) {
     var optimizerBusy by mutableStateOf(false)
     var optimizerError by mutableStateOf("")
     var optimizerUndo by mutableStateOf<String?>(null)
+    var optimizerEnabled by mutableStateOf(true)
+    var optimizerMaxChars by mutableStateOf(8000)
+    var optimizerShowModes by mutableStateOf(true)
+    var optimizerSynced by mutableStateOf(false)
+    private var optimizerModeTouched = false
     val optimizerModes = listOf(
         "general" to "通用", "structure" to "结构化", "concise" to "精简", "detail" to "补充细节",
         "technical" to "技术", "frontend" to "前端", "backend" to "后端", "review" to "审查", "dsh" to "DSH",
@@ -327,9 +332,27 @@ class NativeViewModel(app: Application) : AndroidViewModel(app) {
         if (section == "skills") loadSkills()
     }
 
+    fun loadOptimizerSettings() {
+        val active = client ?: return
+        viewModelScope.launch {
+            runCatching { withContext(Dispatchers.IO) { active.optimizerSettings() } }
+                .onSuccess { settings ->
+                    optimizerEnabled = settings.enabled
+                    optimizerMaxChars = settings.maxChars
+                    optimizerShowModes = settings.showModes
+                    if (!optimizerModeTouched) optimizerMode = settings.defaultMode
+                    optimizerSynced = true
+                }
+        }
+    }
+
     fun openOptimizer() {
         if (input.isBlank()) {
             error = "先写一段草稿，再优化"
+            return
+        }
+        if (input.length > optimizerMaxChars) {
+            error = "草稿超过 ${optimizerMaxChars} 字上限"
             return
         }
         optimizerVisible = true
@@ -347,6 +370,7 @@ class NativeViewModel(app: Application) : AndroidViewModel(app) {
 
     fun updateOptimizerMode(mode: String) {
         if (optimizerMode == mode) return
+        optimizerModeTouched = true
         optimizerMode = mode
         if (optimizerVisible) {
             optimizerText = ""
@@ -659,6 +683,7 @@ class NativeViewModel(app: Application) : AndroidViewModel(app) {
         connection = "连接中"
         error = ""
         refreshSessionMeta()
+        loadOptimizerSettings()
         following = true
         followAttempt = 0
         viewModelScope.launch {
