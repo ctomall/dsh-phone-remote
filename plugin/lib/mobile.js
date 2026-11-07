@@ -189,6 +189,23 @@ export async function handleMobileRequest(request, response, context) {
       json(response, { tasks })
       return true
     }
+    // C5 服务器监控：网关进程所在的机器事实（真实数字，不是编的）
+    if (path === '/monitor' && request.method === 'GET') {
+      const os = await import('node:os')
+      const mem = process.memoryUsage()
+      const load = os.loadavg()
+      json(response, {
+        host: os.hostname(),
+        platform: `${os.platform()} ${os.release()}`,
+        uptimeSec: Math.round(process.uptime()),
+        load1: Number(load[0].toFixed(2)),
+        load5: Number(load[1].toFixed(2)),
+        rssMb: Math.round(mem.rss / 1048576),
+        heapMb: Math.round(mem.heapUsed / 1048576),
+        cpus: os.cpus().length,
+      })
+      return true
+    }
     const taskMatch = /^\/tasks\/([^/]+)$/u.exec(path)
     if (taskMatch && request.method === 'GET') {
       const sessionId = decodeURIComponent(taskMatch[1])
