@@ -161,14 +161,23 @@ private fun ServerSection(vm: NativeViewModel) {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 12.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
+                val hostValue = sample?.opt("host")
+                val hostText = when (hostValue) {
+                    is JSONObject -> hostValue.optString("hostname").ifBlank { "本机" }
+                    is String -> hostValue.ifBlank { "本机" }
+                    else -> "本机"
+                }
+                Text(hostText, color = DshText, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                val detail = when (hostValue) {
+                    is JSONObject -> listOf(
+                        hostValue.optString("platform"),
+                        hostValue.optString("release"),
+                        if (hostValue.has("cores")) "${hostValue.optInt("cores")} 核" else "",
+                    ).filter { it.isNotBlank() }.joinToString(" · ")
+                    else -> ""
+                }
                 Text(
-                    sample?.optString("host").orEmpty().ifBlank { "本机" },
-                    color = DshText,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Medium,
-                )
-                Text(
-                    if (vm.serverBusy) "读取中…" else "server-monitor · snapshot",
+                    if (vm.serverBusy) "读取中…" else detail.ifBlank { "server-monitor · snapshot" },
                     color = DshMuted,
                     fontSize = 9.sp,
                     fontFamily = DshMono,
@@ -507,6 +516,7 @@ private fun SshSection(vm: NativeViewModel) {
     Column(Modifier.fillMaxSize()) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
             Text("SSH 服务器", color = DshDanger, fontSize = 9.sp, fontFamily = DshMono, modifier = Modifier.weight(1f))
+            Text("从 Web 导入", color = DshTeal, fontSize = 11.sp, fontFamily = DshMono, modifier = Modifier.clickable { vm.importWebSshHosts() }.padding(end = 12.dp))
             Text("添加", color = DshTeal, fontSize = 11.sp, fontFamily = DshMono, modifier = Modifier.clickable { showAdd = true })
         }
         Text(
@@ -515,6 +525,9 @@ private fun SshSection(vm: NativeViewModel) {
             fontSize = 10.sp,
             modifier = Modifier.padding(horizontal = 20.dp),
         )
+        if (vm.sshImportMessage.isNotBlank()) {
+            Text(vm.sshImportMessage, color = DshTeal, fontSize = 10.sp, fontFamily = DshMono, modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp))
+        }
         if (vm.sshHosts.isEmpty()) {
             Text("还没有服务器", color = DshMuted, fontSize = 12.sp, modifier = Modifier.padding(20.dp))
         }

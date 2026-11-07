@@ -230,6 +230,7 @@ class NativeViewModel(app: Application) : AndroidViewModel(app) {
     var serverSnapshot by mutableStateOf<JSONObject?>(null)
     var serverBusy by mutableStateOf(false)
     var serverError by mutableStateOf("")
+    var sshImportMessage by mutableStateOf("")
     private var optimizerModeTouched = false
     val optimizerModes = listOf(
         "general" to "通用", "structure" to "结构化", "concise" to "精简", "detail" to "补充细节",
@@ -1154,6 +1155,36 @@ class NativeViewModel(app: Application) : AndroidViewModel(app) {
         val entry = SshHost(java.util.UUID.randomUUID().toString(), name.ifBlank { host }, host, user, port)
         sshHosts = sshHosts + entry
         store.setSshHosts(sshHosts)
+    }
+
+    fun importWebSshHosts() {
+        val active = client ?: return
+        viewModelScope.launch {
+            sshImportMessage = "读取中…"
+            runCatching { withContext(Dispatchers.IO) { active.sshServers() } }
+                .onSuccess { remote ->
+                    var added = 0
+                    var skipped = 0
+                    remote.forEach { server ->
+                        val exists = sshHosts.any { it.host == server.host && it.port == server.port && it.user == server.user }
+                        if (exists) {
+                            skipped++
+                        } else {
+                            sshHosts = sshHosts + SshHost(
+                                id = java.util.UUID.randomUUID().toString(),
+                                name = server.name,
+                                host = server.host,
+                                user = server.user,
+                                port = server.port,
+                            )
+                            added++
+                        }
+                    }
+                    if (added > 0) store.setSshHosts(sshHosts)
+                    sshImportMessage = "导入 $added 台，跳过 $skipped 台"
+                }
+                .onFailure { sshImportMessage = it.message ?: "导入失败" }
+        }
     }
 
     fun removeSshHost(id: String) {

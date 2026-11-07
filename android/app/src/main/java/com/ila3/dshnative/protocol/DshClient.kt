@@ -638,12 +638,40 @@ class DshClient private constructor(
         }
     }
 
+    data class WebSshServer(val name: String, val host: String, val user: String, val port: Int)
+
+    /** SSH hosts registered on the Web side by the /ssh command. */
+    suspend fun sshServers(): List<WebSshServer> = withContext(Dispatchers.IO) {
+        val request = Request.Builder().url(base.resolve("ssh-servers/list")!!).get().build()
+        http.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) throw DshException("读取 Web SSH 主机失败：HTTP ${response.code}", "ssh-servers/http", response.code)
+            val root = JSONObject(response.body?.string().orEmpty())
+            val servers = root.optJSONArray("servers") ?: JSONArray()
+            buildList {
+                for (i in 0 until servers.length()) {
+                    val item = servers.optJSONObject(i) ?: continue
+                    val host = item.optString("host")
+                    if (host.isBlank()) continue
+                    add(
+                        WebSshServer(
+                            name = item.optString("name").ifBlank { host },
+                            host = host,
+                            user = item.optString("user").ifBlank { "root" },
+                            port = item.optInt("port", 22),
+                        ),
+                    )
+                }
+            }
+        }
+    }
+
     /** One server-monitor RPC call, e.g. snapshot. */
     suspend fun serverMonitor(method: String = "snapshot", params: JSONObject = JSONObject()): JSONObject =
         withContext(Dispatchers.IO) {
             val payload = JSONObject().put("method", method).put("params", params)
             val request = Request.Builder()
                 .url(base.resolve("plugin-api/server-monitor/rpc")!!)
+                .header("x-dsh-server-monitor", "1")
                 .post(payload.toString().toRequestBody(JSON))
                 .build()
             http.newCall(request).execute().use { response ->
