@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -181,7 +182,9 @@ private fun AgencySection(vm: NativeViewModel) {
                 val name = team.optString("name").ifBlank { team.optString("title") }
                 val description = team.optString("description")
                 val members = team.optJSONArray("members")
-                Column(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+                Column(
+                    Modifier.fillMaxWidth().clickable { vm.openAgencyTeam(team) }.padding(vertical = 8.dp),
+                ) {
                     Text(name, color = DshText, fontSize = 13.sp, fontWeight = FontWeight.Medium)
                     if (description.isNotBlank()) {
                         Text(description, color = DshMuted, fontSize = 10.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
@@ -206,6 +209,50 @@ private fun AgencySection(vm: NativeViewModel) {
                 HorizontalDivider(color = DshBorder, thickness = 1.dp)
             }
         }
+    }
+    vm.selectedAgencyTeam?.let { team ->
+        val members = team.optJSONArray("members")
+        AlertDialog(
+            onDismissRequest = { vm.closeAgencyTeam() },
+            title = { Text(team.optString("name"), color = DshText, fontSize = 15.sp) },
+            text = {
+                Column(Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState())) {
+                    val description = team.optString("description")
+                    if (description.isNotBlank()) {
+                        Text(description, color = DshText, fontSize = 12.sp, lineHeight = 18.sp)
+                        Spacer(Modifier.height(10.dp))
+                    }
+                    if (members != null) {
+                        for (i in 0 until members.length()) {
+                            val member = members.optJSONObject(i) ?: continue
+                            Text(
+                                member.optString("expertSlug"),
+                                color = DshText,
+                                fontSize = 12.sp,
+                                fontFamily = DshMono,
+                                modifier = Modifier.padding(top = 6.dp),
+                            )
+                            Text(
+                                member.optString("duty"),
+                                color = DshMuted,
+                                fontSize = 10.sp,
+                                lineHeight = 15.sp,
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { vm.useAgencyTeam(team) }) {
+                    Text("填入输入框", color = DshTeal)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { vm.closeAgencyTeam() }) { Text("关闭", color = DshMuted) }
+            },
+            containerColor = DshSurface,
+            shape = RoundedCornerShape(10.dp),
+        )
     }
 }
 

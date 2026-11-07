@@ -238,6 +238,7 @@ class NativeViewModel(app: Application) : AndroidViewModel(app) {
     var agencyRaw by mutableStateOf<JSONObject?>(null)
     var agencyBusy by mutableStateOf(false)
     var agencyError by mutableStateOf("")
+    var selectedAgencyTeam by mutableStateOf<JSONObject?>(null)
     private var optimizerModeTouched = false
     val optimizerModes = listOf(
         "general" to "通用", "structure" to "结构化", "concise" to "精简", "detail" to "补充细节",
@@ -341,6 +342,35 @@ class NativeViewModel(app: Application) : AndroidViewModel(app) {
         toolboxSection = section
         screen = Screen.Toolbox
         if (section == "skills") loadSkills()
+    }
+
+    fun openAgencyTeam(team: JSONObject) {
+        selectedAgencyTeam = team
+    }
+
+    fun closeAgencyTeam() {
+        selectedAgencyTeam = null
+    }
+
+    fun useAgencyTeam(team: JSONObject) {
+        val name = team.optString("name").ifBlank { "专家团队" }
+        val members = team.optJSONArray("members")
+        val slugs = buildList {
+            if (members != null) {
+                for (i in 0 until members.length()) {
+                    val slug = members.optJSONObject(i)?.optString("expertSlug").orEmpty()
+                    if (slug.isNotBlank()) add(slug)
+                }
+            }
+        }
+        if (activeSessionId.isBlank()) {
+            error = "先打开一个会话，再使用专家团队"
+            return
+        }
+        input = "使用专家团队「$name」（${slugs.joinToString("、")}）完成下面的任务：\n"
+        selectedAgencyTeam = null
+        closeToolbox()
+        screen = Screen.Chat
     }
 
     fun loadAgency() {

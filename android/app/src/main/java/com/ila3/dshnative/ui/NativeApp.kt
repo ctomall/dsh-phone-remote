@@ -224,10 +224,11 @@ internal fun ThemeToggle() {
     val isPaper = DshTheme.mode == DshThemeMode.PAPER
     IconButton(
         onClick = {
-            DshTheme.mode = if (isPaper) DshThemeMode.AURORA else DshThemeMode.PAPER
+            val next = DshTheme.mode.next
+            DshTheme.mode = next
             context.getSharedPreferences("dsh_native", android.content.Context.MODE_PRIVATE)
                 .edit()
-                .putString("theme_mode", if (isPaper) "aurora" else "paper")
+                .putString("theme_mode", next.key)
                 .apply()
         },
     ) {
@@ -3381,7 +3382,7 @@ private fun SettingsScreen(vm: NativeViewModel) {
         onMode = { mode ->
             DshTheme.mode = mode
             context.getSharedPreferences("dsh_native", android.content.Context.MODE_PRIVATE)
-                .edit().putString("theme_mode", if (mode == DshThemeMode.PAPER) "paper" else "aurora").apply()
+                .edit().putString("theme_mode", mode.key).apply()
         },
         onServers = { vm.showServers() },
         onBack = { vm.closeSettings() },
@@ -3436,7 +3437,7 @@ internal fun SettingsTab(vm: NativeViewModel) {
             onMode = { mode ->
                 DshTheme.mode = mode
                 context.getSharedPreferences("dsh_native", android.content.Context.MODE_PRIVATE)
-                    .edit().putString("theme_mode", if (mode == DshThemeMode.PAPER) "paper" else "aurora").apply()
+                    .edit().putString("theme_mode", mode.key).apply()
             },
             onServers = { vm.showServers() },
             onBack = {},
