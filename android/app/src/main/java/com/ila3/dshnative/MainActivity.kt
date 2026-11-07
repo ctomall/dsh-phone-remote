@@ -15,6 +15,7 @@ import com.ila3.dshnative.protocol.NativeNotifications
 import com.ila3.dshnative.ui.DshNativeTheme
 import com.ila3.dshnative.ui.DshTheme
 import com.ila3.dshnative.ui.DshThemeMode
+import com.ila3.dshnative.ui.dshThemeFrom
 import com.ila3.dshnative.ui.NativeApp
 import com.ila3.dshnative.ui.NativeViewModel
 
@@ -26,8 +27,8 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val saved = getSharedPreferences("dsh_native", MODE_PRIVATE).getString("theme_mode", "paper")
-        DshTheme.mode = if (saved == "aurora") DshThemeMode.AURORA else DshThemeMode.PAPER
+        val saved = getSharedPreferences("dsh_native", MODE_PRIVATE).getString("theme_mode", null)
+        DshTheme.mode = dshThemeFrom(saved)
         NativeNotifications(this).ensureChannels()
         handleIntent(intent)
         setContent {
