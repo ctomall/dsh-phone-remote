@@ -575,13 +575,7 @@ internal fun FilePreviewSheet(vm: NativeViewModel) {
                         )
                     }
                 }
-                preview.text != null -> Text(
-                    preview.text,
-                    color = DshText,
-                    fontSize = 11.sp,
-                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
-                    modifier = Modifier.verticalScroll(rememberScrollState()).height(420.dp),
-                )
+                preview.text != null -> TextPreviewBlock(preview.text)
                 else -> Text("无法预览这个文件", color = DshMuted, fontSize = 12.sp)
             }
             Spacer(Modifier.height(14.dp))
@@ -618,6 +612,84 @@ internal fun FilePreviewSheet(vm: NativeViewModel) {
             }
             if (saved.isNotEmpty()) {
                 Text(saved, color = DshTeal, fontSize = 11.sp, modifier = Modifier.padding(top = 6.dp))
+            }
+        }
+    }
+}
+
+@Composable
+private fun TextPreviewBlock(text: String) {
+    val clipboard = LocalClipboardManager.current
+    var showLines by remember { mutableStateOf(true) }
+    var wrap by remember { mutableStateOf(true) }
+    val lines = remember(text) { text.lines() }
+    Column(Modifier.fillMaxWidth()) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text(
+                "${lines.size} 行 · ${text.length} 字符",
+                color = DshMuted,
+                fontSize = 9.sp,
+                fontFamily = DshMono,
+            )
+            Spacer(Modifier.weight(1f))
+            Text(
+                "行号",
+                color = if (showLines) DshTeal else DshMuted,
+                fontSize = 10.sp,
+                fontFamily = DshMono,
+                modifier = Modifier.clickable { showLines = !showLines },
+            )
+            Text(
+                "换行",
+                color = if (wrap) DshTeal else DshMuted,
+                fontSize = 10.sp,
+                fontFamily = DshMono,
+                modifier = Modifier.clickable { wrap = !wrap },
+            )
+            Text(
+                "复制全文",
+                color = DshTeal,
+                fontSize = 10.sp,
+                fontFamily = DshMono,
+                modifier = Modifier.clickable { clipboard.setText(AnnotatedString(text)) },
+            )
+        }
+        Spacer(Modifier.height(6.dp))
+        Column(
+            Modifier.fillMaxWidth().height(400.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(DshSurface2)
+                .border(1.dp, DshBorder, RoundedCornerShape(8.dp))
+                .verticalScroll(rememberScrollState())
+                .padding(10.dp),
+        ) {
+            if (showLines) {
+                lines.forEachIndexed { index, line ->
+                    Row {
+                        Text(
+                            "${index + 1}",
+                            color = DshMuted,
+                            fontSize = 10.sp,
+                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                            modifier = Modifier.width(38.dp),
+                        )
+                        Text(
+                            line,
+                            color = DshText,
+                            fontSize = 11.sp,
+                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                            softWrap = wrap,
+                        )
+                    }
+                }
+            } else {
+                Text(
+                    text,
+                    color = DshText,
+                    fontSize = 11.sp,
+                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                    softWrap = wrap,
+                )
             }
         }
     }
