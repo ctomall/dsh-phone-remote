@@ -86,6 +86,7 @@ private val ToolboxTabs = listOf(
     "ssh" to "SSH",
     "attachments" to "附件",
     "server" to "服务器",
+    "agency" to "专家",
     "files" to "文件",
 )
 
@@ -136,7 +137,74 @@ internal fun ToolboxScreen(vm: NativeViewModel) {
             "ssh" -> SshSection(vm)
             "attachments" -> AttachmentsSection(vm)
             "server" -> ServerSection(vm)
+            "agency" -> AgencySection(vm)
             else -> FilesSection(vm)
+        }
+    }
+}
+
+/* --------------------------------- 专家 --------------------------------- */
+@Composable
+private fun AgencySection(vm: NativeViewModel) {
+    LaunchedEffect(Unit) { if (vm.agencyRaw == null) vm.loadAgency() }
+    val root = vm.agencyRaw
+    val value = root?.optJSONObject("result")?.optJSONObject("value")
+        ?: root?.optJSONObject("value")
+        ?: root?.optJSONObject("result")
+    val teams = value?.optJSONArray("teams")
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 12.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                if (vm.agencyBusy) "读取中…" else "专家团队",
+                color = DshText,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Medium,
+                modifier = Modifier.weight(1f),
+            )
+            Text("刷新", color = DshTeal, fontSize = 10.sp, fontFamily = DshMono, modifier = Modifier.clickable { vm.loadAgency() })
+        }
+        if (vm.agencyError.isNotBlank()) {
+            Text(vm.agencyError, color = DshDanger, fontSize = 11.sp, modifier = Modifier.padding(top = 6.dp))
+        }
+        if (teams == null) {
+            val preview = (value ?: root)?.toString(2).orEmpty().take(1200)
+            Text(
+                if (preview.isBlank()) "暂无数据" else preview,
+                color = DshMuted,
+                fontSize = 10.sp,
+                fontFamily = DshMono,
+                modifier = Modifier.padding(top = 10.dp),
+            )
+        } else {
+            for (i in 0 until teams.length()) {
+                val team = teams.optJSONObject(i) ?: continue
+                val name = team.optString("name").ifBlank { team.optString("title") }
+                val description = team.optString("description")
+                val members = team.optJSONArray("members")
+                Column(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+                    Text(name, color = DshText, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                    if (description.isNotBlank()) {
+                        Text(description, color = DshMuted, fontSize = 10.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    }
+                    if (members != null) {
+                        val slugs = buildList {
+                            for (m in 0 until members.length()) {
+                                val slug = members.optJSONObject(m)?.optString("expertSlug").orEmpty()
+                                if (slug.isNotBlank()) add(slug)
+                            }
+                        }
+                        Text(
+                            "${members.length()} 位成员 · " + slugs.joinToString(" · "),
+                            color = DshMuted,
+                            fontSize = 9.sp,
+                            fontFamily = DshMono,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
+                HorizontalDivider(color = DshBorder, thickness = 1.dp)
+            }
         }
     }
 }

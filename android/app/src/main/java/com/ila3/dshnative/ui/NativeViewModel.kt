@@ -235,6 +235,9 @@ class NativeViewModel(app: Application) : AndroidViewModel(app) {
     var slashCommands by mutableStateOf<List<DshClient.SlashCommand>>(emptyList())
     var commandsBusy by mutableStateOf(false)
     var commandsError by mutableStateOf("")
+    var agencyRaw by mutableStateOf<JSONObject?>(null)
+    var agencyBusy by mutableStateOf(false)
+    var agencyError by mutableStateOf("")
     private var optimizerModeTouched = false
     val optimizerModes = listOf(
         "general" to "通用", "structure" to "结构化", "concise" to "精简", "detail" to "补充细节",
@@ -338,6 +341,18 @@ class NativeViewModel(app: Application) : AndroidViewModel(app) {
         toolboxSection = section
         screen = Screen.Toolbox
         if (section == "skills") loadSkills()
+    }
+
+    fun loadAgency() {
+        val active = client ?: return
+        viewModelScope.launch {
+            agencyBusy = true
+            agencyError = ""
+            runCatching { withContext(Dispatchers.IO) { active.callRaw("agencyAgents/getTeams", JSONObject()) } }
+                .onSuccess { agencyRaw = it }
+                .onFailure { agencyError = it.message ?: "读取专家团队失败" }
+            agencyBusy = false
+        }
     }
 
     fun openCommandSheet() {
