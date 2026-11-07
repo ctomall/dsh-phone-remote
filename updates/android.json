@@ -1,8 +1,8 @@
 {
-  "versionCode": 67,
-  "versionName": "0.23.11",
-  "apkUrl": "https://raw.githubusercontent.com/ctomall/dsh-phone-remote/main/updates/DSHNative-0.23.11.apk",
-  "sha256": "175f8ff1c7bc42df8d607b3f0855f72698b6d37c45cb36731aac87019ba06359",
-  "notes": "文本预览分页：每次加载 500 行，行数与字符数同步",
-  "signature": "MEQCIA3d84FA9ZeJJtxRX+OeudpjNBq4cjFhyqpLluFZevQUAiBLgFQZe7D+PUMufk8ZM79KgBHyBsjLS+mf3Nx2IYQm3Q=="
+  "versionCode": 68,
+  "versionName": "0.23.12",
+  "apkUrl": "https://raw.githubusercontent.com/ctomall/dsh-phone-remote/main/updates/DSHNative-0.23.12.apk",
+  "sha256": "2861dd90a7212a701de0ad8d6c37ad660050ec9463fc05afdd03a18cb7b85a5e",
+  "notes": "文本预览自由选择复制：选择模式、长按选区、隐藏行号",
+  "signature": "MEUCIQCW48/5I663ES17UbaohZXx0S01+LAA3OI+CZ2T1thtcAIgYOEbaovdaUdablCae67ZbWrFSip5x4c3dnJW7alZHe0="
 }
