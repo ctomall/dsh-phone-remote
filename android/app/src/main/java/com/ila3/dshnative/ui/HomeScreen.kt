@@ -14,6 +14,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -575,7 +576,7 @@ internal fun FilePreviewSheet(vm: NativeViewModel) {
                         )
                     }
                 }
-                preview.text != null -> TextPreviewBlock(preview.text, preview.hasMore, onLoadMore = { vm.loadMorePreview() })
+                preview.text != null -> TextPreviewBlock(preview.text, preview.name, preview.hasMore, onLoadMore = { vm.loadMorePreview() })
                 else -> Text("无法预览这个文件", color = DshMuted, fontSize = 12.sp)
             }
             Spacer(Modifier.height(14.dp))
@@ -618,12 +619,17 @@ internal fun FilePreviewSheet(vm: NativeViewModel) {
 }
 
 @Composable
-private fun TextPreviewBlock(text: String, hasMore: Boolean = false, onLoadMore: () -> Unit = {}) {
+private fun TextPreviewBlock(text: String, name: String = "", hasMore: Boolean = false, onLoadMore: () -> Unit = {}) {
+    val isCode = name.substringAfterLast('.', "").lowercase() in setOf(
+        "kt", "java", "ts", "tsx", "js", "jsx", "py", "go", "rs", "c", "cc", "cpp", "h", "hpp",
+        "json", "yml", "yaml", "toml", "sh", "css", "html", "xml", "sql",
+    )
     val clipboard = LocalClipboardManager.current
     var showLines by remember { mutableStateOf(true) }
     var wrap by remember { mutableStateOf(true) }
     var selectable by remember { mutableStateOf(false) }
     val lines = remember(text) { text.lines() }
+    val hScroll = rememberScrollState()
     Column(Modifier.fillMaxWidth()) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(
@@ -672,6 +678,7 @@ private fun TextPreviewBlock(text: String, hasMore: Boolean = false, onLoadMore:
                 .background(DshSurface2)
                 .border(1.dp, DshBorder, RoundedCornerShape(8.dp))
                 .verticalScroll(rememberScrollState())
+                .then(if (!wrap) Modifier.horizontalScroll(hScroll) else Modifier)
                 .padding(10.dp),
         ) {
             if (selectable) {
@@ -695,7 +702,7 @@ private fun TextPreviewBlock(text: String, hasMore: Boolean = false, onLoadMore:
                             modifier = Modifier.width(38.dp),
                         )
                         Text(
-                            line,
+                            if (isCode) highlightLine(line) else androidx.compose.ui.text.AnnotatedString(line),
                             color = DshText,
                             fontSize = 11.sp,
                             fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
@@ -1347,4 +1354,45 @@ private fun matchesKind(name: String, kind: String): Boolean {
         "image" -> ext in setOf("png", "jpg", "jpeg", "webp", "gif", "svg", "bmp")
         else -> true
     }
+}
+
+
+private val CodeKeywords = setOf(
+    "fun", "val", "var", "if", "else", "for", "while", "return", "class", "object", "interface",
+    "import", "package", "const", "let", "function", "def", "async", "await", "public", "private",
+    "protected", "struct", "impl", "fn", "use", "pub", "mut", "new", "this", "self", "null", "true",
+    "false", "try", "catch", "finally", "throw", "switch", "case", "break", "continue", "export",
+    "default", "from", "type", "enum", "extends", "implements", "static", "void", "int", "string",
+)
+
+private fun highlightLine(line: String): androidx.compose.ui.text.AnnotatedString {
+    val builder = androidx.compose.ui.text.AnnotatedString.Builder(line)
+    val code = line
+    val occupied = BooleanArray(code.length)
+    fun mark(start: Int, end: Int, color: androidx.compose.ui.graphics.Color) {
+        if (start < 0 || end > code.length || start >= end) return
+        for (i in start until end) {
+            if (occupied[i]) return
+        }
+        for (i in start until end) occupied[i] = true
+        builder.addStyle(androidx.compose.ui.text.SpanStyle(color = color), start, end)
+    }
+    val commentIndex = when {
+        code.contains("//") -> code.indexOf("//")
+        code.trimStart().startsWith("#") -> code.indexOf('#')
+        else -> -1
+    }
+    if (commentIndex >= 0) mark(commentIndex, code.length, androidx.compose.ui.graphics.Color(0xFF8A8173))
+    Regex("\"([^\"\\\\]|\\\\.)*\"|'([^'\\\\]|\\\\.)*'").findAll(code).forEach {
+        mark(it.range.first, it.range.last + 1, androidx.compose.ui.graphics.Color(0xFF3F6B4A))
+    }
+    Regex("\\b\\d+(?:\\.\\d+)?\\b").findAll(code).forEach {
+        if (!occupied[it.range.first]) mark(it.range.first, it.range.last + 1, androidx.compose.ui.graphics.Color(0xFFB07A2A))
+    }
+    Regex("[A-Za-z_][A-Za-z0-9_]*").findAll(code).forEach { match ->
+        if (match.value in CodeKeywords && !occupied[match.range.first]) {
+            mark(match.range.first, match.range.last + 1, androidx.compose.ui.graphics.Color(0xFF1F4E79))
+        }
+    }
+    return builder.toAnnotatedString()
 }
