@@ -206,6 +206,83 @@ export async function handleMobileRequest(request, response, context) {
       })
       return true
     }
+    // 在线升级：清单与 APK 都从网关出，彻底绕开 GitHub 可达性
+    // （局域网里只有网关 8080 活着时也能升级）
+    if (path === '/update' && request.method === 'GET') {
+      const fsp = await import('node:fs/promises')
+      const manifestPath = process.env.DSH_POCKET_MANIFEST
+        ?? '/var/www/tongpin-demo/dsh-pocket/android.json'
+      const text = await fsp.readFile(manifestPath, 'utf8')
+      const manifest = JSON.parse(text)
+      const origin = `http://${request.headers.host ?? context.upstream.host}`
+      manifest.url = `${origin}/phone/api/mobile/v1/apk?v=${encodeURIComponent(manifest.version)}`
+      manifest.fallback = undefined
+      json(response, manifest)
+      return true
+    }
+    if (path === '/apk' && request.method === 'GET') {
+      const fsp = await import('node:fs/promises')
+      const pathmod = await import('node:path')
+      const version = url.searchParams.get('v') ?? ''
+      if (!/^[0-9]+\.[0-9]+\.[0-9]+$/.test(version)) {
+        response.writeHead(400, { 'content-type': 'application/json' })
+        response.end(JSON.stringify({ error: 'bad version' }))
+        return true
+      }
+      const dir = process.env.DSH_POCKET_DIR ?? '/var/www/tongpin-demo/dsh-pocket'
+      const file = pathmod.join(dir, `dsh-pocket-${version}.apk`)
+      const bytes = await fsp.readFile(file)
+      response.writeHead(200, {
+        'content-type': 'application/vnd.android.package-archive',
+        'content-length': String(bytes.byteLength),
+        'cache-control': 'no-store',
+      })
+      response.end(bytes)
+      return true
+    }
+    // C1 插件页：读本 profile 真实安装的插件包（node_modules 的 package.json），不是猜的
+    if (path === '/plugins' && request.method === 'GET') {
+      const fsp = await import('node:fs/promises')
+      const modulePath = await import('node:path')
+      const roots = [
+        modulePath.join(process.env.DSH_PROFILE_DIR ?? '', '..'),
+      ]
+      const plugins = []
+      const dirs = new Set()
+      // 依次探测：profile 目录下 node_modules（web/headless 两个 profile 都试）
+      for (const base of ['/home/pro/.dsh/profiles/web', '/home/pro/.dsh/profiles/headless']) {
+        dirs.add(modulePath.join(base, 'node_modules'))
+      }
+      for (const dir of dirs) {
+        let entries = []
+        try { entries = await fsp.readdir(dir, { withFileTypes: true }) } catch { continue }
+        for (const ent of entries) {
+          const candidates = []
+          if (ent.name.startsWith('@')) {
+            let subs = []
+            try { subs = await fsp.readdir(modulePath.join(dir, ent.name), { withFileTypes: true }) } catch { continue }
+            for (const sub of subs) candidates.push(modulePath.join(dir, ent.name, sub.name, 'package.json'))
+          } else {
+            candidates.push(modulePath.join(dir, ent.name, 'package.json'))
+          }
+          for (const file of candidates) {
+            let pkg
+            try { pkg = JSON.parse(await fsp.readFile(file, 'utf8')) } catch { continue }
+            const name = typeof pkg.name === 'string' ? pkg.name : ''
+            if (!name || !(name.includes('dsh') || name.startsWith('@deepseek-ai') || name.includes('cordis'))) continue
+            if (plugins.some((x) => x.name === name)) continue
+            plugins.push({
+              name,
+              version: typeof pkg.version === 'string' ? pkg.version : '',
+              description: typeof pkg.description === 'string' ? pkg.description : '',
+            })
+          }
+        }
+      }
+      plugins.sort((a, b) => a.name.localeCompare(b.name))
+      json(response, { plugins, count: plugins.length })
+      return true
+    }
     const taskMatch = /^\/tasks\/([^/]+)$/u.exec(path)
     if (taskMatch && request.method === 'GET') {
       const sessionId = decodeURIComponent(taskMatch[1])
