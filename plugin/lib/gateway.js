@@ -495,7 +495,10 @@ export class PhoneGateway {
     this.state.touch(device, { ip, userAgent: request.headers['user-agent'] ?? '' })
     if (localPath.startsWith('/api/mobile/v1')) {
       request.url = `${localPath}${url.search}`
-      await handleMobileRequest(request, response, { upstream: this.upstream })
+      await handleMobileRequest(request, response, {
+        upstream: this.upstream,
+        trustedAuthority: this.trustedAuthority(),
+      })
       return
     }
     request.url = `${localPath}${url.search}`
@@ -503,6 +506,7 @@ export class PhoneGateway {
       upstream: this.upstream,
       secure: this.isHttps(),
       publicBase: this.publicBase,
+      trustedAuthority: this.trustedAuthority(),
       ip,
     })
   }
@@ -527,6 +531,28 @@ export class PhoneGateway {
    */
   isHttps() {
     return this.tls !== null || (this.config.trustProxy && this.publicBase.startsWith('https://'))
+  }
+
+  /**
+   * 反向代理要报的 Host 权威：必须逐字等于宿主 `--trusted-host` 声明的那一个，
+   * 否则 DSH 的 /api 浏览器信任栅栏一律 401，新配对设备就得额外带上游 cookie。
+   * 从 publicUrl 推（https 默认 443、http 默认 80 时省略端口）。
+   * @returns {string} authority,或空串表示不覆盖。
+   */
+  trustedAuthority() {
+    const candidate = typeof this.config.publicUrl === 'string' && this.config.publicUrl.trim().length > 0
+      ? this.config.publicUrl.trim()
+      : (typeof this.config.publicHost === 'string' && this.config.publicHost.trim().length > 0
+        ? `https://${this.config.publicHost.trim()}`
+        : '')
+    if (candidate.length === 0) return ''
+    try {
+      const url = new URL(candidate)
+      const defaultPort = url.protocol === 'https:' ? '443' : '80'
+      return url.port === '' || url.port === defaultPort ? url.hostname : `${url.hostname}:${url.port}`
+    } catch {
+      return ''
+    }
   }
 
   /**
@@ -715,6 +741,7 @@ export class PhoneGateway {
         upstream: this.upstream,
         secure: this.isHttps(),
         publicBase: this.publicBase,
+        trustedAuthority: this.trustedAuthority(),
         ip,
       })
     } catch {

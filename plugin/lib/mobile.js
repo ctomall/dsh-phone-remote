@@ -51,7 +51,7 @@ function readJson(request) {
  * @param {object} args - args payload.
  * @returns {Promise<object>} `result.value`.
  */
-function callDsh(upstream, cookie, method, args) {
+function callDsh(upstream, cookie, method, args, trustedAuthority) {
   return new Promise((resolve, reject) => {
     const body = JSON.stringify({
       type: 'client-request',
@@ -68,7 +68,7 @@ function callDsh(upstream, cookie, method, args) {
         headers: {
           'content-type': 'application/json',
           'content-length': Buffer.byteLength(body),
-          host: upstream.host,
+          host: trustedAuthority && trustedAuthority.length > 0 ? trustedAuthority : upstream.host,
           cookie,
         },
         timeout: 15_000,
@@ -130,8 +130,8 @@ function mapQuestion(session, pending) {
   }
 }
 
-async function loadQuestions(upstream, cookie, session) {
-  const value = await callDsh(upstream, cookie, 'session/projections', { request: { sessionId: session.sessionId } })
+async function loadQuestions(upstream, cookie, session, trustedAuthority) {
+  const value = await callDsh(upstream, cookie, 'session/projections', { request: { sessionId: session.sessionId } }, trustedAuthority)
   const active = value.values?.userQuestions?.active ?? []
   return active
     .filter((pending) => typeof pending.callId === 'string' && pending.callId.length > 0)
@@ -146,14 +146,14 @@ async function loadQuestions(upstream, cookie, session) {
  * @param {string} cookie - inbound cookie header.
  * @returns {Promise<object>} inbox payload.
  */
-async function composeInbox(upstream, cookie) {
-  const value = await callDsh(upstream, cookie, 'session/list', { _request: {} })
+async function composeInbox(upstream, cookie, trustedAuthority) {
+  const value = await callDsh(upstream, cookie, 'session/list', { _request: {} }, trustedAuthority)
   const sessions = (value.items ?? []).filter((item) => typeof item.sessionId === 'string')
   const running = sessions.filter((item) => item.running === true)
   const questions = []
   for (const session of running.slice(0, 8)) {
     try {
-      questions.push(...(await loadQuestions(upstream, cookie, session)))
+      questions.push(...(await loadQuestions(upstream, cookie, session, trustedAuthority)))
     } catch {
       // one broken session must not blank the inbox
     }
@@ -180,11 +180,11 @@ export async function handleMobileRequest(request, response, context) {
   const path = url.pathname.slice(PREFIX.length)
   try {
     if (path === '/inbox' && request.method === 'GET') {
-      json(response, await composeInbox(context.upstream, cookie))
+      json(response, await composeInbox(context.upstream, cookie, context.trustedAuthority))
       return true
     }
     if (path === '/tasks' && request.method === 'GET') {
-      const value = await callDsh(context.upstream, cookie, 'session/list', { _request: {} })
+      const value = await callDsh(context.upstream, cookie, 'session/list', { _request: {} }, context.trustedAuthority)
       const tasks = (value.items ?? []).filter((item) => typeof item.sessionId === 'string').map(mapSession)
       json(response, { tasks })
       return true
@@ -286,13 +286,13 @@ export async function handleMobileRequest(request, response, context) {
     const taskMatch = /^\/tasks\/([^/]+)$/u.exec(path)
     if (taskMatch && request.method === 'GET') {
       const sessionId = decodeURIComponent(taskMatch[1])
-      const value = await callDsh(context.upstream, cookie, 'session/list', { _request: {} })
+      const value = await callDsh(context.upstream, cookie, 'session/list', { _request: {} }, context.trustedAuthority)
       const item = (value.items ?? []).find((entry) => entry.sessionId === sessionId)
       if (!item) {
         json(response, { error: 'task not found' }, 404)
         return true
       }
-      const questions = await loadQuestions(context.upstream, cookie, item).catch(() => [])
+      const questions = await loadQuestions(context.upstream, cookie, item, context.trustedAuthority).catch(() => [])
       json(response, { task: mapSession(item), questions })
       return true
     }
@@ -306,7 +306,7 @@ export async function handleMobileRequest(request, response, context) {
         agentId: sessionId,
         callId,
         answer: { answers },
-      })
+      }, context.trustedAuthority)
       json(response, { ok: true })
       return true
     }

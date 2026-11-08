@@ -39,6 +39,8 @@ function requestHeaders(request, upstream, context) {
     if (value === undefined || HOP_BY_HOP.has(name)) continue
     headers[name] = value
   }
+  // DSH 的 /api 栅栏只认 loopback 权威（实测：Host=127.0.0.1:<port> + cookie → 200；
+  // Host=dsh.ila3.top → unauthorized）。所以这里必须钉 loopback，不能改成公网权威。
   const authority = `127.0.0.1:${upstream.port || '80'}`
   headers.host = authority
   if (headers.origin !== undefined) headers.origin = `http://${authority}`
