@@ -167,6 +167,102 @@ async function composeInbox(upstream, cookie, trustedAuthority) {
 }
 
 /**
+ * Collect host facts for the phone monitor page: CPU/memory plus disk usage and
+ * the busiest processes. Dependencies are injectable so the fixture test can
+ * assert the shape without a real host.
+ * @param {object} [deps] - overrides for tests.
+ * @param {(args: string[]) => Promise<string>} [deps.run] - command runner.
+ * @param {(path: string) => Promise<{bsize:number,blocks:number,bavail:number}>} [deps.statfs] - statfs.
+ * @param {() => number} [deps.now] - clock.
+ * @returns {Promise<object>} host facts.
+ */
+export async function collectHostFacts(deps = {}) {
+  const os = await import('node:os')
+  const run = deps.run ?? (async (args) => {
+    const { execFile } = await import('node:child_process')
+    return await new Promise((resolve, reject) => {
+      execFile(args[0], args.slice(1), { timeout: 4000, maxBuffer: 1 << 20 }, (error, stdout) => {
+        if (error) reject(error)
+        else resolve(String(stdout))
+      })
+    })
+  })
+  const statfs = deps.statfs ?? (async (path) => {
+    const fsp = await import('node:fs/promises')
+    return await fsp.statfs(path)
+  })
+
+  const mem = process.memoryUsage()
+  const load = os.loadavg()
+  const facts = {
+    host: os.hostname(),
+    platform: `${os.platform()} ${os.release()}`,
+    uptimeSec: Math.round(process.uptime()),
+    load1: Number(load[0].toFixed(2)),
+    load5: Number(load[1].toFixed(2)),
+    rssMb: Math.round(mem.rss / 1048576),
+    heapMb: Math.round(mem.heapUsed / 1048576),
+    cpus: os.cpus().length,
+    disk: [],
+    processes: [],
+  }
+
+  // 磁盘：根与当前工作目录各一条；任一路径失败不影响另一条。
+  for (const path of ['/', process.cwd()]) {
+    try {
+      const st = await statfs(path)
+      const total = Number(st.bsize) * Number(st.blocks)
+      const free = Number(st.bsize) * Number(st.bavail)
+      if (Number.isFinite(total) && total > 0) {
+        facts.disk.push({
+          path,
+          totalMb: Math.round(total / 1048576),
+          freeMb: Math.round(free / 1048576),
+          usedPct: Math.round(((total - free) / total) * 1000) / 10,
+        })
+      }
+    } catch {
+      // 单个路径不可读就跳过，不让监控页整体失败
+    }
+  }
+
+  // 进程：ps 的 CPU 前 8 名；非 Linux/无 ps 时留空数组。
+  if (os.platform() === 'linux' || deps.run !== undefined) {
+    try {
+      const out = await run(['ps', '-eo', 'pid=,pcpu=,pmem=,rss=,comm=', '--sort=-pcpu'])
+      const rows = String(out).split('\n')
+        .map((line) => line.trim())
+        .filter((line) => line.length > 0)
+        // 先剔除 ps 自己再取前 8，否则采样进程会挤掉一个真实进程
+        .filter((line) => !/\sps$/.test(line))
+        .slice(0, 8)
+        .map((line) => {
+          const parts = line.split(/\s+/)
+          const pid = Number(parts[0])
+          const cpu = Number(parts[1])
+          const memPct = Number(parts[2])
+          const rssKb = Number(parts[3])
+          const name = parts.slice(4).join(' ')
+          if (!Number.isFinite(pid)) return null
+          return {
+            pid,
+            cpuPct: Number.isFinite(cpu) ? Math.round(cpu * 10) / 10 : 0,
+            memPct: Number.isFinite(memPct) ? Math.round(memPct * 10) / 10 : 0,
+            rssMb: Number.isFinite(rssKb) ? Math.round(rssKb / 1024) : 0,
+            name: name.slice(0, 40),
+          }
+        })
+        .filter((row) => row !== null)
+      facts.processes = rows
+    } catch {
+      // ps 不可用：保持空数组，前端显示「主机未提供」
+    }
+  }
+
+  return facts
+}
+
+/**
  * Handle one `/api/mobile/v1` request.
  * @param {http.IncomingMessage} request - inbound request.
  * @param {http.ServerResponse} response - downstream response.
@@ -191,19 +287,7 @@ export async function handleMobileRequest(request, response, context) {
     }
     // C5 服务器监控：网关进程所在的机器事实（真实数字，不是编的）
     if (path === '/monitor' && request.method === 'GET') {
-      const os = await import('node:os')
-      const mem = process.memoryUsage()
-      const load = os.loadavg()
-      json(response, {
-        host: os.hostname(),
-        platform: `${os.platform()} ${os.release()}`,
-        uptimeSec: Math.round(process.uptime()),
-        load1: Number(load[0].toFixed(2)),
-        load5: Number(load[1].toFixed(2)),
-        rssMb: Math.round(mem.rss / 1048576),
-        heapMb: Math.round(mem.heapUsed / 1048576),
-        cpus: os.cpus().length,
-      })
+      json(response, await collectHostFacts())
       return true
     }
     // 在线升级：清单与 APK 都从网关出，彻底绕开 GitHub 可达性
